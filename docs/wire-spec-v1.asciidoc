@@ -20,6 +20,8 @@ However more may be added in future versions.
 
 This protocol is intended to conform to HTTP semantics as closely as possible, however it is not intended to be a RESTful protocol. The semantics of EJB invocation to not necessarily map well to REST, and JAX-RS already provides a standard way to map EJB invocation to RESTful web services.
 
+TODO: do we hard code the 'river' marshalling strategy or do we require a header that specifies the strategy?
+
 == Protocol
 
 The protocol is based on HTTP, and is intended to be used over both HTTP/1.1 and HTTP/2. All services are mapped a location in the _Cluster Service Context Path_ which by default is +/wildfly-services+. This context path is configurable per connector, and can be disabled entirely. Each specific protocol will be mapped to a sub location inside the service context path. For example EJB will be mapped to +/wildfly-services/ejb/+.
@@ -78,7 +80,7 @@ Message Type:: +application/x-wf-ejb-invocation+
 Method::: +POST+
 URI:: +/ejb/\{applicationName}/\{moduleName}/\{distinctName}/\{beanName}/\{sfsbSessionId}/\{viewClass}/\{methodName}/\{paramType1}/\{paramType1}/...+
 Additional Required Headers::
-+Accept: +application/x-wf-ejb-response;version=1,application/x-wf-ejb-exception;version=1, application/x-wf-ejb-invocation-id;version=1++
++Accept: application/x-wf-ejb-response;version=1,application/x-wf-ejb-exception;version=1, application/x-wf-ejb-invocation-id;version=1++
 Additional Optional Headers::
 +X-wf-ejb-allow-cancellation: true+
 +Cookie: JSESSIONID=\{sessionAffinityKey}+
@@ -95,7 +97,7 @@ Message Type:: +application/x-wf-ejb-session-open+
 Method::: +POST+
 URI:: +/ejb/\{applicationName}/\{moduleName}/\{distinctName}/\{beanName}+
 Additional Required Headers::
-+Accept: +application/x-wf-ejb-new-session;version=1,application/x-wf-ejb-exception;version=1++
++Accept: application/x-wf-ejb-new-session;version=1,application/x-wf-ejb-exception;version=1+
 Additional Optional Headers::
 +Cookie: JSESSIONID=\{sessionAffinityKey}+
 Request Body::
@@ -109,7 +111,7 @@ Message Type:: +application/x-wf-ejb-cancel+
 Method::: ++DELETE++
 URI:: +/ejb/\{applicationName}/\{moduleName}/\{distinctName}/\{invocation-id}+
 Additional Required Headers::
-+Accept: +application/x-wf-ejb-cancelled;version=1++
++Accept: application/x-wf-ejb-cancelled;version=1+
 +Cookie: JSESSIONID=\{sessionAffinityKey}+
 Request Body::
 The request body is empty.
@@ -122,7 +124,7 @@ Message Type:: +application/x-wf-ejb-invocation-result+
 Method::: +POST+
 URI:: +/ejb/\{applicationName}/\{moduleName}/\{distinctName}/\{invocation-id}+
 Additional Required Headers::
-+Accept: +application/x-wf-ejb-response;version=1,application/x-wf-ejb-exception;version=1++
++Accept: application/x-wf-ejb-response;version=1,application/x-wf-ejb-exception;version=1+
 +Cookie: JSESSIONID=\{sessionAffinityKey}+
 Request Body::
 The request body is empty.
@@ -137,7 +139,7 @@ Message Type:: +application/x-wf-ejb-response+
 Optional Headers::
 +Set-Cookie: JSESSIONID=\{sessionAffinityKey}+
 Response Body::
-For non void methods the response body contains the serialized response object, for void methods the response body is empty.
+For non void methods the response body contains the serialized response object, followed by the serialized attachments map. For void methods the serialized object will be the serialized representation of +null+.
 Response Codes::
  * +200+ Returned for a successful invocation
  * +202+ Returned for a successful invocation of an asynchronous method. This will be returned immediately, the request may not have finished processing yet.
@@ -146,7 +148,7 @@ Response Codes::
 
 Message Type:: +application/x-wf-ejb-exception+
 Response Body::
-This response body contains a serialized representation of the exception
+This response body contains a serialized representation of the exception, followed by an optional serialized representation of the attachments map
 Response Codes::
  * +400+ General malformed request (missing headers etc)
  * +403+ Authorization failure
