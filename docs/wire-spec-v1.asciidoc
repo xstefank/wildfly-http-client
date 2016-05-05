@@ -85,7 +85,7 @@ The method body consists of n parameter values, serialized using JBoss Marshalli
 Notes::
 This message sends a request to the server. If the request completes successfully (or is submitted successfully in the case of a void returning async EJB methods) the server will respond with an +x-wf-ejb-response response+. If an error occurred the server will respond with an +x-wf-ejb-exception+ response.
 
-If the invocation id is specified but no session id is present the server will respond with a +302+ redirect that sets a session id cookie, and will not process the request. The invocation id should only be set for requests that require cancellation support.
+If the invocation id is specified the session id must also be specified. The client can use an affinity message to get a session id if it does not already have one. The invocation id should only be set for requests that require cancellation support.
 
 ==== EJB Session Open
 
@@ -113,6 +113,16 @@ Request Body::
 The request body is empty.
 
 This message cancels an async request.
+
+==== EJB Affinity
+
+Message Type:: +application/x-wf-ejb-affinity+
+Method::: ++GET++
+URI:: +/ejb/\{applicationName}/\{moduleName}/\{distinctName}+
+Request Body::
+The request body is empty.
+
+This message generates a session id, that can be used to make sure requests end up at the same backend node.
 
 === Response Messages
 
