@@ -65,13 +65,9 @@ This protocol does not directly support clustering, clustering is achieved using
 
 The EJB protocol is mapped to the +/ejb+ context inside the service context path. When specifying the URI for a request all fields are required, if they are null or empty they should be replaced with a ‘-’ character.
 
-This protocol has been designed to work with the existing EJB client API, however it should also be usable in a simplified standalone manner. This simplified mode will allow a user to provide a URL and credentials to an InitialContext, lookup an EJB and invoke on it.
+This protocol has been designed to work with the existing EJB client API.
 
-=== Standalone HTTP client
-
-In addition to supporting the existing EJB client we will also provide a simplified HTTP only client. This client uses a more traditional approach, in that the server URL is provided to the InitialContext as a provider URL, and the resulting EJB proxies are not stateless, but are tied to the connection/URL of the InitialContext that created them. Connection management is automatic, with client managed connection pools and automatic (configurable) timeouts.
-
-This is not intended to replace the existing EJB client library in any way, but to provide a simpler version that is closer to what other application servers provide.
+Cancellation support is provided through the use of a client side invocation id and a session cookie. The session cookie makes sure a cancellation goes to the correct server and ensures there are no conflicts, while the invocation id is used to identity the invocation to cancel.
 
 === Request Messages
 
@@ -82,14 +78,14 @@ URI:: +/ejb/\{applicationName}/\{moduleName}/\{distinctName}/\{beanName}/\{sfsbS
 Additional Required Headers::
 +Accept: application/x-wf-ejb-response;version=1,application/x-wf-ejb-exception;version=1, application/x-wf-ejb-invocation-id;version=1++
 Additional Optional Headers::
-+X-wf-ejb-allow-cancellation: true+
 +Cookie: JSESSIONID=\{sessionAffinityKey}+
+X-wf-invocation-id: {invocationId}
 Request Body::
 The method body consists of n parameter values, serialized using JBoss Marshalling, followed by a serialized attachments map of the form +Map<String, Object>+.
 Notes::
 This message sends a request to the server. If the request completes successfully (or is submitted successfully in the case of a void returning async EJB methods) the server will respond with an +x-wf-ejb-response response+. If an error occurred the server will respond with an +x-wf-ejb-exception+ response.
 
-If the +X-wf-ejb-allow-cancellation+ header is true and the target method is an asynchronous method that returns a Future then a +x-wf-ejb-invocation-id+ message will be returned. This method contains the invocation ID of the async method, and the server may retrieve it or cancel it using this async id. In this case a session ID must be used to ensure cancel and retrieve messages are sent to the correct server.
+If the invocation id is specified but no session id is present the server will respond with a +302+ redirect that sets a session id cookie, and will not process the request. The invocation id should only be set for requests that require cancellation support.
 
 ==== EJB Session Open
 
@@ -117,19 +113,6 @@ Request Body::
 The request body is empty.
 
 This message cancels an async request.
-
-==== EJB Invocation Result
-
-Message Type:: +application/x-wf-ejb-invocation-result+
-Method::: +POST+
-URI:: +/ejb/\{applicationName}/\{moduleName}/\{distinctName}/\{invocation-id}+
-Additional Required Headers::
-+Accept: application/x-wf-ejb-response;version=1,application/x-wf-ejb-exception;version=1+
-+Cookie: JSESSIONID=\{sessionAffinityKey}+
-Request Body::
-The request body is empty.
-
-This method is used to retrieve the body of an async request. Note that this should be sent immediately after the async method invocation was submitted, as the server will not keep async results around forever (as this would constitute a memory leak). By default a server will keep a result for 60 seconds after the async invocation has completed.
 
 === Response Messages
 
