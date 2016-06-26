@@ -33,7 +33,7 @@ EAP: https://issues.jboss.org/browse/EAP7-446[]
 
 WFLY: https://issues.jboss.org/browse/WFLY-5029[]
 
-Wire protocol: https://github.com/stuartwdouglas/wildfly-http-client/blob/master/docs/wire-spec-v1.asciidoc[]
+Wire protocol: https://github.com/stuartwdouglas/wildfly-http-client/blob/master/docs/src/main/asciidoc/wire-spec-v1.asciidoc[]
 
 Dev contact: Stuart Douglas
 
