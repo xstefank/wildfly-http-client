@@ -87,6 +87,8 @@ This message sends a request to the server. If the request completes successfull
 
 If the invocation id is specified the session id must also be specified. The client can use an affinity message to get a session id if it does not already have one. The invocation id should only be set for requests that require cancellation support.
 
+The sfsbSessionId parameter is a base64 encoded representation of the SFSB EJB session id, if the invocation is not targetting a stateful bean then it should be a +-+.
+
 ==== EJB Session Open
 
 Message Type:: +application/x-wf-ejb-session-open+

@@ -1,0 +1,81 @@
+= Wildfly Service Invocation over HTTP Analysis Document
+:Author:    Stuart Douglas
+:Email:     <sdouglas@redhat.com>
+:Date:      2016
+:Revision:  1.0
+:toc:   left
+
+
+== Overview
+
+The intent of this feature is to provide access to EJB, JNDI and transactions through via the HTTP protocol. Operations
+will be mapped to HTTP requests/responses in a one to one manner, and HTTP semantics will be followed as closely as
+possible. This protocol will be designed to work with existing load balancers.
+
+On the server side this also includes support for HTTPS, AJP and HTTP/2. On the client side HTTPS and HTTP/2 will be
+supported. Unless explicitly stated otherwise the information in this document applies to all of the above protocols.
+
+== Background
+
+At the moment even though EJB invocations can use the HTTP port they do not use HTTP semantics. Instead a single HTTP
+upgrade request is sent to the server, and after this the connection is upgrade to use HTTP remoting.
+
+The problem with this approach is that it does not work very will with HTTP load balancers. Assuming the balancer actually
+supports HTTP upgrade the connection can only be routed to a single server. It is not possible to route different invocations
+from the same client to a different node.
+
+This feature will add support for EJB invocation using the HTTP protocol, so EJB requests will be mapped directly to HTTP
+requests.
+
+== Issue Metadata
+
+EAP: https://issues.jboss.org/browse/EAP7-446[]
+
+WFLY: https://issues.jboss.org/browse/WFLY-5029[]
+
+Wire protocol: https://github.com/stuartwdouglas/wildfly-http-client/blob/master/docs/wire-spec-v1.asciidoc[]
+
+Dev contact: Stuart Douglas
+
+QE Contact:
+
+
+== Requirements
+
+=== Hard Requirements
+
+ * EJB must be invokable over HTTP
+ * Must map to standard HTTP semantics. Standard headers should be used where possible.
+ * Must be usable with the existing EJB Client API
+ * Must work with existing load balancers
+ * Must perform at an acceptable level. In particular HTTP/2 performance should be comparable to remoting
+
+=== Non Requirements
+
+ * Client side clustering as is currently implemented in the EJB Client is not a requirement
+ * It is not required that this API be usable by non Java client. Due to the use of JBoss Marshalling for serialization
+ there is no easy way for other clients to use this API without also implementing JBoss Marshalling compatibility.
+    If interoperability with other clients is required then JAX-RS should be used instead.
+
+== Design Details
+
+There are two distinct parts to this work, the server an client side implementations. As this is effectively a reimplementation
+of the existing EJB functionality but over a different protocol much of what needs to be implemented will basically be
+a translation of the remoting based implementation into a HTTP based one.
+
+=== Server side
+
+The server side implementation will consist of a service that handles incoming HTTP requests, unmarshals them and then
+hands the result off to the internal EJB invocation code. The actual implementation will be very similar to the existing
+remoting based message handlers, but using HTTP.
+
+=== Client side
+
+The client side will consist of an `EJBReceiver` implementation that will use the Undertow HTTP client to invoke the
+server. Connection management will be handled automatically using a connection pool. As most of this work is essentially
+just a HTTP based implementation of existing interfaces it is expected to be straightforward.
+
+=== Wire protocol
+
+The wire protocol is specified in the separate wire protocol document (see issue metadata above).
+
