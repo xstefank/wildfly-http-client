@@ -67,7 +67,7 @@ class HttpConnectionPool implements Closeable {
             if(count == maxConnections) {
                 return;
             }
-        } while (currentConnectionCount.compareAndSet(count, count + 1));
+        } while (!currentConnectionCount.compareAndSet(count, count + 1));
         RequestHolder next = pendingConnectionRequests.poll();
         if(next == null) {
             currentConnectionCount.decrementAndGet();

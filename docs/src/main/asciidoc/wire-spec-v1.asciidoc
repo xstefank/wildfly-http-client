@@ -145,7 +145,7 @@ Response Codes::
 
 Message Type:: +application/x-wf-ejb-exception+
 Response Body::
-This response body contains a serialized representation of the exception, followed by an optional serialized representation of the attachments map
+This response body contains a serialized representation of the exception, followed by a serialized representation of the attachments map
 Response Codes::
  * +400+ General malformed request (missing headers etc)
  * +403+ Authorization failure
