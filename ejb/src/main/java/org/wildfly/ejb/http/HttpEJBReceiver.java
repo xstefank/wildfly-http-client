@@ -177,13 +177,9 @@ public class HttpEJBReceiver extends EJBReceiver {
 
                                     //TODO: this all needs to be done properly
                                     ClientResponse response = result.getResponse();
-                                    if (response.getResponseCode() >= 400) {
-                                        invocationFailed(receiverContext, new IOException());
-                                        return;
-                                    }
                                     String type = response.getResponseHeaders().getFirst(Headers.CONTENT_TYPE);
                                     //TODO: proper comparison, there may be spaces
-                                    if (type == null || !type.equals(EjbHeaders.EJB_RESPONSE_VERSION_ONE)) {
+                                    if (type == null || !(type.equals(EjbHeaders.EJB_RESPONSE_VERSION_ONE) || type.equals(EjbHeaders.EJB_EXCEPTION_VERSION_ONE))) {
                                         invocationFailed(receiverContext, new IOException("invalid response type " + type));
                                         return;
                                     }
@@ -193,10 +189,17 @@ public class HttpEJBReceiver extends EJBReceiver {
                                         Object returned = unmarshaller.readObject();
                                         // read the attachments
                                         //TODO: do we need attachments?
-                                        final Map<String, Object> attachments =readAttachments(unmarshaller);
+                                        final Map<String, Object> attachments = readAttachments(unmarshaller);
 
                                         // finish unmarshalling
                                         unmarshaller.finish();
+
+                                        if (response.getResponseCode() >= 400) {
+
+
+                                            invocationFailed(receiverContext, (Exception)returned);
+                                            return;
+                                        }
                                         receiverContext.resultReady(new EJBReceiverInvocationContext.ResultProducer() {
                                             @Override
                                             public Object getResult() throws Exception {

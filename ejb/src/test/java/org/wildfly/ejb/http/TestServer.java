@@ -189,7 +189,7 @@ public class TestServer extends BlockJUnit4ClassRunner {
             unmarshaller.finish();
 
 
-            TestEJBInvocation invocation = new TestEJBInvocation(exchange, app, module, distict, bean, sessionID, view, method, paramTypes, params, privateAttachments, contextData);
+            TestEJBInvocation invocation = new TestEJBInvocation(app, module, distict, bean, sessionID, view, method, paramTypes, params, privateAttachments, contextData);
 
             try {
                 Object result = handler.handle(invocation);
@@ -226,7 +226,7 @@ public class TestServer extends BlockJUnit4ClassRunner {
         // start the marshaller
         marshaller.start(byteOutput);
         marshaller.writeObject(e);
-        marshaller.writeObject(Collections.emptyMap());
+        marshaller.write(0);
         marshaller.finish();
         marshaller.flush();
     }

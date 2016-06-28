@@ -3,13 +3,10 @@ package org.wildfly.ejb.http;
 import java.util.Arrays;
 import java.util.Map;
 
-import io.undertow.server.HttpServerExchange;
-
 /**
  * @author Stuart Douglas
  */
 public class TestEJBInvocation {
-    private final HttpServerExchange exchange;
 
     private final String app;
     private final String module;
@@ -23,8 +20,7 @@ public class TestEJBInvocation {
     private final Map<?, ?> privateAttachments;
     private final Map<String, Object> contextData;
 
-    public TestEJBInvocation(HttpServerExchange exchange, String app, String module, String distict, String bean, String sessionID, Class<?> view, String method, Class[] paramTypes, Object[] params, Map<?, ?> privateAttachments, Map<String, Object> contextData) {
-        this.exchange = exchange;
+    public TestEJBInvocation(String app, String module, String distict, String bean, String sessionID, Class<?> view, String method, Class[] paramTypes, Object[] params, Map<?, ?> privateAttachments, Map<String, Object> contextData) {
         this.app = app;
         this.module = module;
         this.distict = distict;
@@ -70,10 +66,6 @@ public class TestEJBInvocation {
         return paramTypes;
     }
 
-    public HttpServerExchange getExchange() {
-        return exchange;
-    }
-
     public Object[] getParams() {
         return params;
     }
@@ -89,7 +81,6 @@ public class TestEJBInvocation {
     @Override
     public String toString() {
         return "TestEJBInvocation{" +
-                "exchange=" + exchange +
                 ", app='" + app + '\'' +
                 ", module='" + module + '\'' +
                 ", distict='" + distict + '\'' +

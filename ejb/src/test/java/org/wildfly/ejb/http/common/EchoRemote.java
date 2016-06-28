@@ -27,5 +27,5 @@ package org.wildfly.ejb.http.common;
  */
 public interface EchoRemote {
 
-    String echo(String msg);
+    String echo(String msg) throws Exception;
 }
