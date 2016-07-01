@@ -7,6 +7,7 @@ import java.io.ObjectInput;
 import java.io.OutputStream;
 import java.net.URI;
 import java.util.Base64;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -68,7 +69,7 @@ public class HttpEJBReceiver extends EJBReceiver {
     @Override
     protected void associate(EJBReceiverContext context) {
         //TODO: fix
-        HttpConnectionPool pool = new HttpConnectionPool(10, 10, worker, bufferPool, ssl, options, uri);
+        HttpConnectionPool pool = new HttpConnectionPool(10, 10, worker, bufferPool, ssl, options, new HostPool(Collections.singletonList(uri)));
         context.getClientContext().putAttachment(this.pool, pool);
     }
 

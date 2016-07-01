@@ -42,7 +42,7 @@ The request and response type is specified through the content type header. All 
 
 === Compression
 
-Compression is optionally supported by all protocols and message types, and is indicated by the +Content-Encoding+. Gzip and Deflate should be supported by default. A client must send an +Accept-Encoding+ header to the server detailing the acceptable compression types if it supports compression.
+Compression is optionally supported by all protocols and message types, and is indicated by the +Content-Encoding+. Gzip should be supported by default. A client must send an +Accept-Encoding+ header to the server detailing the acceptable compression types if it supports compression.
 
 Request compression is also supported, however as the client has no way to know if the server will be able to decompress it must be prepared to resend a non compressed response if the server cannot process it. If the server cannot process the compressed request it will respond with a +406+ status code and an +Accept-Encoding+ header that specifies the compression types it supports (this header may be empty). A client may query the supported compression types by sending a +HEAD+ request.
 
@@ -87,7 +87,7 @@ This message sends a request to the server. If the request completes successfull
 
 If the invocation id is specified the session id must also be specified. The client can use an affinity message to get a session id if it does not already have one. The invocation id should only be set for requests that require cancellation support.
 
-The sfsbSessionId parameter is a base64 encoded representation of the SFSB EJB session id, if the invocation is not targetting a stateful bean then it should be a +-+.
+The sfsbSessionId parameter is a base64 encoded representation of the SFSB EJB session id, if the invocation is not targeting a stateful bean then it should be a +-+.
 
 ==== EJB Session Open
 

@@ -11,14 +11,16 @@ import org.xnio.ssl.XnioSsl;
 
 import java.io.Closeable;
 import java.io.IOException;
+import java.net.InetAddress;
 import java.net.URI;
+import java.net.URISyntaxException;
+import java.net.UnknownHostException;
 import java.util.concurrent.ConcurrentLinkedDeque;
 import java.util.concurrent.atomic.AtomicInteger;
 
 /**
- * A pool of HTTP connections.
+ * A pool of HTTP connections for a given host pool.
  *
- * TODO: this currently sucks
  *
  * @author Stuart Douglas
  */
@@ -30,21 +32,21 @@ class HttpConnectionPool implements Closeable {
     private final ByteBufferPool byteBufferPool;
     private final XnioSsl ssl;
     private final OptionMap options;
-    private final URI uri;
+    private final HostPool hostPool;
 
     private final ConcurrentLinkedDeque<ClientConnection> connections = new ConcurrentLinkedDeque<>();
     private final ConcurrentLinkedDeque<RequestHolder> pendingConnectionRequests = new ConcurrentLinkedDeque<>();
     private final AtomicInteger currentConnectionCount = new AtomicInteger();
 
 
-    public HttpConnectionPool(int maxConnections, int maxRequestsPerConnection, XnioWorker worker, ByteBufferPool byteBufferPool, XnioSsl ssl, OptionMap options, URI uri) {
+    public HttpConnectionPool(int maxConnections, int maxRequestsPerConnection, XnioWorker worker, ByteBufferPool byteBufferPool, XnioSsl ssl, OptionMap options, HostPool hostPool) {
         this.maxConnections = maxConnections;
         this.maxRequestsPerConnection = maxRequestsPerConnection;
         this.worker = worker;
         this.byteBufferPool = byteBufferPool;
         this.ssl = ssl;
         this.options = options;
-        this.uri = uri;
+        this.hostPool = hostPool;
     }
 
     public void getConnection(ConnectionListener connectionListener, ErrorListener errorListener, boolean ignoreConnectionLimits) throws IOException {
@@ -78,24 +80,37 @@ class HttpConnectionPool implements Closeable {
             next.connectionListener.done(existingConnection);
             return;
         }
-        UndertowClient.getInstance().connect(new ClientCallback<ClientConnection>() {
-            @Override
-            public void completed(ClientConnection result) {
-                result.getCloseSetter().set(new ChannelListener<ClientConnection>() {
-                    @Override
-                    public void handleEvent(ClientConnection channel) {
-                        connections.remove(channel);
-                    }
-                });
-                next.connectionListener.done(result);
-            }
+        HostPool.AddressResult holder = hostPool.getAddress();
+        InetAddress address;
+        try {
+            address = holder.getAddress();
+        } catch (UnknownHostException e) {
+            next.errorListener.error(e);
+            return;
+        }
+        try {
+            UndertowClient.getInstance().connect(new ClientCallback<ClientConnection>() {
+                @Override
+                public void completed(ClientConnection result) {
+                    result.getCloseSetter().set(new ChannelListener<ClientConnection>() {
+                        @Override
+                        public void handleEvent(ClientConnection channel) {
+                            connections.remove(channel);
+                        }
+                    });
+                    next.connectionListener.done(result);
+                }
 
-            @Override
-            public void failed(IOException e) {
-                currentConnectionCount.decrementAndGet();
-                next.errorListener.error(e);
-            }
-        }, uri, worker, ssl, byteBufferPool, options);
+                @Override
+                public void failed(IOException e) {
+                    holder.failed(); //notify the host pool that this host has failed
+                    currentConnectionCount.decrementAndGet();
+                    next.errorListener.error(e);
+                }
+            }, new URI(holder.getURI().getScheme(), holder.getURI().getUserInfo(), address.getHostAddress(), holder.getURI().getPort(), "/", null, null), worker, ssl, byteBufferPool, options);
+        } catch (URISyntaxException e) {
+            next.errorListener.error(e);
+        }
 
 
     }
