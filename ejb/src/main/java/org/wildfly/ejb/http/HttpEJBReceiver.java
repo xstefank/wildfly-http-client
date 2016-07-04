@@ -32,7 +32,6 @@ import org.xnio.ssl.XnioSsl;
 import org.xnio.streams.ChannelInputStream;
 import org.xnio.streams.ChannelOutputStream;
 import io.undertow.client.ClientCallback;
-import io.undertow.client.ClientConnection;
 import io.undertow.client.ClientExchange;
 import io.undertow.client.ClientRequest;
 import io.undertow.client.ClientResponse;
@@ -69,7 +68,7 @@ public class HttpEJBReceiver extends EJBReceiver {
     @Override
     protected void associate(EJBReceiverContext context) {
         //TODO: fix
-        HttpConnectionPool pool = new HttpConnectionPool(10, 10, worker, bufferPool, ssl, options, new HostPool(Collections.singletonList(uri)));
+        HttpConnectionPool pool = new HttpConnectionPool(10, 10, worker, bufferPool, ssl, options, new HostPool(Collections.singletonList(uri)), 0);
         context.getClientContext().putAttachment(this.pool, pool);
     }
 
@@ -100,7 +99,7 @@ public class HttpEJBReceiver extends EJBReceiver {
         });
     }
 
-    private void connectionReady(EJBClientInvocationContext clientInvocationContext, EJBReceiverInvocationContext receiverContext, ClientConnection connection) {
+    private void connectionReady(EJBClientInvocationContext clientInvocationContext, EJBReceiverInvocationContext receiverContext, HttpConnectionPool.ConnectionHandle connection) {
 
         EJBLocator<?> locator = clientInvocationContext.getLocator();
         EjbInvocationBuilder builder = new EjbInvocationBuilder()
@@ -114,68 +113,28 @@ public class HttpEJBReceiver extends EJBReceiver {
         if (locator instanceof StatefulEJBLocator) {
             builder.setBeanId(Base64.getEncoder().encodeToString(((StatefulEJBLocator) locator).getSessionId().getEncodedForm()));
         }
-        ClientRequest request = builder.createRequest("/wildfly-services"); //TODO: FIX THIS
+        ClientRequest request = builder.createRequest(uri.getPath()); //TODO: FIX THIS
         request.getRequestHeaders().put(Headers.TRANSFER_ENCODING, "chunked");
-        connection.sendRequest(request, new ClientCallback<ClientExchange>() {
+        connection.getConnection().sendRequest(request, new ClientCallback<ClientExchange>() {
             @Override
             public void completed(ClientExchange result) {
                 //marshalling is blocking, we need to delegate, otherwise we may need to buffer arbitrarily large requests
-                connection.getWorker().execute(() -> {
-                    OutputStream outputStream = null;
-                    try {
+                connection.getConnection().getWorker().execute(() -> {
+                    try (OutputStream outputStream = new BufferedOutputStream(new ChannelOutputStream(result.getRequestChannel()))){
+
                         // marshall the locator and method params
                         final MarshallingConfiguration marshallingConfiguration = new MarshallingConfiguration();
                         marshallingConfiguration.setClassTable(ProtocolV1ClassTable.INSTANCE);
                         marshallingConfiguration.setObjectTable(ProtocolV1ObjectTable.INSTANCE);
                         marshallingConfiguration.setVersion(2);
-                        final Marshaller marshaller = marshallerFactory.createMarshaller(marshallingConfiguration);
-                        outputStream = new BufferedOutputStream(new ChannelOutputStream(result.getRequestChannel()));
-                        final ByteOutput byteOutput = Marshalling.createByteOutput(outputStream);
-                        // start the marshaller
-                        marshaller.start(byteOutput);
 
-                        Object[] methodParams = clientInvocationContext.getParameters();
-                        if (methodParams != null && methodParams.length > 0) {
-                            for (final Object methodParam : methodParams) {
-                                marshaller.writeObject(methodParam);
-                            }
-                        }
-                        // write out the attachments
-                        // we write out the private (a.k.a JBoss specific) attachments as well as public invocation context data
-                        // (a.k.a user application specific data)
-                        final Map<?, ?> privateAttachments = clientInvocationContext.getAttachments();
-                        final Map<String, Object> contextData = clientInvocationContext.getContextData();
-                        // no private or public data to write out
-                        if (contextData == null && privateAttachments.isEmpty()) {
-                            marshaller.writeByte(0);
-                        } else {
-                            // write the attachment count which is the sum of invocation context data + 1 (since we write
-                            // out the private attachments under a single key with the value being the entire attachment map)
-                            int totalAttachments = contextData.size();
-                            if (!privateAttachments.isEmpty()) {
-                                totalAttachments++;
-                            }
-                            PackedInteger.writePackedInteger(marshaller, totalAttachments);
-                            // write out public (application specific) context data
-                            for (Map.Entry<String, Object> invocationContextData : contextData.entrySet()) {
-                                marshaller.writeObject(invocationContextData.getKey());
-                                marshaller.writeObject(invocationContextData.getValue());
-                            }
-                            if (!privateAttachments.isEmpty()) {
-                                // now write out the JBoss specific attachments under a single key and the value will be the
-                                // entire map of JBoss specific attachments
-                                marshaller.writeObject(EJBClientInvocationContext.PRIVATE_ATTACHMENTS_KEY);
-                                marshaller.writeObject(privateAttachments);
-                            }
-                        }
-                        // finish marshalling
-                        marshaller.finish();
+
+                        marshalEJBRequest(outputStream, marshallingConfiguration, clientInvocationContext);
 
                         result.setResponseListener(new ClientCallback<ClientExchange>() {
                             @Override
                             public void completed(ClientExchange result) {
                                 worker.execute(() -> {
-
                                     //TODO: this all needs to be done properly
                                     ClientResponse response = result.getResponse();
                                     String type = response.getResponseHeaders().getFirst(Headers.CONTENT_TYPE);
@@ -191,16 +150,15 @@ public class HttpEJBReceiver extends EJBReceiver {
                                         // read the attachments
                                         //TODO: do we need attachments?
                                         final Map<String, Object> attachments = readAttachments(unmarshaller);
-
                                         // finish unmarshalling
                                         unmarshaller.finish();
+                                        connection.done(false);
 
                                         if (response.getResponseCode() >= 400) {
-
-
-                                            invocationFailed(receiverContext, (Exception)returned);
+                                            invocationFailed(receiverContext, (Exception) returned);
                                             return;
                                         }
+
                                         receiverContext.resultReady(new EJBReceiverInvocationContext.ResultProducer() {
                                             @Override
                                             public Object getResult() throws Exception {
@@ -214,31 +172,76 @@ public class HttpEJBReceiver extends EJBReceiver {
                                         });
 
                                     } catch (Exception e) {
+                                        connection.done(true);
                                         invocationFailed(receiverContext, e);
                                     }
                                 });
-
                             }
 
                             @Override
                             public void failed(IOException e) {
+                                connection.done(true);
                                 invocationFailed(receiverContext, e);
                             }
                         });
                     } catch (IOException e) {
+                        connection.done(true);
                         invocationFailed(receiverContext, e);
-                    } finally {
-                        IoUtils.safeClose(outputStream);
                     }
                 });
             }
 
             @Override
             public void failed(IOException e) {
+                connection.done(true);
                 invocationFailed(receiverContext, e);
             }
         });
 
+    }
+
+    private void marshalEJBRequest(OutputStream outputStream, MarshallingConfiguration marshallingConfiguration, EJBClientInvocationContext clientInvocationContext) throws IOException {
+        final Marshaller marshaller = marshallerFactory.createMarshaller(marshallingConfiguration);
+        final ByteOutput byteOutput = Marshalling.createByteOutput(outputStream);
+        // start the marshaller
+        marshaller.start(byteOutput);
+
+        Object[] methodParams = clientInvocationContext.getParameters();
+        if (methodParams != null && methodParams.length > 0) {
+            for (final Object methodParam : methodParams) {
+                marshaller.writeObject(methodParam);
+            }
+        }
+        // write out the attachments
+        // we write out the private (a.k.a JBoss specific) attachments as well as public invocation context data
+        // (a.k.a user application specific data)
+        final Map<?, ?> privateAttachments = clientInvocationContext.getAttachments();
+        final Map<String, Object> contextData = clientInvocationContext.getContextData();
+        // no private or public data to write out
+        if (contextData == null && privateAttachments.isEmpty()) {
+            marshaller.writeByte(0);
+        } else {
+            // write the attachment count which is the sum of invocation context data + 1 (since we write
+            // out the private attachments under a single key with the value being the entire attachment map)
+            int totalAttachments = contextData.size();
+            if (!privateAttachments.isEmpty()) {
+                totalAttachments++;
+            }
+            PackedInteger.writePackedInteger(marshaller, totalAttachments);
+            // write out public (application specific) context data
+            for (Map.Entry<String, Object> invocationContextData : contextData.entrySet()) {
+                marshaller.writeObject(invocationContextData.getKey());
+                marshaller.writeObject(invocationContextData.getValue());
+            }
+            if (!privateAttachments.isEmpty()) {
+                // now write out the JBoss specific attachments under a single key and the value will be the
+                // entire map of JBoss specific attachments
+                marshaller.writeObject(EJBClientInvocationContext.PRIVATE_ATTACHMENTS_KEY);
+                marshaller.writeObject(privateAttachments);
+            }
+        }
+        // finish marshalling
+        marshaller.finish();
     }
 
     @Override

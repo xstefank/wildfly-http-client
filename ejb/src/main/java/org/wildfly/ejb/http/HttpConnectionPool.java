@@ -5,7 +5,9 @@ import io.undertow.client.ClientConnection;
 import io.undertow.client.UndertowClient;
 import io.undertow.connector.ByteBufferPool;
 import org.xnio.ChannelListener;
+import org.xnio.IoUtils;
 import org.xnio.OptionMap;
+import org.xnio.XnioExecutor;
 import org.xnio.XnioWorker;
 import org.xnio.ssl.XnioSsl;
 
@@ -16,6 +18,7 @@ import java.net.URI;
 import java.net.URISyntaxException;
 import java.net.UnknownHostException;
 import java.util.concurrent.ConcurrentLinkedDeque;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
 /**
@@ -33,13 +36,14 @@ class HttpConnectionPool implements Closeable {
     private final XnioSsl ssl;
     private final OptionMap options;
     private final HostPool hostPool;
+    private final long connectionIdleTimeout;
 
-    private final ConcurrentLinkedDeque<ClientConnection> connections = new ConcurrentLinkedDeque<>();
+    private final ConcurrentLinkedDeque<ClientConnectionHolder> connections = new ConcurrentLinkedDeque<>();
     private final ConcurrentLinkedDeque<RequestHolder> pendingConnectionRequests = new ConcurrentLinkedDeque<>();
     private final AtomicInteger currentConnectionCount = new AtomicInteger();
 
 
-    public HttpConnectionPool(int maxConnections, int maxRequestsPerConnection, XnioWorker worker, ByteBufferPool byteBufferPool, XnioSsl ssl, OptionMap options, HostPool hostPool) {
+    public HttpConnectionPool(int maxConnections, int maxRequestsPerConnection, XnioWorker worker, ByteBufferPool byteBufferPool, XnioSsl ssl, OptionMap options, HostPool hostPool, long connectionIdleTimeout) {
         this.maxConnections = maxConnections;
         this.maxRequestsPerConnection = maxRequestsPerConnection;
         this.worker = worker;
@@ -47,16 +51,17 @@ class HttpConnectionPool implements Closeable {
         this.ssl = ssl;
         this.options = options;
         this.hostPool = hostPool;
+        this.connectionIdleTimeout = connectionIdleTimeout;
     }
 
-    public void getConnection(ConnectionListener connectionListener, ErrorListener errorListener, boolean ignoreConnectionLimits) throws IOException {
+    public void getConnection(ConnectionListener connectionListener, ErrorListener errorListener, boolean ignoreConnectionLimits) {
         pendingConnectionRequests.add(new RequestHolder(connectionListener, errorListener, ignoreConnectionLimits));
         runPending();
     }
 
-    public void returnConnection(ClientConnection connection) {
+    public void returnConnection(ClientConnectionHolder connection) {
         currentConnectionCount.decrementAndGet();
-        if(connection.isOpen()) {
+        if(connection.getConnection().isOpen()) {
             connections.add(connection);
         }
         runPending();
@@ -75,10 +80,15 @@ class HttpConnectionPool implements Closeable {
             currentConnectionCount.decrementAndGet();
             return;
         }
-        ClientConnection existingConnection = connections.poll();
-        if(existingConnection != null) {
-            next.connectionListener.done(existingConnection);
-            return;
+        for(;;) {
+            ClientConnectionHolder existingConnection = connections.poll();
+            if(existingConnection == null) {
+                break;
+            }
+            if (existingConnection.tryAquire()) {
+                next.connectionListener.done(existingConnection);
+                return;
+            }
         }
         HostPool.AddressResult holder = hostPool.getAddress();
         InetAddress address;
@@ -98,7 +108,9 @@ class HttpConnectionPool implements Closeable {
                             connections.remove(channel);
                         }
                     });
-                    next.connectionListener.done(result);
+                    ClientConnectionHolder clientConnectionHolder = new ClientConnectionHolder(result);
+                    clientConnectionHolder.tryAquire(); //aways suceeds
+                    next.connectionListener.done(clientConnectionHolder);
                 }
 
                 @Override
@@ -122,7 +134,7 @@ class HttpConnectionPool implements Closeable {
 
     public interface ConnectionListener {
 
-        void done(ClientConnection connection);
+        void done(ConnectionHandle connection);
 
     }
 
@@ -131,6 +143,13 @@ class HttpConnectionPool implements Closeable {
         void error(Exception e);
 
     }
+
+    public interface ConnectionHandle {
+        ClientConnection getConnection();
+
+        void done(boolean close);
+    }
+
 
     private static class RequestHolder {
         final ConnectionListener connectionListener;
@@ -141,6 +160,74 @@ class HttpConnectionPool implements Closeable {
             this.connectionListener = connectionListener;
             this.errorListener = errorListener;
             this.ignoreConnectionLimits = ignoreConnectionLimits;
+        }
+    }
+
+    private class ClientConnectionHolder implements ConnectionHandle{
+
+        //0 = idle
+        //1 = in use
+        //2 - closed
+        private volatile AtomicInteger state = new AtomicInteger();
+        private final ClientConnection connection;
+        private volatile XnioExecutor.Key timeoutKey;
+        private long timeout;
+
+        private final Runnable timeoutTask = new Runnable() {
+            @Override
+            public void run() {
+                timeoutKey = null;
+                if(state.get() == 2) {
+                    return;
+                }
+                long time = System.currentTimeMillis();
+                if(timeout > time) {
+                    timeoutKey = connection.getIoThread().executeAfter(this, timeout - time, TimeUnit.MILLISECONDS);
+                    return;
+                }
+                if(tryClose()) {
+                    currentConnectionCount.decrementAndGet();
+                    runPending(); //needed to avoid a very unlikely race
+                }
+            }
+        };
+
+        private ClientConnectionHolder(ClientConnection connection) {
+            this.connection = connection;
+        }
+
+        boolean tryClose() {
+            if(state.compareAndSet(0, 2)) {
+                IoUtils.safeClose(connection);
+                return true;
+            }
+            return false;
+        }
+
+        boolean tryAquire() {
+            return state.compareAndSet(0, 1);
+        }
+
+        @Override
+        public ClientConnection getConnection() {
+            return connection;
+        }
+
+        @Override
+        public void done(boolean close) {
+            if(close) {
+                IoUtils.safeClose(connection);
+            }
+            timeout = System.currentTimeMillis() + connectionIdleTimeout;
+
+            if(!state.compareAndSet(1, 0)) {
+                throw HttpClientMessages.MESSAGES.connectionInWrongState();
+            }
+
+            if(timeoutKey == null && connectionIdleTimeout > 0 && !close) {
+                timeoutKey = connection.getIoThread().executeAfter(timeoutTask, connectionIdleTimeout, TimeUnit.MILLISECONDS);
+            }
+            returnConnection(this);
         }
     }
 

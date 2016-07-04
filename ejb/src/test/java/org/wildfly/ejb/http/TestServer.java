@@ -42,6 +42,7 @@ import io.undertow.util.NetworkUtils;
 public class TestServer extends BlockJUnit4ClassRunner {
 
     public static final int BUFFER_SIZE = Integer.getInteger("test.bufferSize", 8192 * 3);
+    public static final PathHandler PATH_HANDLER = new PathHandler();
     private static boolean first = true;
     private static Undertow undertow;
 
@@ -64,6 +65,10 @@ public class TestServer extends BlockJUnit4ClassRunner {
      * @return The base URL that can be used to make connections to this server
      */
     public static String getDefaultServerURL() {
+        return getDefaultRootServerURL() + "/wildfly-services";
+    }
+
+    public static String getDefaultRootServerURL() {
         return "http://" + NetworkUtils.formatPossibleIpv6Address(getHostAddress()) + ":" + getHostPort();
     }
 
@@ -102,7 +107,7 @@ public class TestServer extends BlockJUnit4ClassRunner {
                 worker = xnio.createWorker(OptionMap.create(Options.WORKER_TASK_CORE_THREADS, 20, Options.WORKER_IO_THREADS, 10));
                 undertow = Undertow.builder()
                         .addHttpListener(getHostPort(), getHostAddress())
-                        .setHandler(new PathHandler().addPrefixPath("/wildfly-services", new TestEjbHandler()))
+                        .setHandler(PATH_HANDLER.addPrefixPath("/wildfly-services", new TestEjbHandler()))
                         .build();
                 undertow.start();
                 notifier.addListener(new RunListener() {
