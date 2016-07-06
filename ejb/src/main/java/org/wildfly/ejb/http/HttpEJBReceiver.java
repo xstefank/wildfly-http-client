@@ -11,6 +11,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
 
 import org.jboss.ejb.client.AttachmentKey;
 import org.jboss.ejb.client.EJBClientConfiguration;
@@ -41,6 +42,9 @@ import io.undertow.client.ClientExchange;
 import io.undertow.client.ClientRequest;
 import io.undertow.client.ClientResponse;
 import io.undertow.connector.ByteBufferPool;
+import io.undertow.server.handlers.Cookie;
+import io.undertow.util.Cookies;
+import io.undertow.util.HeaderValues;
 import io.undertow.util.Headers;
 
 /**
@@ -48,7 +52,11 @@ import io.undertow.util.Headers;
  */
 public class HttpEJBReceiver extends EJBReceiver {
 
-    private final AttachmentKey<HttpConnectionPool> pool = new AttachmentKey<>();
+    private static final String JSESSIONID = "JSESSIONID"; //TODO: make configurable
+    private final AttachmentKey<HttpConnectionPool> poolAttachmentKey = new AttachmentKey<>();
+
+    private final AttachmentKey<AtomicReference<String>> sessionIdAttachmentKey = new AttachmentKey<>();
+
     private final URI uri;
     private final XnioWorker worker;
     private final ByteBufferPool bufferPool;
@@ -74,23 +82,27 @@ public class HttpEJBReceiver extends EJBReceiver {
     protected void associate(EJBReceiverContext context) {
         //TODO: fix
         HttpConnectionPool pool = new HttpConnectionPool(10, 10, worker, bufferPool, ssl, options, new HostPool(Collections.singletonList(uri)), 0);
-        context.getClientContext().putAttachment(this.pool, pool);
+        context.putAttachment(this.poolAttachmentKey, pool);
+        context.putAttachment(this.sessionIdAttachmentKey, new AtomicReference<>());
     }
 
     @Override
     protected void disassociate(EJBReceiverContext context) {
-        HttpConnectionPool pool = context.getClientContext().getAttachment(this.pool);
+        HttpConnectionPool pool = context.getAttachment(this.poolAttachmentKey);
+        context.removeAttachment(this.poolAttachmentKey);
+        context.removeAttachment(this.sessionIdAttachmentKey);
         IoUtils.safeClose(pool);
     }
 
     @Override
     protected void processInvocation(EJBClientInvocationContext clientInvocationContext, EJBReceiverInvocationContext receiverContext) throws Exception {
-        HttpConnectionPool pool = clientInvocationContext.getClientContext().getAttachment(this.pool);
-        pool.getConnection((connection) -> invocationConnectionReady(clientInvocationContext, receiverContext, connection), (e) -> receiverContext.resultReady(new StaticResultProducer(e, null)), false);
+        HttpConnectionPool pool = receiverContext.getEjbReceiverContext().getAttachment(this.poolAttachmentKey);
+        final AtomicReference<String> sessionAffinity = receiverContext.getEjbReceiverContext().getAttachment(sessionIdAttachmentKey);
+        pool.getConnection((connection) -> invocationConnectionReady(clientInvocationContext, receiverContext, connection, sessionAffinity), (e) -> receiverContext.resultReady(new StaticResultProducer(e, null)), false);
 
     }
 
-    private void invocationConnectionReady(EJBClientInvocationContext clientInvocationContext, EJBReceiverInvocationContext receiverContext, HttpConnectionPool.ConnectionHandle connection) {
+    private void invocationConnectionReady(EJBClientInvocationContext clientInvocationContext, EJBReceiverInvocationContext receiverContext, HttpConnectionPool.ConnectionHandle connection, AtomicReference<String> sessionAffinityCookie) {
 
         EJBLocator<?> locator = clientInvocationContext.getLocator();
         EjbInvocationBuilder builder = new EjbInvocationBuilder()
@@ -100,6 +112,7 @@ public class HttpEJBReceiver extends EJBReceiver {
                 .setModuleName(locator.getModuleName())
                 .setDistinctName(locator.getDistinctName())
                 .setView(clientInvocationContext.getViewClass().getName())
+                .setSessionId(sessionAffinityCookie.get())
                 .setBeanName(locator.getBeanName());
         if (locator instanceof StatefulEJBLocator) {
             builder.setBeanId(Base64.getEncoder().encodeToString(((StatefulEJBLocator) locator).getSessionId().getEncodedForm()));
@@ -136,17 +149,18 @@ public class HttpEJBReceiver extends EJBReceiver {
                     final Exception ex = exception;
                     receiverContext.resultReady(new StaticResultProducer(ex, ret));
                 }),
-                (e) -> receiverContext.resultReady(new StaticResultProducer(e instanceof Exception ? (Exception) e : new RuntimeException(e), null)), EjbHeaders.EJB_RESPONSE_VERSION_ONE);
+                (e) -> receiverContext.resultReady(new StaticResultProducer(e instanceof Exception ? (Exception) e : new RuntimeException(e), null)), EjbHeaders.EJB_RESPONSE_VERSION_ONE, sessionAffinityCookie);
 
     }
 
     @Override
     protected <T> StatefulEJBLocator<T> openSession(EJBReceiverContext context, Class<T> viewType, String appName, String moduleName, String distinctName, String beanName) throws IllegalArgumentException {
 
-        HttpConnectionPool pool = context.getClientContext().getAttachment(this.pool);
+        HttpConnectionPool pool = context.getAttachment(this.poolAttachmentKey);
         FutureResult<StatefulEJBLocator<T>> result = new FutureResult<>();
+        final AtomicReference<String> sessionAffinity = context.getAttachment(sessionIdAttachmentKey);
 
-        pool.getConnection((connection) -> openSessionConnectionReady(connection, result, viewType, appName, moduleName, distinctName, beanName), (e) -> {
+        pool.getConnection((connection) -> openSessionConnectionReady(connection, result, viewType, appName, moduleName, distinctName, beanName, sessionAffinity), (e) -> {
             result.setException(new IOException(e));
         }, false);
 
@@ -166,7 +180,7 @@ public class HttpEJBReceiver extends EJBReceiver {
         }
     }
 
-    private <T> void openSessionConnectionReady(HttpConnectionPool.ConnectionHandle connection, FutureResult<StatefulEJBLocator<T>> result, Class<T> viewType, String appName, String moduleName, String distinctName, String beanName) throws IllegalArgumentException {
+    private <T> void openSessionConnectionReady(HttpConnectionPool.ConnectionHandle connection, FutureResult<StatefulEJBLocator<T>> result, Class<T> viewType, String appName, String moduleName, String distinctName, String beanName, final AtomicReference<String> sessionAffinity) throws IllegalArgumentException {
 
         EjbInvocationBuilder builder = new EjbInvocationBuilder()
                 .setInvocationType(EjbInvocationBuilder.InvocationType.STATEFUL_CREATE)
@@ -174,6 +188,7 @@ public class HttpEJBReceiver extends EJBReceiver {
                 .setModuleName(moduleName)
                 .setDistinctName(distinctName)
                 .setView(viewType.getName())
+                .setSessionId(sessionAffinity.get())
                 .setBeanName(beanName);
         ClientRequest request = builder.createRequest(uri.getPath()); //TODO: FIX THIS
         sendRequest(connection, request, null,
@@ -196,11 +211,11 @@ public class HttpEJBReceiver extends EJBReceiver {
                     }
                     result.setResult((StatefulEJBLocator<T>) returned);
                 })
-                , (e) -> result.setException(new IOException(e)), EjbHeaders.EJB_RESPONSE_NEW_SESSION);
+                , (e) -> result.setException(new IOException(e)), EjbHeaders.EJB_RESPONSE_NEW_SESSION, sessionAffinity);
 
     }
 
-    private void sendRequest(final HttpConnectionPool.ConnectionHandle connection, ClientRequest request, EjbMarshaller ejbMarshaller, EjbResultHandler ejbResultHandler, EjbFailureHandler failureHandler, String expectedResponse) {
+    private void sendRequest(final HttpConnectionPool.ConnectionHandle connection, ClientRequest request, EjbMarshaller ejbMarshaller, EjbResultHandler ejbResultHandler, EjbFailureHandler failureHandler, String expectedResponse, final AtomicReference<String> sessionAffinity) {
 
         connection.getConnection().sendRequest(request, new ClientCallback<ClientExchange>() {
             @Override
@@ -241,6 +256,16 @@ public class HttpEJBReceiver extends EJBReceiver {
                                         return;
                                     }
                                     try {
+                                        //handle session affinity
+                                        HeaderValues cookies = response.getResponseHeaders().get(Headers.SET_COOKIE);
+                                        if(cookies != null) {
+                                            for (String cookie : cookies) {
+                                                Cookie c = Cookies.parseSetCookieHeader(cookie);
+                                                if (c.getName().equals(JSESSIONID)) {
+                                                    sessionAffinity.set(c.getValue());
+                                                }
+                                            }
+                                        }
                                         final Unmarshaller unmarshaller = marshallerFactory.createUnmarshaller(marshallingConfiguration);
                                         unmarshaller.start(new InputStreamByteInput(new BufferedInputStream(new ChannelInputStream(result.getResponseChannel()))));
                                         ejbResultHandler.handleResult(unmarshaller, response);

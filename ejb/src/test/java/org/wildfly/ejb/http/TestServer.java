@@ -35,6 +35,8 @@ import io.undertow.connector.ByteBufferPool;
 import io.undertow.server.DefaultByteBufferPool;
 import io.undertow.server.HttpHandler;
 import io.undertow.server.HttpServerExchange;
+import io.undertow.server.handlers.Cookie;
+import io.undertow.server.handlers.CookieImpl;
 import io.undertow.server.handlers.PathHandler;
 import io.undertow.testutils.DebuggingSlicePool;
 import io.undertow.testutils.DefaultServer;
@@ -46,9 +48,12 @@ import io.undertow.util.NetworkUtils;
  */
 public class TestServer extends BlockJUnit4ClassRunner {
 
+
+    private static final String JSESSIONID = "JSESSIONID";
     public static final int BUFFER_SIZE = Integer.getInteger("test.bufferSize", 8192 * 3);
     private static final PathHandler PATH_HANDLER = new PathHandler();
     public static final String SFSB_ID = "SFSB_ID";
+    public static final String WILDFLY_SERVICES = "/wildfly-services";
     private static boolean first = true;
     private static Undertow undertow;
 
@@ -73,7 +78,7 @@ public class TestServer extends BlockJUnit4ClassRunner {
      * @return The base URL that can be used to make connections to this server
      */
     public static String getDefaultServerURL() {
-        return getDefaultRootServerURL() + "/wildfly-services";
+        return getDefaultRootServerURL() + WILDFLY_SERVICES;
     }
 
     public static String getDefaultRootServerURL() {
@@ -264,14 +269,22 @@ public class TestServer extends BlockJUnit4ClassRunner {
             }
 
             unmarshaller.finish();
+            Cookie cookie = exchange.getRequestCookies().get(JSESSIONID);
+            String sessionAffinity = null;
+            if(cookie != null) {
+                sessionAffinity = cookie.getValue();
+            }
 
 
-            TestEJBInvocation invocation = new TestEJBInvocation(app, module, distict, bean, sessionID, view, method, paramTypes, params, privateAttachments, contextData);
+            TestEJBInvocation invocation = new TestEJBInvocation(app, module, distict, bean, sessionID, sessionAffinity, view, method, paramTypes, params, privateAttachments, contextData);
 
             try {
-                Object result = handler.handle(invocation);
+                TestEjbOutput output = new TestEjbOutput();
+                Object result = handler.handle(invocation, output);
                 exchange.getResponseHeaders().put(Headers.CONTENT_TYPE, EjbHeaders.EJB_RESPONSE_VERSION_ONE);
-
+                if(output.getSessionAffinity() != null) {
+                    exchange.getResponseCookies().put("JSESSIONID", new CookieImpl("JSESSIONID", output.getSessionAffinity()).setPath(WILDFLY_SERVICES));
+                }
                 final Marshaller marshaller = marshallerFactory.createMarshaller(marshallingConfiguration);
                 OutputStream outputStream = exchange.getOutputStream();
                 final ByteOutput byteOutput = Marshalling.createByteOutput(outputStream);

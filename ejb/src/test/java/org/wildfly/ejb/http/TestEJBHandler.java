@@ -5,5 +5,5 @@ package org.wildfly.ejb.http;
  */
 public interface TestEJBHandler {
 
-    Object handle(TestEJBInvocation invocation) throws Exception;
+    Object handle(TestEJBInvocation invocation, TestEjbOutput out) throws Exception;
 }

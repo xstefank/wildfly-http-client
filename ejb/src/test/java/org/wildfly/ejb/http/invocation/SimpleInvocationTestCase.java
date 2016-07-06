@@ -31,7 +31,7 @@ public class SimpleInvocationTestCase {
 
     @Test
     public void testSimpleInvocation() throws Exception {
-        TestServer.setHandler(invocation -> invocation.getParams()[0]);
+        TestServer.setHandler((invocation, out) -> invocation.getParams()[0]);
         final StatelessEJBLocator<EchoRemote> statelessEJBLocator = new StatelessEJBLocator<EchoRemote>(EchoRemote.class, APP, MODULE, EchoBean.class.getSimpleName(), "");
         final EchoRemote proxy = EJBClient.createProxy(statelessEJBLocator);
         final String message = "Hello World!!!";
@@ -47,9 +47,33 @@ public class SimpleInvocationTestCase {
         }
     }
 
+
+    @Test
+    public void testInvocationAffinity() throws Exception {
+        TestServer.setHandler((invocation, out) -> {
+            out.setSessionAffinity("foo");
+            return invocation.getSessionAffinity();
+        });
+        final StatelessEJBLocator<EchoRemote> statelessEJBLocator = new StatelessEJBLocator<EchoRemote>(EchoRemote.class, APP, MODULE, EchoBean.class.getSimpleName(), "");
+        final EchoRemote proxy = EJBClient.createProxy(statelessEJBLocator);
+        final EJBClientContext ejbClientContext = EJBClientContext.create();
+        MarshallerFactory factory = new RiverMarshallerFactory();
+        ejbClientContext.registerEJBReceiver(new HttpEJBReceiver("node", new URI(TestServer.getDefaultServerURL()), TestServer.getWorker(), TestServer.getBufferPool(), null, OptionMap.EMPTY, factory, new HttpEJBReceiver.ModuleID(APP, MODULE, null)));
+        final ContextSelector<EJBClientContext> oldClientContextSelector = EJBClientContext.setConstantContext(ejbClientContext);
+        try {
+            String echo = proxy.echo("");
+            Assert.assertEquals("Unexpected echo message", null, echo);
+            echo = proxy.echo("");
+            Assert.assertEquals("Unexpected echo message", "foo", echo);
+        } finally {
+            EJBClientContext.setSelector(oldClientContextSelector);
+        }
+    }
+
+
     @Test(expected = TestException.class)
     public void testSimpleFailedInvocation() throws Exception {
-        TestServer.setHandler(invocation -> {
+        TestServer.setHandler((invocation, out) -> {
             throw new TestException(invocation.getParams()[0].toString());
         });
         final StatelessEJBLocator<EchoRemote> statelessEJBLocator = new StatelessEJBLocator<EchoRemote>(EchoRemote.class, APP, MODULE, EchoBean.class.getSimpleName(), "");
@@ -60,7 +84,7 @@ public class SimpleInvocationTestCase {
         ejbClientContext.registerEJBReceiver(new HttpEJBReceiver("node", new URI(TestServer.getDefaultServerURL()), TestServer.getWorker(), TestServer.getBufferPool(), null, OptionMap.EMPTY, factory, new HttpEJBReceiver.ModuleID(APP, MODULE, null)));
         final ContextSelector<EJBClientContext> oldClientContextSelector = EJBClientContext.setConstantContext(ejbClientContext);
         try {
-            for(int i =0; i < 10; ++i) {
+            for (int i = 0; i < 10; ++i) {
                 String echo = proxy.echo(message);
                 Assert.assertEquals("Unexpected echo message", message, echo);
             }
@@ -71,7 +95,7 @@ public class SimpleInvocationTestCase {
 
     @Test
     public void testSessionOpen() throws Exception {
-        TestServer.setHandler(invocation -> new String(Base64.getDecoder().decode(invocation.getSessionID())));
+        TestServer.setHandler((invocation, out) -> new String(Base64.getDecoder().decode(invocation.getBeanId())));
         final EJBClientContext ejbClientContext = EJBClientContext.create();
         MarshallerFactory factory = new RiverMarshallerFactory();
         ejbClientContext.registerEJBReceiver(new HttpEJBReceiver("node", new URI(TestServer.getDefaultServerURL()), TestServer.getWorker(), TestServer.getBufferPool(), null, OptionMap.EMPTY, factory, new HttpEJBReceiver.ModuleID(APP, MODULE, null)));

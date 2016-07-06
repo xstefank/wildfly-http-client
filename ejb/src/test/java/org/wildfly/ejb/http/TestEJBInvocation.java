@@ -4,6 +4,8 @@ import java.util.Arrays;
 import java.util.Map;
 
 /**
+ *
+ *
  * @author Stuart Douglas
  */
 public class TestEJBInvocation {
@@ -12,7 +14,8 @@ public class TestEJBInvocation {
     private final String module;
     private final String distict;
     private final String bean;
-    private final String sessionID;
+    private final String beanId;
+    private final String sessionAffinity;
     private final Class<?> view;
     private final String method;
     private final Class[] paramTypes;
@@ -20,12 +23,13 @@ public class TestEJBInvocation {
     private final Map<?, ?> privateAttachments;
     private final Map<String, Object> contextData;
 
-    public TestEJBInvocation(String app, String module, String distict, String bean, String sessionID, Class<?> view, String method, Class[] paramTypes, Object[] params, Map<?, ?> privateAttachments, Map<String, Object> contextData) {
+    public TestEJBInvocation(String app, String module, String distict, String bean, String beanId, String sessionAffinity, Class<?> view, String method, Class[] paramTypes, Object[] params, Map<?, ?> privateAttachments, Map<String, Object> contextData) {
         this.app = app;
         this.module = module;
         this.distict = distict;
         this.bean = bean;
-        this.sessionID = sessionID;
+        this.beanId = beanId;
+        this.sessionAffinity = sessionAffinity;
         this.view = view;
         this.method = method;
         this.paramTypes = paramTypes;
@@ -50,8 +54,8 @@ public class TestEJBInvocation {
         return bean;
     }
 
-    public String getSessionID() {
-        return sessionID;
+    public String getBeanId() {
+        return beanId;
     }
 
     public Class<?> getView() {
@@ -78,6 +82,10 @@ public class TestEJBInvocation {
         return contextData;
     }
 
+    public String getSessionAffinity() {
+        return sessionAffinity;
+    }
+
     @Override
     public String toString() {
         return "TestEJBInvocation{" +
@@ -85,7 +93,7 @@ public class TestEJBInvocation {
                 ", module='" + module + '\'' +
                 ", distict='" + distict + '\'' +
                 ", bean='" + bean + '\'' +
-                ", sessionID='" + sessionID + '\'' +
+                ", beanId='" + beanId + '\'' +
                 ", view=" + view +
                 ", method='" + method + '\'' +
                 ", paramTypes=" + Arrays.toString(paramTypes) +
