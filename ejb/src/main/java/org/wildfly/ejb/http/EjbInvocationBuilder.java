@@ -128,9 +128,10 @@ class EjbInvocationBuilder {
      *
      * @return The request path to invoke
      */
-    private static String buildPath(final String mountPoint, final String appName, final String moduleName, final String distinctName, final String beanName) {
+    private static String buildPath(final String mountPoint, final String appName, final String moduleName, final String distinctName, final String beanName, String view) {
         StringBuilder sb = new StringBuilder();
         buildBeanPath(mountPoint, appName, moduleName, distinctName, beanName, sb);
+        sb.append("/").append(view);
         return sb.toString();
     }
 
@@ -208,7 +209,7 @@ class EjbInvocationBuilder {
             clientRequest.setPath(buildPath(mountPoint, appName, moduleName, distinctName, beanName, beanId, view, method));
             clientRequest.getRequestHeaders().put(Headers.CONTENT_TYPE, EjbHeaders.INVOCATION_VERSION_ONE);
         } else if(invocationType == InvocationType.STATEFUL_CREATE) {
-            clientRequest.setPath(buildPath(mountPoint, appName, moduleName, distinctName, beanName));
+            clientRequest.setPath(buildPath(mountPoint, appName, moduleName, distinctName, beanName, view));
             clientRequest.getRequestHeaders().put(Headers.CONTENT_TYPE, EjbHeaders.SESSION_CREATE_VERSION_ONE);
         } else {
             throw new IllegalStateException();

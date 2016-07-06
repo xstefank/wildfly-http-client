@@ -41,36 +41,13 @@ public class ConnectionPoolTestCase {
 
     private static volatile long currentRequests, maxActiveRequests;
 
-    @BeforeClass
-    public static void before() {
-        TestServer.PATH_HANDLER.addPrefixPath(MAX_CONNECTIONS_PATH, (exchange -> {
-            synchronized (ConnectionPoolTestCase.class) {
-                currentRequests++;
-                if (currentRequests > maxActiveRequests) {
-                    maxActiveRequests = currentRequests;
-                }
-            }
-            Thread.sleep(200);
-            synchronized (ConnectionPoolTestCase.class) {
-                currentRequests--;
-            }
-        }));
-        TestServer.PATH_HANDLER.addPrefixPath(IDLE_TIMEOUT_PATH, (exchange -> {
-            connections.add(exchange.getConnection());
-        }));
-    }
-
-    @AfterClass
-    public static void after() {
-        TestServer.PATH_HANDLER.removePrefixPath(MAX_CONNECTIONS_PATH);
-        TestServer.PATH_HANDLER.removePrefixPath(IDLE_TIMEOUT_PATH);
-    }
-
-
     @Test
     public void testIdleTimeout() throws Exception {
+        TestServer.registerPathHandler(IDLE_TIMEOUT_PATH, (exchange -> {
+            connections.add(exchange.getConnection());
+        }));
+
         HttpConnectionPool pool = new HttpConnectionPool(1, 1, TestServer.getWorker(), TestServer.getBufferPool(), null, OptionMap.EMPTY, new HostPool(Collections.singletonList(new URI(TestServer.getDefaultRootServerURL()))), CONNECTION_IDLE_TIMEOUT);
-        ExecutorService executor = Executors.newFixedThreadPool(THREADS);
         final AtomicReference<Throwable> failed = new AtomicReference<>();
         CountDownLatch latch = new CountDownLatch(2);
         doInvocation(IDLE_TIMEOUT_PATH, pool, latch, failed);
@@ -93,11 +70,45 @@ public class ConnectionPoolTestCase {
 
     }
 
+    @Test
+    public void testMaxConnections() throws Exception {
+        TestServer.registerPathHandler(MAX_CONNECTIONS_PATH, (exchange -> {
+            synchronized (ConnectionPoolTestCase.class) {
+                currentRequests++;
+                if (currentRequests > maxActiveRequests) {
+                    maxActiveRequests = currentRequests;
+                }
+            }
+            Thread.sleep(200);
+            synchronized (ConnectionPoolTestCase.class) {
+                currentRequests--;
+            }
+        }));
+        HttpConnectionPool pool = new HttpConnectionPool(MAX_CONNECTION_COUNT, 1, TestServer.getWorker(), TestServer.getBufferPool(), null, OptionMap.EMPTY, new HostPool(Collections.singletonList(new URI(TestServer.getDefaultRootServerURL()))), -1);
+        ExecutorService executor = Executors.newFixedThreadPool(THREADS);
+        List<CountDownLatch> results = new ArrayList<>();
+        final AtomicReference<Throwable> failed = new AtomicReference<>();
+        try {
+            for (int i = 0; i < THREADS * 2; ++i) {
+                final CountDownLatch latch = new CountDownLatch(1);
+                results.add(latch);
+                doInvocation(MAX_CONNECTIONS_PATH, pool, latch, failed);
+            }
+
+            for (CountDownLatch i : results) {
+                Assert.assertTrue(i.await(10, TimeUnit.SECONDS));
+            }
+            checkFailed(failed);
+            Assert.assertEquals(MAX_CONNECTION_COUNT, maxActiveRequests);
+        } finally {
+            executor.shutdownNow();
+        }
+    }
+
     private void doInvocation(String path, HttpConnectionPool pool, CountDownLatch latch, AtomicReference<Throwable> failed) {
 
         pool.getConnection((connectionHandle) -> {
             ClientRequest request = new ClientRequest().setMethod(Methods.GET).setPath(path);
-            System.out.println(connectionHandle.getConnection() + " " + System.currentTimeMillis());
             connectionHandle.getConnection().sendRequest(request, new ClientCallback<ClientExchange>() {
                 @Override
                 public void completed(ClientExchange result) {
@@ -134,70 +145,6 @@ public class ConnectionPoolTestCase {
             failed.set(error);
             latch.countDown();
         }, false);
-    }
-
-    @Test
-    public void testMaxConnections() throws Exception {
-        HttpConnectionPool pool = new HttpConnectionPool(MAX_CONNECTION_COUNT, 1, TestServer.getWorker(), TestServer.getBufferPool(), null, OptionMap.EMPTY, new HostPool(Collections.singletonList(new URI(TestServer.getDefaultRootServerURL()))), -1);
-        ExecutorService executor = Executors.newFixedThreadPool(THREADS);
-        List<CountDownLatch> results = new ArrayList<>();
-        final AtomicReference<Throwable> failed = new AtomicReference<>();
-        try {
-            for (int i = 0; i < THREADS * 2; ++i) {
-                final CountDownLatch latch = new CountDownLatch(1);
-                results.add(latch);
-                executor.execute(() -> {
-
-                    pool.getConnection((connectionHandle) -> {
-                        ClientRequest request = new ClientRequest().setMethod(Methods.GET).setPath(MAX_CONNECTIONS_PATH);
-                        System.out.println(connectionHandle.getConnection() + " " + System.currentTimeMillis());
-                        connectionHandle.getConnection().sendRequest(request, new ClientCallback<ClientExchange>() {
-                            @Override
-                            public void completed(ClientExchange result) {
-                                result.setResponseListener(new ClientCallback<ClientExchange>() {
-                                    @Override
-                                    public void completed(ClientExchange result) {
-                                        try {
-                                            Channels.drain(result.getResponseChannel(), Long.MAX_VALUE);
-                                            latch.countDown();
-                                            connectionHandle.done(false);
-                                        } catch (IOException e) {
-                                            failed.set(e);
-                                            latch.countDown();
-                                        }
-                                    }
-
-                                    @Override
-                                    public void failed(IOException e) {
-                                        failed.set(e);
-                                        latch.countDown();
-                                        connectionHandle.done(true);
-                                    }
-                                });
-                            }
-
-                            @Override
-                            public void failed(IOException e) {
-                                failed.set(e);
-                                latch.countDown();
-                                connectionHandle.done(true);
-                            }
-                        });
-                    }, (error) -> {
-                        failed.set(error);
-                        latch.countDown();
-                    }, false);
-                });
-            }
-
-            for (CountDownLatch i : results) {
-                Assert.assertTrue(i.await(10, TimeUnit.SECONDS));
-            }
-            checkFailed(failed);
-            Assert.assertEquals(MAX_CONNECTION_COUNT, maxActiveRequests);
-        } finally {
-            executor.shutdownNow();
-        }
     }
 
     private void checkFailed(AtomicReference<Throwable> failed) {

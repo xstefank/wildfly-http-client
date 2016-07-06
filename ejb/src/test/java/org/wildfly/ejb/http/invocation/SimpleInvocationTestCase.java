@@ -1,14 +1,13 @@
 package org.wildfly.ejb.http.invocation;
 
-import java.io.Serializable;
 import java.net.URI;
-import java.net.URISyntaxException;
-
+import java.util.Base64;
 import javax.ejb.ApplicationException;
 
 import org.jboss.ejb.client.ContextSelector;
 import org.jboss.ejb.client.EJBClient;
 import org.jboss.ejb.client.EJBClientContext;
+import org.jboss.ejb.client.StatefulEJBLocator;
 import org.jboss.ejb.client.StatelessEJBLocator;
 import org.jboss.marshalling.MarshallerFactory;
 import org.jboss.marshalling.river.RiverMarshallerFactory;
@@ -16,8 +15,6 @@ import org.junit.Assert;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.wildfly.ejb.http.HttpEJBReceiver;
-import org.wildfly.ejb.http.TestEJBHandler;
-import org.wildfly.ejb.http.TestEJBInvocation;
 import org.wildfly.ejb.http.TestServer;
 import org.wildfly.ejb.http.common.EchoBean;
 import org.wildfly.ejb.http.common.EchoRemote;
@@ -52,7 +49,9 @@ public class SimpleInvocationTestCase {
 
     @Test(expected = TestException.class)
     public void testSimpleFailedInvocation() throws Exception {
-        TestServer.setHandler(invocation -> { throw new TestException(invocation.getParams()[0].toString());});
+        TestServer.setHandler(invocation -> {
+            throw new TestException(invocation.getParams()[0].toString());
+        });
         final StatelessEJBLocator<EchoRemote> statelessEJBLocator = new StatelessEJBLocator<EchoRemote>(EchoRemote.class, APP, MODULE, EchoBean.class.getSimpleName(), "");
         final EchoRemote proxy = EJBClient.createProxy(statelessEJBLocator);
         final String message = "Hello World!!!";
@@ -61,8 +60,28 @@ public class SimpleInvocationTestCase {
         ejbClientContext.registerEJBReceiver(new HttpEJBReceiver("node", new URI(TestServer.getDefaultServerURL()), TestServer.getWorker(), TestServer.getBufferPool(), null, OptionMap.EMPTY, factory, new HttpEJBReceiver.ModuleID(APP, MODULE, null)));
         final ContextSelector<EJBClientContext> oldClientContextSelector = EJBClientContext.setConstantContext(ejbClientContext);
         try {
+            for(int i =0; i < 10; ++i) {
+                String echo = proxy.echo(message);
+                Assert.assertEquals("Unexpected echo message", message, echo);
+            }
+        } finally {
+            EJBClientContext.setSelector(oldClientContextSelector);
+        }
+    }
+
+    @Test
+    public void testSessionOpen() throws Exception {
+        TestServer.setHandler(invocation -> new String(Base64.getDecoder().decode(invocation.getSessionID())));
+        final EJBClientContext ejbClientContext = EJBClientContext.create();
+        MarshallerFactory factory = new RiverMarshallerFactory();
+        ejbClientContext.registerEJBReceiver(new HttpEJBReceiver("node", new URI(TestServer.getDefaultServerURL()), TestServer.getWorker(), TestServer.getBufferPool(), null, OptionMap.EMPTY, factory, new HttpEJBReceiver.ModuleID(APP, MODULE, null)));
+        final ContextSelector<EJBClientContext> oldClientContextSelector = EJBClientContext.setConstantContext(ejbClientContext);
+        try {
+            StatefulEJBLocator<EchoRemote> locator = EJBClient.<EchoRemote>createSession(EchoRemote.class, APP, MODULE, EchoBean.class.getSimpleName(), "");
+            EchoRemote proxy = EJBClient.createProxy(locator);
+            final String message = "Hello World!!!";
             final String echo = proxy.echo(message);
-            Assert.assertEquals("Unexpected echo message", message, echo);
+            Assert.assertEquals("Unexpected echo message", "SFSB_ID", echo);
         } finally {
             EJBClientContext.setSelector(oldClientContextSelector);
         }

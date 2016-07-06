@@ -12,6 +12,7 @@ public interface EjbHeaders {
 
     //response headers
     String EJB_RESPONSE_VERSION_ONE = "application/x-wf-ejb-response;version=1";
+    String EJB_RESPONSE_NEW_SESSION = "application/x-wf-ejb-new-session;version=1";
     String EJB_EXCEPTION_VERSION_ONE = "application/x-wf-ejb-exception;version=1";
 
 }
