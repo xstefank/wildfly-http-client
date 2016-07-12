@@ -54,6 +54,7 @@ public class TestServer extends BlockJUnit4ClassRunner {
     private static final PathHandler PATH_HANDLER = new PathHandler();
     public static final String SFSB_ID = "SFSB_ID";
     public static final String WILDFLY_SERVICES = "/wildfly-services";
+    public static final String INITIAL_SESSION_AFFINITY = "initial-session-affinity";
     private static boolean first = true;
     private static Undertow undertow;
 
@@ -108,7 +109,7 @@ public class TestServer extends BlockJUnit4ClassRunner {
         notifier.addListener(new RunListener() {
             @Override
             public void testFinished(Description description) throws Exception {
-                for(String reg : registeredPaths) {
+                for (String reg : registeredPaths) {
                     PATH_HANDLER.removePrefixPath(reg);
                 }
                 registeredPaths.clear();
@@ -132,9 +133,11 @@ public class TestServer extends BlockJUnit4ClassRunner {
                 first = false;
                 Xnio xnio = Xnio.getInstance("nio");
                 worker = xnio.createWorker(OptionMap.create(Options.WORKER_TASK_CORE_THREADS, 20, Options.WORKER_IO_THREADS, 10));
+                PathHandler servicesHandler = new PathHandler();
+                servicesHandler.addPrefixPath("/ejb", new TestEJBHTTPHandler());
                 undertow = Undertow.builder()
                         .addHttpListener(getHostPort(), getHostAddress())
-                        .setHandler(PATH_HANDLER.addPrefixPath("/wildfly-services", new TestEjbHandler()))
+                        .setHandler(PATH_HANDLER.addPrefixPath("/wildfly-services", servicesHandler))
                         .build();
                 undertow.start();
                 notifier.addListener(new RunListener() {
@@ -158,7 +161,7 @@ public class TestServer extends BlockJUnit4ClassRunner {
         return Integer.getInteger("server.port", 7788);
     }
 
-    private static final class TestEjbHandler implements HttpHandler {
+    private static final class TestEJBHTTPHandler implements HttpHandler {
 
         @Override
         public void handleRequest(HttpServerExchange exchange) throws Exception {
@@ -181,11 +184,19 @@ public class TestServer extends BlockJUnit4ClassRunner {
                 case EjbHeaders.SESSION_CREATE_VERSION_ONE:
                     handleSessionCreate(parts, exchange);
                     break;
+                case EjbHeaders.AFFINITY_VERSION_ONE:
+                    handleAffinity(parts, exchange);
+                    break;
                 default:
                     sendException(exchange, 400, new RuntimeException("Unknown content type " + content));
                     return;
             }
 
+        }
+
+        private void handleAffinity(String[] parts, HttpServerExchange exchange) {
+            exchange.getResponseHeaders().put(Headers.CONTENT_TYPE, EjbHeaders.EJB_RESPONSE_AFFINITY_RESULT_VERSION_ONE);
+            exchange.getResponseCookies().put("JSESSIONID", new CookieImpl("JSESSIONID", INITIAL_SESSION_AFFINITY).setPath(WILDFLY_SERVICES));
         }
 
         private void handleSessionCreate(String[] parts, HttpServerExchange exchange) throws Exception {
@@ -271,7 +282,7 @@ public class TestServer extends BlockJUnit4ClassRunner {
             unmarshaller.finish();
             Cookie cookie = exchange.getRequestCookies().get(JSESSIONID);
             String sessionAffinity = null;
-            if(cookie != null) {
+            if (cookie != null) {
                 sessionAffinity = cookie.getValue();
             }
 
@@ -282,7 +293,7 @@ public class TestServer extends BlockJUnit4ClassRunner {
                 TestEjbOutput output = new TestEjbOutput();
                 Object result = handler.handle(invocation, output);
                 exchange.getResponseHeaders().put(Headers.CONTENT_TYPE, EjbHeaders.EJB_RESPONSE_VERSION_ONE);
-                if(output.getSessionAffinity() != null) {
+                if (output.getSessionAffinity() != null) {
                     exchange.getResponseCookies().put("JSESSIONID", new CookieImpl("JSESSIONID", output.getSessionAffinity()).setPath(WILDFLY_SERVICES));
                 }
                 final Marshaller marshaller = marshallerFactory.createMarshaller(marshallingConfiguration);
@@ -304,7 +315,7 @@ public class TestServer extends BlockJUnit4ClassRunner {
 
     private static void sendException(HttpServerExchange exchange, int status, Exception e) throws IOException {
         exchange.setStatusCode(status);
-        exchange.getResponseHeaders().put(Headers.CONTENT_TYPE, EjbHeaders.EJB_EXCEPTION_VERSION_ONE);
+        exchange.getResponseHeaders().put(Headers.CONTENT_TYPE, EjbHeaders.EJB_RESPONSE_EXCEPTION_VERSION_ONE);
 
         final MarshallingConfiguration marshallingConfiguration = new MarshallingConfiguration();
         marshallingConfiguration.setClassTable(ProtocolV1ClassTable.INSTANCE);

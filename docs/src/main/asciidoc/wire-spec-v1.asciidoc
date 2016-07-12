@@ -120,7 +120,7 @@ This message cancels an async request.
 
 Message Type:: +application/x-wf-ejb-affinity+
 Method::: ++GET++
-URI:: +/ejb/\{applicationName}/\{moduleName}/\{distinctName}+
+URI:: +/ejb/+
 Additional Required Headers::
 +Accept: application/x-wf-ejb-affinity-result;version=1+
 Request Body::
@@ -166,20 +166,6 @@ Response Codes::
  * +202+ Returned for a successful invocation
 Notes::
 In most cases it is expected that session affinity will be used to make sure that invocations on the EJB target the correct server.
-
-==== EJB Invocation ID
-
-Message Type:: +application/x-wf-ejb-invocation-id+
-Required Headers::
-+X-wf-ejb-invocation-id: \{invocationId}+
-Optional Headers::
-+Set-Cookie: JSESSIONID=\{sessionAffinityKey}+
-Response Body::
-None
-Response Codes::
- * +202+ Returned for a successful invocation
-Notes::
-Note that session affinity must be used to ensure requests for the invocation end up at the correct server.
 
 ==== EJB Cancelled
 Message Type:: +application/x-wf-ejb-cancelled+

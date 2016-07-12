@@ -2,14 +2,17 @@ package org.wildfly.ejb.http;
 
 import java.io.IOException;
 
-import org.jboss.logging.Messages;
+import org.jboss.logging.BasicLogger;
+import org.jboss.logging.Logger;
+import org.jboss.logging.annotations.Cause;
+import org.jboss.logging.annotations.LogMessage;
 import org.jboss.logging.annotations.Message;
-import org.jboss.logging.annotations.MessageBundle;
+import org.jboss.logging.annotations.MessageLogger;
 
-@MessageBundle(projectCode = "WFHTTP")
-public interface HttpClientMessages {
+@MessageLogger(projectCode = "WFHTTP")
+interface HttpClientMessages extends BasicLogger {
 
-    HttpClientMessages MESSAGES = Messages.getBundle(HttpClientMessages.class);
+    HttpClientMessages MESSAGES = Logger.getMessageLogger(HttpClientMessages.class, HttpClientMessages.class.getPackage().getName());
 
     @Message(id = 1, value = "Connection in wrong state")
     IllegalStateException connectionInWrongState();
@@ -22,4 +25,8 @@ public interface HttpClientMessages {
 
     @Message(id = 4, value = "Unexpected data in response")
     IOException unexpectedDataInResponse();
+
+    @Message(id = 5, value = "Failed to acquire session")
+    @LogMessage(level = Logger.Level.ERROR)
+    void failedToAcquireSession(@Cause Throwable t);
 }

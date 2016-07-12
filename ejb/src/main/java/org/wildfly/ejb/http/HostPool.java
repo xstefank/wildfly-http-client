@@ -33,7 +33,7 @@ import java.util.concurrent.atomic.AtomicLong;
  *
  * @author Stuart Douglas
  */
-public class HostPool {
+class HostPool {
 
     private final List<URI> uris;
     private final Map<URI, Holder> ipAddresses;

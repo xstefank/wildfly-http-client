@@ -167,10 +167,16 @@ class EjbInvocationBuilder {
     }
 
     private static void buildBeanPath(String mountPoint, String appName, String moduleName, String distinctName, String beanName, StringBuilder sb) {
+        buildModulePath(mountPoint, appName, moduleName, distinctName, sb);
+        sb.append("/");
+        sb.append(beanName);
+    }
+
+    private static void buildModulePath(String mountPoint, String appName, String moduleName, String distinctName, StringBuilder sb) {
         if(mountPoint != null) {
             sb.append(mountPoint);
         }
-        sb.append("/");
+        sb.append("/ejb/");
         if(appName == null) {
             sb.append("-");
         } else {
@@ -188,8 +194,6 @@ class EjbInvocationBuilder {
         } else {
             sb.append(distinctName);
         }
-        sb.append("/");
-        sb.append(beanName);
     }
 
     public ClientRequest createRequest(String mountPoint) {
@@ -211,8 +215,9 @@ class EjbInvocationBuilder {
         } else if(invocationType == InvocationType.STATEFUL_CREATE) {
             clientRequest.setPath(buildPath(mountPoint, appName, moduleName, distinctName, beanName, view));
             clientRequest.getRequestHeaders().put(Headers.CONTENT_TYPE, EjbHeaders.SESSION_CREATE_VERSION_ONE);
-        } else {
-            throw new IllegalStateException();
+        } else if(invocationType == InvocationType.AFFINITY) {
+            clientRequest.setPath(mountPoint + "/ejb");
+            clientRequest.getRequestHeaders().put(Headers.CONTENT_TYPE, EjbHeaders.AFFINITY_VERSION_ONE);
         }
 
         return clientRequest;
