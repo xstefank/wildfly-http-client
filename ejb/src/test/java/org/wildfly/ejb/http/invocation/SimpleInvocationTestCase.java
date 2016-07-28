@@ -111,6 +111,23 @@ public class SimpleInvocationTestCase {
         }
     }
 
+    @Test
+    public void testSessionOpenLazyAffinity() throws Exception {
+        TestServer.setHandler((invocation, out) -> new String(Base64.getDecoder().decode(invocation.getBeanId())) + "-" + invocation.getSessionAffinity());
+        final EJBClientContext ejbClientContext = EJBClientContext.create();
+        MarshallerFactory factory = new RiverMarshallerFactory();
+        ejbClientContext.registerEJBReceiver(new HttpEJBReceiver("node", new URI(TestServer.getDefaultServerURL()), TestServer.getWorker(), TestServer.getBufferPool(), null, OptionMap.EMPTY, factory, false, new HttpEJBReceiver.ModuleID(APP, MODULE, null)));
+        final ContextSelector<EJBClientContext> oldClientContextSelector = EJBClientContext.setConstantContext(ejbClientContext);
+        try {
+            StatefulEJBLocator<EchoRemote> locator = EJBClient.<EchoRemote>createSession(EchoRemote.class, APP, MODULE, EchoBean.class.getSimpleName(), "");
+            EchoRemote proxy = EJBClient.createProxy(locator);
+            final String message = "Hello World!!!";
+            final String echo = proxy.echo(message);
+            Assert.assertEquals("Unexpected echo message", "SFSB_ID-lazy-session-affinity", echo);
+        } finally {
+            EJBClientContext.setSelector(oldClientContextSelector);
+        }
+    }
     @ApplicationException
     private static class TestException extends Exception {
         public TestException(String message) {

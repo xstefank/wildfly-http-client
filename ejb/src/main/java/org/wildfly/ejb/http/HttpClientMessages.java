@@ -50,4 +50,7 @@ interface HttpClientMessages extends BasicLogger {
 
     @Message(id = 11, value = "Invalid response code %s (full response %s)")
     IOException invalidResponseCode(int responseCode, ClientResponse response);
+
+    @Message(id = 12, value = "No session id in response")
+    IOException noSessionIdInResponse();
 }

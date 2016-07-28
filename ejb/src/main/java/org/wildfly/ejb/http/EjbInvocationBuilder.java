@@ -128,6 +128,21 @@ class EjbInvocationBuilder {
      *
      * @return The request path to invoke
      */
+    private static String buildPath(final String mountPoint, final String appName, final String moduleName, final String distinctName, final String beanName) {
+        StringBuilder sb = new StringBuilder();
+        buildBeanPath(mountPoint, appName, moduleName, distinctName, beanName, sb);
+        return sb.toString();
+    }
+    /**
+     * Constructs an EJB invocation path
+     * @param mountPoint The mount point of the EJB context
+     * @param appName The application name
+     * @param moduleName The module name
+     * @param distinctName The distinct name
+     * @param beanName The bean name
+     *
+     * @return The request path to invoke
+     */
     private static String buildPath(final String mountPoint, final String appName, final String moduleName, final String distinctName, final String beanName, String view) {
         StringBuilder sb = new StringBuilder();
         buildBeanPath(mountPoint, appName, moduleName, distinctName, beanName, sb);
@@ -213,8 +228,8 @@ class EjbInvocationBuilder {
             clientRequest.setPath(buildPath(mountPoint, appName, moduleName, distinctName, beanName, beanId, view, method));
             clientRequest.getRequestHeaders().put(Headers.CONTENT_TYPE, EjbHeaders.INVOCATION_VERSION_ONE);
         } else if(invocationType == InvocationType.STATEFUL_CREATE) {
-            clientRequest.setPath(buildPath(mountPoint, appName, moduleName, distinctName, beanName, view));
-            clientRequest.getRequestHeaders().put(Headers.CONTENT_TYPE, EjbHeaders.SESSION_CREATE_VERSION_ONE);
+            clientRequest.setPath(buildPath(mountPoint, appName, moduleName, distinctName, beanName));
+            clientRequest.getRequestHeaders().put(Headers.CONTENT_TYPE, EjbHeaders.SESSION_OPEN_VERSION_ONE);
         } else if(invocationType == InvocationType.AFFINITY) {
             clientRequest.setPath(mountPoint + "/ejb");
             clientRequest.getRequestHeaders().put(Headers.CONTENT_TYPE, EjbHeaders.AFFINITY_VERSION_ONE);

@@ -4,14 +4,13 @@ import java.io.IOException;
 import java.io.OutputStream;
 import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
+import java.util.Base64;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 
-import org.jboss.ejb.client.SessionID;
-import org.jboss.ejb.client.StatefulEJBLocator;
 import org.jboss.marshalling.ByteOutput;
 import org.jboss.marshalling.InputStreamByteInput;
 import org.jboss.marshalling.Marshaller;
@@ -42,6 +41,7 @@ import io.undertow.testutils.DebuggingSlicePool;
 import io.undertow.testutils.DefaultServer;
 import io.undertow.util.Headers;
 import io.undertow.util.NetworkUtils;
+import io.undertow.util.StatusCodes;
 
 /**
  * @author Stuart Douglas
@@ -55,6 +55,7 @@ public class TestServer extends BlockJUnit4ClassRunner {
     public static final String SFSB_ID = "SFSB_ID";
     public static final String WILDFLY_SERVICES = "/wildfly-services";
     public static final String INITIAL_SESSION_AFFINITY = "initial-session-affinity";
+    public static final String LAZY_SESSION_AFFINITY = "lazy-session-affinity";
     private static boolean first = true;
     private static Undertow undertow;
 
@@ -181,7 +182,7 @@ public class TestServer extends BlockJUnit4ClassRunner {
                 case EjbHeaders.INVOCATION_VERSION_ONE:
                     handleInvocation(parts, exchange);
                     break;
-                case EjbHeaders.SESSION_CREATE_VERSION_ONE:
+                case EjbHeaders.SESSION_OPEN_VERSION_ONE:
                     handleSessionCreate(parts, exchange);
                     break;
                 case EjbHeaders.AFFINITY_VERSION_ONE:
@@ -201,7 +202,7 @@ public class TestServer extends BlockJUnit4ClassRunner {
 
         private void handleSessionCreate(String[] parts, HttpServerExchange exchange) throws Exception {
 
-            if (parts.length < 5) {
+            if (parts.length < 4) {
                 sendException(exchange, 400, new RuntimeException("not enough URL segments " + exchange.getRelativePath()));
                 return;
             }
@@ -210,26 +211,21 @@ public class TestServer extends BlockJUnit4ClassRunner {
             String module = handleDash(parts[1]);
             String distict = handleDash(parts[2]);
             String bean = parts[3];
-            Class<?> view = Class.forName(parts[4]);
 
             final MarshallingConfiguration marshallingConfiguration = new MarshallingConfiguration();
             marshallingConfiguration.setClassTable(ProtocolV1ClassTable.INSTANCE);
             marshallingConfiguration.setObjectTable(ProtocolV1ObjectTable.INSTANCE);
             marshallingConfiguration.setVersion(2);
-            SessionID sessionID = SessionID.createSessionID(SFSB_ID.getBytes(StandardCharsets.US_ASCII));
-            StatefulEJBLocator locator = new StatefulEJBLocator(view, app, module, bean, distict, sessionID, null, "test");
 
+            Cookie sessionCookie = exchange.getRequestCookies().get(JSESSIONID);
+            if(sessionCookie == null) {
+                exchange.getResponseCookies().put(JSESSIONID, new CookieImpl(JSESSIONID, LAZY_SESSION_AFFINITY).setPath(WILDFLY_SERVICES));
+            }
 
             exchange.getResponseHeaders().put(Headers.CONTENT_TYPE, EjbHeaders.EJB_RESPONSE_NEW_SESSION);
+            exchange.getResponseHeaders().put(EjbHeaders.EJB_SESSION_ID, Base64.getEncoder().encodeToString(SFSB_ID.getBytes(StandardCharsets.US_ASCII)));
 
-            final Marshaller marshaller = marshallerFactory.createMarshaller(marshallingConfiguration);
-            OutputStream outputStream = exchange.getOutputStream();
-            final ByteOutput byteOutput = Marshalling.createByteOutput(outputStream);
-            // start the marshaller
-            marshaller.start(byteOutput);
-            marshaller.writeObject(locator);
-            marshaller.finish();
-            marshaller.flush();
+            exchange.setStatusCode(StatusCodes.NO_CONTENT);
 
         }
 

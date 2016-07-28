@@ -17,6 +17,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import javax.transaction.xa.XAException;
 import javax.transaction.xa.Xid;
 
+import org.jboss.ejb.client.Affinity;
 import org.jboss.ejb.client.AttachmentKey;
 import org.jboss.ejb.client.EJBClientConfiguration;
 import org.jboss.ejb.client.EJBClientInvocationContext;
@@ -24,6 +25,7 @@ import org.jboss.ejb.client.EJBLocator;
 import org.jboss.ejb.client.EJBReceiver;
 import org.jboss.ejb.client.EJBReceiverContext;
 import org.jboss.ejb.client.EJBReceiverInvocationContext;
+import org.jboss.ejb.client.SessionID;
 import org.jboss.ejb.client.StatefulEJBLocator;
 import org.jboss.ejb.client.TransactionID;
 import org.jboss.marshalling.ByteOutput;
@@ -38,6 +40,7 @@ import org.xnio.IoFuture;
 import org.xnio.IoUtils;
 import org.xnio.OptionMap;
 import org.xnio.XnioWorker;
+import org.xnio.channels.Channels;
 import org.xnio.ssl.XnioSsl;
 import org.xnio.streams.ChannelInputStream;
 import org.xnio.streams.ChannelOutputStream;
@@ -50,6 +53,7 @@ import io.undertow.server.handlers.Cookie;
 import io.undertow.util.Cookies;
 import io.undertow.util.HeaderValues;
 import io.undertow.util.Headers;
+import io.undertow.util.StatusCodes;
 
 /**
  * @author Stuart Douglas
@@ -91,12 +95,7 @@ public class HttpEJBReceiver extends EJBReceiver {
         context.putAttachment(this.poolAttachmentKey, pool);
         context.putAttachment(this.sessionIdAttachmentKey, sessionIdReference);
         if (eagerlyAcquireSession) {
-            CountDownLatch latch = new CountDownLatch(1);
-            context.putAttachment(this.sessionIdReadyLatchAttachmentKey, latch);
-            pool.getConnection(connection -> {
-                        acquireSessionAffinity(connection, latch, sessionIdReference);
-                    },
-                    HttpClientMessages.MESSAGES::failedToAcquireSession, false);
+            acquireInitialAffinity(context);
         }
     }
 
@@ -185,10 +184,10 @@ public class HttpEJBReceiver extends EJBReceiver {
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
+
         HttpConnectionPool pool = context.getAttachment(this.poolAttachmentKey);
         FutureResult<StatefulEJBLocator<T>> result = new FutureResult<>();
         final AtomicReference<String> sessionAffinity = context.getAttachment(sessionIdAttachmentKey);
-
         pool.getConnection((connection) -> openSessionConnectionReady(connection, result, viewType, appName, moduleName, distinctName, beanName, sessionAffinity), (e) -> {
             result.setException(new IOException(e));
         }, false);
@@ -222,23 +221,15 @@ public class HttpEJBReceiver extends EJBReceiver {
         ClientRequest request = builder.createRequest(uri.getPath()); //TODO: FIX THIS
         sendRequest(connection, request, null,
                 ((unmarshaller, response) -> {
-                    Object returned = null;
-                    try {
-                        returned = unmarshaller.readObject();
-                        if (unmarshaller.read() != -1) {
-                            result.setException(HttpClientMessages.MESSAGES.unexpectedDataInResponse());
-                        }
-                        unmarshaller.finish();
+                    String sessionId = response.getResponseHeaders().getFirst(EjbHeaders.EJB_SESSION_ID);
+                    if(sessionId == null) {
+                        result.setException(HttpClientMessages.MESSAGES.noSessionIdInResponse());
+                        connection.done(true);
+                    } else {
+                        SessionID sessionID = SessionID.createSessionID(Base64.getDecoder().decode(sessionId));
+                        result.setResult(new StatefulEJBLocator<T>(viewType, appName, moduleName, beanName, distinctName, sessionID, Affinity.NONE, sessionAffinity.get()));
                         connection.done(false);
-
-                        if (response.getResponseCode() >= 400) {
-                            result.setException(new IOException((Exception) returned));
-                            return;
-                        }
-                    } catch (Exception e) {
-                        result.setException(new IOException(e));
                     }
-                    result.setResult((StatefulEJBLocator<T>) returned);
                 })
                 , (e) -> result.setException(new IOException(e)), EjbHeaders.EJB_RESPONSE_NEW_SESSION, sessionAffinity, null);
 
@@ -301,9 +292,14 @@ public class HttpEJBReceiver extends EJBReceiver {
 
                                 } else {
                                     if (ejbResultHandler != null) {
-                                        final Unmarshaller unmarshaller = marshallerFactory.createUnmarshaller(marshallingConfiguration);
-                                        unmarshaller.start(new InputStreamByteInput(new BufferedInputStream(new ChannelInputStream(result.getResponseChannel()))));
-                                        ejbResultHandler.handleResult(unmarshaller, response);
+                                        if(response.getResponseCode() == StatusCodes.NO_CONTENT) {
+                                            Channels.drain(result.getResponseChannel(), Long.MAX_VALUE);
+                                            ejbResultHandler.handleResult(null, response);
+                                        } else {
+                                            final Unmarshaller unmarshaller = marshallerFactory.createUnmarshaller(marshallingConfiguration);
+                                            unmarshaller.start(new InputStreamByteInput(new BufferedInputStream(new ChannelInputStream(result.getResponseChannel()))));
+                                            ejbResultHandler.handleResult(unmarshaller, response);
+                                        }
                                     }
                                     if (completedTask != null) {
                                         completedTask.run();
@@ -447,6 +443,16 @@ public class HttpEJBReceiver extends EJBReceiver {
                 throw new InterruptedIOException();
             }
         }
+    }
+
+    private void acquireInitialAffinity(EJBReceiverContext context) {
+        CountDownLatch latch = new CountDownLatch(1);
+        context.putAttachment(this.sessionIdReadyLatchAttachmentKey, latch);
+        HttpConnectionPool pool = context.getAttachment(this.poolAttachmentKey);
+        pool.getConnection(connection -> {
+                    acquireSessionAffinity(connection, latch, context.getAttachment(this.sessionIdAttachmentKey));
+                },
+                HttpClientMessages.MESSAGES::failedToAcquireSession, false);
     }
 
     private static Map<String, Object> readAttachments(final ObjectInput input) throws IOException, ClassNotFoundException {
