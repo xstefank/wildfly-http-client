@@ -7,15 +7,15 @@ import java.io.InterruptedIOException;
 import java.io.ObjectInput;
 import java.io.OutputStream;
 import java.net.URI;
-import java.util.Arrays;
 import java.util.Base64;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
+import javax.transaction.xa.XAException;
+import javax.transaction.xa.Xid;
 
 import org.jboss.ejb.client.AttachmentKey;
 import org.jboss.ejb.client.EJBClientConfiguration;
@@ -25,6 +25,7 @@ import org.jboss.ejb.client.EJBReceiver;
 import org.jboss.ejb.client.EJBReceiverContext;
 import org.jboss.ejb.client.EJBReceiverInvocationContext;
 import org.jboss.ejb.client.StatefulEJBLocator;
+import org.jboss.ejb.client.TransactionID;
 import org.jboss.marshalling.ByteOutput;
 import org.jboss.marshalling.InputStreamByteInput;
 import org.jboss.marshalling.Marshaller;
@@ -67,7 +68,6 @@ public class HttpEJBReceiver extends EJBReceiver {
     private final OptionMap options;
     private final MarshallerFactory marshallerFactory;
     private final boolean eagerlyAcquireSession;
-    private final List<ModuleID> modules;
 
     public HttpEJBReceiver(String nodeName, URI uri, XnioWorker worker, ByteBufferPool bufferPool, XnioSsl ssl, OptionMap options, MarshallerFactory marshallerFactory, boolean eagerlyAcquireSession, ModuleID... moduleIDs) {
         super(nodeName);
@@ -78,7 +78,6 @@ public class HttpEJBReceiver extends EJBReceiver {
         this.options = options;
         this.marshallerFactory = marshallerFactory;
         this.eagerlyAcquireSession = eagerlyAcquireSession;
-        this.modules = Arrays.asList(moduleIDs);
         for (ModuleID module : moduleIDs) {
             registerModule(module.app, module.module, module.distinct);
         }
@@ -279,13 +278,36 @@ public class HttpEJBReceiver extends EJBReceiver {
                                         }
                                     }
                                 }
-                                if(ejbResultHandler != null) {
+
+                                if (type.equals(EjbHeaders.EJB_RESPONSE_EXCEPTION_VERSION_ONE)) {
                                     final Unmarshaller unmarshaller = marshallerFactory.createUnmarshaller(marshallingConfiguration);
                                     unmarshaller.start(new InputStreamByteInput(new BufferedInputStream(new ChannelInputStream(result.getResponseChannel()))));
-                                    ejbResultHandler.handleResult(unmarshaller, response);
-                                }
-                                if(completedTask != null) {
-                                    completedTask.run();
+                                    Exception exception = (Exception) unmarshaller.readObject();
+                                    Map<String, Object> attachments = readAttachments(unmarshaller);
+                                    if (unmarshaller.read() != -1) {
+                                        HttpClientMessages.MESSAGES.debugf("Unexpected data when reading exception from %s", response);
+                                        connection.done(true);
+                                    } else {
+                                        connection.done(false);
+                                    }
+                                    failureHandler.handleFailure(exception);
+                                    return;
+                                } else if (response.getResponseCode() >= 400) {
+                                    //unknown error
+
+                                    failureHandler.handleFailure(HttpClientMessages.MESSAGES.invalidResponseCode(response.getResponseCode(), response));
+                                    //close the connection to be safe
+                                    connection.done(true);
+
+                                } else {
+                                    if (ejbResultHandler != null) {
+                                        final Unmarshaller unmarshaller = marshallerFactory.createUnmarshaller(marshallingConfiguration);
+                                        unmarshaller.start(new InputStreamByteInput(new BufferedInputStream(new ChannelInputStream(result.getResponseChannel()))));
+                                        ejbResultHandler.handleResult(unmarshaller, response);
+                                    }
+                                    if (completedTask != null) {
+                                        completedTask.run();
+                                    }
                                 }
 
                             } catch (Exception e) {
@@ -302,17 +324,17 @@ public class HttpEJBReceiver extends EJBReceiver {
                     }
                 });
 
-                if(ejbMarshaller != null) {
+                if (ejbMarshaller != null) {
                     //marshalling is blocking, we need to delegate, otherwise we may need to buffer arbitrarily large requests
                     connection.getConnection().getWorker().execute(() -> {
                         try (OutputStream outputStream = new BufferedOutputStream(new ChannelOutputStream(result.getRequestChannel()))) {
 
                             // marshall the locator and method params
-                                final Marshaller marshaller = marshallerFactory.createMarshaller(marshallingConfiguration);
-                                final ByteOutput byteOutput = Marshalling.createByteOutput(outputStream);
-                                // start the marshaller
-                                marshaller.start(byteOutput);
-                                ejbMarshaller.marshall(marshaller);
+                            final Marshaller marshaller = marshallerFactory.createMarshaller(marshallingConfiguration);
+                            final ByteOutput byteOutput = Marshalling.createByteOutput(outputStream);
+                            // start the marshaller
+                            marshaller.start(byteOutput);
+                            ejbMarshaller.marshall(marshaller);
 
                         } catch (IOException e) {
                             connection.done(true);
@@ -377,10 +399,47 @@ public class HttpEJBReceiver extends EJBReceiver {
         return false;
     }
 
+    @Override
+    protected boolean cancelInvocation(EJBClientInvocationContext clientInvocationContext, EJBReceiverInvocationContext receiverContext) {
+
+
+        return false;
+    }
+
+    @Override
+    protected int sendPrepare(EJBReceiverContext context, TransactionID transactionID) throws XAException {
+        return super.sendPrepare(context, transactionID);
+    }
+
+    @Override
+    protected void sendCommit(EJBReceiverContext context, TransactionID transactionID, boolean onePhase) throws XAException {
+        super.sendCommit(context, transactionID, onePhase);
+    }
+
+    @Override
+    protected void sendRollback(EJBReceiverContext context, TransactionID transactionID) throws XAException {
+        super.sendRollback(context, transactionID);
+    }
+
+    @Override
+    protected void sendForget(EJBReceiverContext context, TransactionID transactionID) throws XAException {
+        super.sendForget(context, transactionID);
+    }
+
+    @Override
+    protected Xid[] sendRecover(EJBReceiverContext receiverContext, String txParentNodeName, int recoveryFlags) throws XAException {
+        return super.sendRecover(receiverContext, txParentNodeName, recoveryFlags);
+    }
+
+    @Override
+    protected void beforeCompletion(EJBReceiverContext context, TransactionID transactionID) {
+        super.beforeCompletion(context, transactionID);
+    }
+
     private void awaitInitialAffinity(EJBReceiverContext context) throws IOException {
 
         CountDownLatch latch = context.getAttachment(this.sessionIdReadyLatchAttachmentKey);
-        if(latch != null) {
+        if (latch != null) {
             try {
                 latch.await();
             } catch (InterruptedException e) {

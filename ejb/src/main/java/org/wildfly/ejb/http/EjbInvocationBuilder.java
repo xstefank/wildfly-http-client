@@ -177,19 +177,19 @@ class EjbInvocationBuilder {
             sb.append(mountPoint);
         }
         sb.append("/ejb/");
-        if(appName == null) {
+        if(appName == null || appName.isEmpty()) {
             sb.append("-");
         } else {
             sb.append(appName);
         }
         sb.append("/");
-        if(moduleName == null) {
+        if(moduleName == null || moduleName.isEmpty()) {
             sb.append("-");
         } else {
             sb.append(moduleName);
         }
         sb.append("/");
-        if(distinctName == null) {
+        if(distinctName == null || distinctName.isEmpty()) {
             sb.append("-");
         } else {
             sb.append(distinctName);

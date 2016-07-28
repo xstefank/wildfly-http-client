@@ -206,9 +206,9 @@ public class TestServer extends BlockJUnit4ClassRunner {
                 return;
             }
 
-            String app = parts[0];
-            String module = parts[1];
-            String distict = parts[2];
+            String app = handleDash(parts[0]);
+            String module = handleDash(parts[1]);
+            String distict = handleDash(parts[2]);
             String bean = parts[3];
             Class<?> view = Class.forName(parts[4]);
 
@@ -240,9 +240,9 @@ public class TestServer extends BlockJUnit4ClassRunner {
                 return;
             }
 
-            String app = parts[0];
-            String module = parts[1];
-            String distict = parts[2];
+            String app = handleDash(parts[0]);
+            String module = handleDash(parts[1]);
+            String distict = handleDash(parts[2]);
             String bean = parts[3];
             String sessionID = parts[4];
             Class<?> view = Class.forName(parts[5]);
@@ -333,4 +333,10 @@ public class TestServer extends BlockJUnit4ClassRunner {
     }
 
 
+    private static String handleDash(String s) {
+        if(s.equals("-")) {
+            return "";
+        }
+        return s;
+    }
 }

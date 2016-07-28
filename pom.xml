@@ -46,10 +46,11 @@
         <version.org.junit>4.11</version.org.junit>
         <version.org.jboss.logmanager>1.5.3.Final</version.org.jboss.logmanager>
         <version.xnio>3.3.4.Final</version.xnio>
-        <version.org.jboss.ejb-client>2.1.4.Final</version.org.jboss.ejb-client>
+        <version.org.jboss.ejb-client>2.2.0.Beta1-SNAPSHOT</version.org.jboss.ejb-client>
         <version.javax.ejb.api>1.0.0.Final</version.javax.ejb.api>
         <version.javax.transactions>1.0.0.Final</version.javax.transactions>
         <version.org.wildfly.checkstyle-config>1.0.4.Final</version.org.wildfly.checkstyle-config>
+        <version.org.jboss.marshalling>1.4.10.Final</version.org.jboss.marshalling>
     </properties>
 
     <modules>
@@ -63,7 +64,7 @@
                 <groupId>io.undertow</groupId>
                 <artifactId>undertow-core</artifactId>
                 <version>${version.io.undertow}</version>
-                <scope>provided</scope>
+                <scope>compile</scope>
             </dependency>
 
             <dependency>
@@ -103,8 +104,7 @@
             <dependency>
                 <groupId>org.jboss.marshalling</groupId>
                 <artifactId>jboss-marshalling-river</artifactId>
-                <version>1.4.10.Final</version>
-                <scope>test</scope>
+                <version>${version.org.jboss.marshalling}</version>
             </dependency>
 
             <dependency>
