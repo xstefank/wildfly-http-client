@@ -352,20 +352,6 @@ This response is only used to indicate success for void returning methods.
 
 === Request Messages
 
-==== Transaction Begin
-
-Message Type:: +application/x-wf-txn-begin+
-Method:: +POST+
-URI:: +/txn/\{type}+
-Additional Required Headers::
-+Accept: application/x-wf-txn-new;version=1,application/x-wf-tx-exception;version=1+
-Additional Optional Headers::
-+Cookie: JSESSIONID=\{sessionAffinityKey}+
-Request Body::
-The request body is empty.
-Notes::
-Supported types are +ut+ and +xa+ which corresponds to user transactions and distributed transaction respectively.
-
 ==== Transaction Commit
 
 Message Type:: +application/x-wf-txn-commit+
@@ -447,6 +433,8 @@ Method:: +GET+
 URI:: +/txn/xa+
 Additional Required Headers::
 +Accept: text/x-wf-txn-xids;version=1,application/x-wf-tx-exception;version=1+
+X-wf-txn-parent-node-name: The parent node name
+X-wf-txn-recovery-flags: The recovery flags as a base 10 integer
 Additional Optional Headers::
 +Cookie: JSESSIONID=\{sessionAffinityKey}+
 Request Body::
@@ -483,9 +471,12 @@ Message Type:: +application/x-wf-txn-result+
 Response Body::
 Empty
 Response Codes::
- * +200+ Success
+ * +204+ Success
+Optional Headers:
+X-wf-txn-xa-read-only:true :: If this is present then the XA result was read only (only relevant for the prepare operation)
 Notes::
 This response is used to indicate operation success
+
 
 ==== Transaction XIDS
 

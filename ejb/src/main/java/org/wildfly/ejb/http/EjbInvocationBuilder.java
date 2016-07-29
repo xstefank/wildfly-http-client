@@ -15,7 +15,9 @@ import java.lang.reflect.Method;
 class EjbInvocationBuilder {
 
     private static final HttpString INVOCATION_ID = new HttpString("X-wf-invocation-id");
-    public static final String ACCEPT = "application/x-wf-ejb-response;version=1,application/x-wf-ejb-exception;version=1";
+    private static final String INVOCATION_ACCEPT = "application/x-wf-ejb-response;version=1,application/x-wf-ejb-exception;version=1";
+    private static final String STATEFUL_CREATE_ACCEPT = "application/x-wf-ejb-new-session;version=1,application/x-wf-ejb-exception;version=1";
+    private static final String AFFINITY_ACCEPT = "application/x-wf-ejb-affinity-result;version=1,application/x-wf-ejb-exception;version=1";
 
     private String appName;
     private String moduleName;
@@ -213,12 +215,12 @@ class EjbInvocationBuilder {
 
     public ClientRequest createRequest(String mountPoint) {
         ClientRequest clientRequest = new ClientRequest();
-        clientRequest.setMethod(Methods.POST);
         if(sessionId != null) {
             clientRequest.getRequestHeaders().put(Headers.COOKIE, "JSESSIONID=" + sessionId); //TODO: fix this
         }
         if(invocationType == InvocationType.METHOD_INVOCATION) {
-            clientRequest.getRequestHeaders().add(Headers.ACCEPT, ACCEPT);
+            clientRequest.setMethod(Methods.POST);
+            clientRequest.getRequestHeaders().add(Headers.ACCEPT, INVOCATION_ACCEPT);
             if (invocationId != null) {
                 if (sessionId == null ) {
                     throw new IllegalStateException();
@@ -228,9 +230,13 @@ class EjbInvocationBuilder {
             clientRequest.setPath(buildPath(mountPoint, appName, moduleName, distinctName, beanName, beanId, view, method));
             clientRequest.getRequestHeaders().put(Headers.CONTENT_TYPE, EjbHeaders.INVOCATION_VERSION_ONE);
         } else if(invocationType == InvocationType.STATEFUL_CREATE) {
+            clientRequest.setMethod(Methods.POST);
             clientRequest.setPath(buildPath(mountPoint, appName, moduleName, distinctName, beanName));
             clientRequest.getRequestHeaders().put(Headers.CONTENT_TYPE, EjbHeaders.SESSION_OPEN_VERSION_ONE);
+            clientRequest.getRequestHeaders().add(Headers.ACCEPT, STATEFUL_CREATE_ACCEPT);
         } else if(invocationType == InvocationType.AFFINITY) {
+            clientRequest.setMethod(Methods.GET);
+            clientRequest.getRequestHeaders().add(Headers.ACCEPT, AFFINITY_ACCEPT);
             clientRequest.setPath(mountPoint + "/ejb");
             clientRequest.getRequestHeaders().put(Headers.CONTENT_TYPE, EjbHeaders.AFFINITY_VERSION_ONE);
         }

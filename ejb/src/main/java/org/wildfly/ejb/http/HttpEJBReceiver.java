@@ -2,19 +2,29 @@ package org.wildfly.ejb.http;
 
 import java.io.BufferedInputStream;
 import java.io.BufferedOutputStream;
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.InterruptedIOException;
 import java.io.ObjectInput;
 import java.io.OutputStream;
+import java.lang.reflect.Method;
 import java.net.URI;
+import java.util.ArrayList;
 import java.util.Base64;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
+import javax.ejb.Asynchronous;
 import javax.transaction.xa.XAException;
+import javax.transaction.xa.XAResource;
 import javax.transaction.xa.Xid;
 
 import org.jboss.ejb.client.Affinity;
@@ -28,6 +38,7 @@ import org.jboss.ejb.client.EJBReceiverInvocationContext;
 import org.jboss.ejb.client.SessionID;
 import org.jboss.ejb.client.StatefulEJBLocator;
 import org.jboss.ejb.client.TransactionID;
+import org.jboss.ejb.client.XidTransactionID;
 import org.jboss.marshalling.ByteOutput;
 import org.jboss.marshalling.InputStreamByteInput;
 import org.jboss.marshalling.Marshaller;
@@ -53,6 +64,7 @@ import io.undertow.server.handlers.Cookie;
 import io.undertow.util.Cookies;
 import io.undertow.util.HeaderValues;
 import io.undertow.util.Headers;
+import io.undertow.util.Methods;
 import io.undertow.util.StatusCodes;
 
 /**
@@ -64,6 +76,7 @@ public class HttpEJBReceiver extends EJBReceiver {
     private final AttachmentKey<HttpConnectionPool> poolAttachmentKey = new AttachmentKey<>();
     private final AttachmentKey<AtomicReference<String>> sessionIdAttachmentKey = new AttachmentKey<>();
     private final AttachmentKey<CountDownLatch> sessionIdReadyLatchAttachmentKey = new AttachmentKey<>();
+    private final AttachmentKey<Set<Method>> asyncMethodsAttachmentKey = new AttachmentKey<>();
 
     private final URI uri;
     private final XnioWorker worker;
@@ -94,6 +107,7 @@ public class HttpEJBReceiver extends EJBReceiver {
         AtomicReference<String> sessionIdReference = new AtomicReference<>();
         context.putAttachment(this.poolAttachmentKey, pool);
         context.putAttachment(this.sessionIdAttachmentKey, sessionIdReference);
+        context.putAttachment(this.asyncMethodsAttachmentKey, Collections.newSetFromMap(new ConcurrentHashMap<>()));
         if (eagerlyAcquireSession) {
             acquireInitialAffinity(context);
         }
@@ -105,7 +119,7 @@ public class HttpEJBReceiver extends EJBReceiver {
         sendRequest(connection, builder.createRequest(uri.getPath()), null, null, (e) -> {
             latch.countDown();
             HttpClientMessages.MESSAGES.failedToAcquireSession(e);
-        }, EjbHeaders.EJB_RESPONSE_AFFINITY_RESULT_VERSION_ONE, sessionIdReference, latch::countDown);
+        }, EjbHeaders.EJB_RESPONSE_AFFINITY_RESULT_VERSION_ONE, EjbHeaders.EJB_RESPONSE_EXCEPTION_VERSION_ONE, sessionIdReference, latch::countDown);
     }
 
     @Override
@@ -141,16 +155,32 @@ public class HttpEJBReceiver extends EJBReceiver {
         if (locator instanceof StatefulEJBLocator) {
             builder.setBeanId(Base64.getEncoder().encodeToString(((StatefulEJBLocator) locator).getSessionId().getEncodedForm()));
         }
+        if (clientInvocationContext.getInvokedMethod().getReturnType() == Future.class) {
+            receiverContext.proceedAsynchronously();
+        } else if (clientInvocationContext.getInvokedMethod().getReturnType() == void.class) {
+            if (clientInvocationContext.getInvokedMethod().isAnnotationPresent(Asynchronous.class)) {
+                receiverContext.proceedAsynchronously();
+            } else if (receiverContext.getEjbReceiverContext().getAttachment(asyncMethodsAttachmentKey).contains(clientInvocationContext.getInvokedMethod())) {
+                receiverContext.proceedAsynchronously();
+            }
+        }
         ClientRequest request = builder.createRequest(uri.getPath());
         request.getRequestHeaders().put(Headers.TRANSFER_ENCODING, "chunked");
         sendRequest(connection, request, (marshaller -> {
                     marshalEJBRequest(marshaller, clientInvocationContext);
                 }),
 
-                ((unmarshaller, response) -> {
+                ((input, response) -> {
+                    if (response.getResponseCode() == StatusCodes.ACCEPTED && clientInvocationContext.getInvokedMethod().getReturnType() == void.class) {
+                        receiverContext.getEjbReceiverContext().getAttachment(asyncMethodsAttachmentKey).add(clientInvocationContext.getInvokedMethod());
+                    }
                     Exception exception = null;
                     Object returned = null;
                     try {
+
+                        final MarshallingConfiguration marshallingConfiguration = createMarshallingConfig();
+                        final Unmarshaller unmarshaller = marshallerFactory.createUnmarshaller(marshallingConfiguration);
+                        unmarshaller.start(new InputStreamByteInput(input));
                         returned = unmarshaller.readObject();
                         // read the attachments
                         //TODO: do we need attachments?
@@ -173,7 +203,7 @@ public class HttpEJBReceiver extends EJBReceiver {
                     final Exception ex = exception;
                     receiverContext.resultReady(new StaticResultProducer(ex, ret));
                 }),
-                (e) -> receiverContext.resultReady(new StaticResultProducer(e instanceof Exception ? (Exception) e : new RuntimeException(e), null)), EjbHeaders.EJB_RESPONSE_VERSION_ONE, sessionAffinityCookie, null);
+                (e) -> receiverContext.resultReady(new StaticResultProducer(e instanceof Exception ? (Exception) e : new RuntimeException(e), null)), EjbHeaders.EJB_RESPONSE_VERSION_ONE, EjbHeaders.EJB_RESPONSE_EXCEPTION_VERSION_ONE, sessionAffinityCookie, null);
 
     }
 
@@ -222,7 +252,7 @@ public class HttpEJBReceiver extends EJBReceiver {
         sendRequest(connection, request, null,
                 ((unmarshaller, response) -> {
                     String sessionId = response.getResponseHeaders().getFirst(EjbHeaders.EJB_SESSION_ID);
-                    if(sessionId == null) {
+                    if (sessionId == null) {
                         result.setException(HttpClientMessages.MESSAGES.noSessionIdInResponse());
                         connection.done(true);
                     } else {
@@ -231,20 +261,16 @@ public class HttpEJBReceiver extends EJBReceiver {
                         connection.done(false);
                     }
                 })
-                , (e) -> result.setException(new IOException(e)), EjbHeaders.EJB_RESPONSE_NEW_SESSION, sessionAffinity, null);
+                , (e) -> result.setException(new IOException(e)), EjbHeaders.EJB_RESPONSE_NEW_SESSION, EjbHeaders.EJB_RESPONSE_EXCEPTION_VERSION_ONE, sessionAffinity, null);
 
     }
 
-    private void sendRequest(final HttpConnectionPool.ConnectionHandle connection, ClientRequest request, EjbMarshaller ejbMarshaller, EjbResultHandler ejbResultHandler, EjbFailureHandler failureHandler, String expectedResponse, final AtomicReference<String> sessionAffinity, Runnable completedTask) {
+    private void sendRequest(final HttpConnectionPool.ConnectionHandle connection, ClientRequest request, EjbMarshaller ejbMarshaller, EjbResultHandler ejbResultHandler, EjbFailureHandler failureHandler, String expectedResponse, String exceptionType, final AtomicReference<String> sessionAffinity, Runnable completedTask) {
 
         connection.getConnection().sendRequest(request, new ClientCallback<ClientExchange>() {
             @Override
             public void completed(ClientExchange result) {
 
-                final MarshallingConfiguration marshallingConfiguration = new MarshallingConfiguration();
-                marshallingConfiguration.setClassTable(ProtocolV1ClassTable.INSTANCE);
-                marshallingConfiguration.setObjectTable(ProtocolV1ObjectTable.INSTANCE);
-                marshallingConfiguration.setVersion(2);
 
                 result.setResponseListener(new ClientCallback<ClientExchange>() {
                     @Override
@@ -254,7 +280,7 @@ public class HttpEJBReceiver extends EJBReceiver {
                             ClientResponse response = result.getResponse();
                             String type = response.getResponseHeaders().getFirst(Headers.CONTENT_TYPE);
                             //TODO: proper comparison, there may be spaces
-                            if (type == null || !(type.equals(expectedResponse) || type.equals(EjbHeaders.EJB_RESPONSE_EXCEPTION_VERSION_ONE))) {
+                            if (type == null || !(type.equals(expectedResponse) || type.equals(exceptionType))) {
                                 failureHandler.handleFailure(HttpClientMessages.MESSAGES.invalidResponseType(type));
                                 return;
                             }
@@ -270,7 +296,8 @@ public class HttpEJBReceiver extends EJBReceiver {
                                     }
                                 }
 
-                                if (type.equals(EjbHeaders.EJB_RESPONSE_EXCEPTION_VERSION_ONE)) {
+                                if (type.equals(exceptionType)) {
+                                    final MarshallingConfiguration marshallingConfiguration = createMarshallingConfig();
                                     final Unmarshaller unmarshaller = marshallerFactory.createUnmarshaller(marshallingConfiguration);
                                     unmarshaller.start(new InputStreamByteInput(new BufferedInputStream(new ChannelInputStream(result.getResponseChannel()))));
                                     Exception exception = (Exception) unmarshaller.readObject();
@@ -292,13 +319,11 @@ public class HttpEJBReceiver extends EJBReceiver {
 
                                 } else {
                                     if (ejbResultHandler != null) {
-                                        if(response.getResponseCode() == StatusCodes.NO_CONTENT) {
+                                        if (response.getResponseCode() == StatusCodes.NO_CONTENT) {
                                             Channels.drain(result.getResponseChannel(), Long.MAX_VALUE);
                                             ejbResultHandler.handleResult(null, response);
                                         } else {
-                                            final Unmarshaller unmarshaller = marshallerFactory.createUnmarshaller(marshallingConfiguration);
-                                            unmarshaller.start(new InputStreamByteInput(new BufferedInputStream(new ChannelInputStream(result.getResponseChannel()))));
-                                            ejbResultHandler.handleResult(unmarshaller, response);
+                                            ejbResultHandler.handleResult(new BufferedInputStream(new ChannelInputStream(result.getResponseChannel())), response);
                                         }
                                     }
                                     if (completedTask != null) {
@@ -326,6 +351,7 @@ public class HttpEJBReceiver extends EJBReceiver {
                         try (OutputStream outputStream = new BufferedOutputStream(new ChannelOutputStream(result.getRequestChannel()))) {
 
                             // marshall the locator and method params
+                            final MarshallingConfiguration marshallingConfiguration = createMarshallingConfig();
                             final Marshaller marshaller = marshallerFactory.createMarshaller(marshallingConfiguration);
                             final ByteOutput byteOutput = Marshalling.createByteOutput(outputStream);
                             // start the marshaller
@@ -346,6 +372,14 @@ public class HttpEJBReceiver extends EJBReceiver {
                 failureHandler.handleFailure(e);
             }
         });
+    }
+
+    private MarshallingConfiguration createMarshallingConfig() {
+        final MarshallingConfiguration marshallingConfiguration = new MarshallingConfiguration();
+        marshallingConfiguration.setClassTable(ProtocolV1ClassTable.INSTANCE);
+        marshallingConfiguration.setObjectTable(ProtocolV1ObjectTable.INSTANCE);
+        marshallingConfiguration.setVersion(2);
+        return marshallingConfiguration;
     }
 
     private void marshalEJBRequest(Marshaller marshaller, EJBClientInvocationContext clientInvocationContext) throws IOException {
@@ -404,32 +438,167 @@ public class HttpEJBReceiver extends EJBReceiver {
 
     @Override
     protected int sendPrepare(EJBReceiverContext context, TransactionID transactionID) throws XAException {
-        return super.sendPrepare(context, transactionID);
+        TransactionInvocationBuilder request = new TransactionInvocationBuilder()
+                .setTransactionID(transactionID)
+                .setType(TransactionInvocationBuilder.Type.PREPARE);
+        ClientResponse response = sendTransactionRequest(request, context);
+        if (response.getResponseHeaders().contains(EjbHeaders.READ_ONLY)) {
+            return XAResource.XA_RDONLY;
+        }
+        return XAResource.XA_OK;
+    }
+
+    private ClientResponse sendTransactionRequest(TransactionInvocationBuilder builder, EJBReceiverContext context) throws XAException {
+        try {
+            awaitInitialAffinity(context);
+            final AtomicReference<Throwable> exceptionAtomicReference = new AtomicReference<>();
+            final CountDownLatch done = new CountDownLatch(1);
+            final HttpConnectionPool pool = context.getAttachment(this.poolAttachmentKey);
+            final AtomicReference<String> sessionAffinity = context.getAttachment(sessionIdAttachmentKey);
+            final AtomicReference<ClientResponse> clientResponseAtomicReference = new AtomicReference<>();
+            builder.setSessionId(sessionAffinity.get());
+            ClientRequest request = builder.build(uri.getPath());
+
+            pool.getConnection((connection) -> {
+                sendRequest(connection, request, null, (unmarshaller, response) -> {
+                    clientResponseAtomicReference.set(response);
+                    done.countDown();
+
+                }, throwable -> {
+                    exceptionAtomicReference.set(throwable);
+                    done.countDown();
+                }, EjbHeaders.TXN_RESULT_VERSION_ONE, EjbHeaders.TXN_EXCEPTION_VERSION_ONE, sessionAffinity, null);
+            }, e -> {
+                exceptionAtomicReference.set(e);
+                done.countDown();
+            }, false);
+
+            done.await();
+            if (exceptionAtomicReference.get() != null) {
+                throw exceptionAtomicReference.get();
+            }
+            return clientResponseAtomicReference.get();
+        } catch (XAException e) {
+            throw e;
+        } catch (Throwable e) {
+            final XAException xae = new XAException(XAException.XAER_RMFAIL);
+            xae.initCause(e);
+            throw xae;
+        }
     }
 
     @Override
     protected void sendCommit(EJBReceiverContext context, TransactionID transactionID, boolean onePhase) throws XAException {
-        super.sendCommit(context, transactionID, onePhase);
+        TransactionInvocationBuilder request = new TransactionInvocationBuilder()
+                .setTransactionID(transactionID)
+                .setOnePhaseCommit(onePhase)
+                .setType(TransactionInvocationBuilder.Type.COMMIT);
+        sendTransactionRequest(request, context);
     }
 
     @Override
     protected void sendRollback(EJBReceiverContext context, TransactionID transactionID) throws XAException {
-        super.sendRollback(context, transactionID);
+        TransactionInvocationBuilder request = new TransactionInvocationBuilder()
+                .setTransactionID(transactionID)
+                .setType(TransactionInvocationBuilder.Type.ROLLBACK);
+        sendTransactionRequest(request, context);
     }
 
     @Override
     protected void sendForget(EJBReceiverContext context, TransactionID transactionID) throws XAException {
-        super.sendForget(context, transactionID);
+        TransactionInvocationBuilder request = new TransactionInvocationBuilder()
+                .setTransactionID(transactionID)
+                .setType(TransactionInvocationBuilder.Type.FORGET);
+        sendTransactionRequest(request, context);
     }
 
     @Override
-    protected Xid[] sendRecover(EJBReceiverContext receiverContext, String txParentNodeName, int recoveryFlags) throws XAException {
-        return super.sendRecover(receiverContext, txParentNodeName, recoveryFlags);
+    protected Xid[] sendRecover(EJBReceiverContext context, String txParentNodeName, int recoveryFlags) throws XAException {
+
+        final AtomicReference<Throwable> exceptionAtomicReference = new AtomicReference<>();
+        final CountDownLatch done = new CountDownLatch(1);
+        final HttpConnectionPool pool = context.getAttachment(this.poolAttachmentKey);
+        final AtomicReference<String> sessionAffinity = context.getAttachment(sessionIdAttachmentKey);
+        final AtomicReference<Xid[]> resultReference = new AtomicReference<>();
+
+        ClientRequest request = new ClientRequest();
+        request.setMethod(Methods.GET);
+        request.getRequestHeaders().put(EjbHeaders.PARENT_NODE_NAME, txParentNodeName);
+        request.getRequestHeaders().put(EjbHeaders.RECOVERY_FLAGS, recoveryFlags);
+        request.getRequestHeaders().put(Headers.ACCEPT, EjbHeaders.TXN_EXCEPTION_VERSION_ONE + "," + EjbHeaders.TXN_XIDS_VERSION_ONE);
+        request.getRequestHeaders().put(Headers.CONTENT_TYPE, EjbHeaders.TXN_RECOVERY_VERSION_ONE);
+        if(sessionAffinity.get() != null) {
+            request.getRequestHeaders().put(Headers.COOKIE, "JSESSIONID=" + sessionAffinity.get());
+        }
+        request.setPath(uri.getPath() + "/txn/xa");
+
+        try {
+            awaitInitialAffinity(context);
+            pool.getConnection((connection) -> {
+                sendRequest(connection, request, null, (inputStream, response) -> {
+                    ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
+                    byte[] buf = new byte[1024];
+                    int r;
+                    try {
+                        while ((r = inputStream.read(buf)) > 0) {
+                            outputStream.write(buf, 0, r);
+                        }
+                    } catch (IOException e) {
+                        exceptionAtomicReference.set(e);
+                        done.countDown();
+                        return;
+                    }
+                    byte[] data = outputStream.toByteArray();
+                    StringBuilder sb = new StringBuilder();
+                    List<Xid> xidList = new ArrayList<>();
+                    for(int i = 0; i < data.length; ++i) {
+                        byte b = data[i];
+                        if(b == '\n') {
+                            String encodedXid = sb.toString();
+                            sb.setLength(0);
+                            byte[] rawXid = Base64.getDecoder().decode(encodedXid);
+                            TransactionID id = TransactionID.createTransactionID(rawXid);
+                            xidList.add(((XidTransactionID)id).getXid());
+                        } else {
+                            sb.append(b);
+                        }
+                    }
+                    resultReference.set(xidList.toArray(new Xid[xidList.size()]));
+                    done.countDown();
+
+                }, throwable -> {
+                    exceptionAtomicReference.set(throwable);
+                    done.countDown();
+                }, EjbHeaders.TXN_RESULT_VERSION_ONE, EjbHeaders.TXN_EXCEPTION_VERSION_ONE, sessionAffinity, null);
+            }, e -> {
+                exceptionAtomicReference.set(e);
+                done.countDown();
+            }, false);
+
+            done.await();
+            if (exceptionAtomicReference.get() != null) {
+                throw exceptionAtomicReference.get();
+            }
+            return resultReference.get();
+        } catch (XAException e) {
+            throw e;
+        } catch (Throwable e) {
+            final XAException xae = new XAException(XAException.XAER_RMFAIL);
+            xae.initCause(e);
+            throw xae;
+        }
     }
 
     @Override
     protected void beforeCompletion(EJBReceiverContext context, TransactionID transactionID) {
-        super.beforeCompletion(context, transactionID);
+        TransactionInvocationBuilder request = new TransactionInvocationBuilder()
+                .setTransactionID(transactionID)
+                .setType(TransactionInvocationBuilder.Type.BEFORE_COMPLETION);
+        try {
+            sendTransactionRequest(request, context);
+        } catch (XAException e) {
+            throw new RuntimeException(e);
+        }
     }
 
     private void awaitInitialAffinity(EJBReceiverContext context) throws IOException {
@@ -498,7 +667,7 @@ public class HttpEJBReceiver extends EJBReceiver {
     }
 
     private interface EjbResultHandler {
-        void handleResult(Unmarshaller unmarshaller, ClientResponse response);
+        void handleResult(InputStream result, ClientResponse response);
     }
 
     private interface EjbFailureHandler {
