@@ -51,10 +51,13 @@
         <version.javax.transactions>1.0.0.Final</version.javax.transactions>
         <version.org.wildfly.checkstyle-config>1.0.4.Final</version.org.wildfly.checkstyle-config>
         <version.org.jboss.marshalling>1.4.10.Final</version.org.jboss.marshalling>
+        <version.org.jboss.remote-naming>2.0.4.Final</version.org.jboss.remote-naming>
     </properties>
 
     <modules>
+        <module>common</module>
         <module>ejb</module>
+        <module>jndi</module>
     </modules>
 
     <dependencyManagement>
@@ -92,6 +95,18 @@
                 <version>${version.javax.transactions}</version>
             </dependency>
 
+            <dependency>
+                <groupId>org.wildfly.wildfly-http-client</groupId>
+                <artifactId>wildfly-http-client-common</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.wildfly.wildfly-http-client</groupId>
+                <artifactId>wildfly-http-client-common</artifactId>
+                <version>${project.version}</version>
+                <type>test-jar</type>
+                <scope>test</scope>
+            </dependency>
             <!-- Test dependencies -->
             <dependency>
                 <groupId>io.undertow</groupId>
