@@ -624,7 +624,7 @@ public class HttpEJBReceiver extends EJBReceiver {
         pool.getConnection(connection -> {
                     acquireSessionAffinity(connection, latch, context.getAttachment(this.sessionIdAttachmentKey));
                 },
-                EJBHttpClientMessages.MESSAGES::failedToAcquireSession, false);
+                (t) -> {latch.countDown(); EJBHttpClientMessages.MESSAGES.failedToAcquireSession(t);}, false);
     }
 
     private static Map<String, Object> readAttachments(final ObjectInput input) throws IOException, ClassNotFoundException {
