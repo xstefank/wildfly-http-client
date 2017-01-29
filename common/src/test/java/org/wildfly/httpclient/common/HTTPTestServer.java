@@ -1,11 +1,8 @@
 package org.wildfly.httpclient.common;
 
-import java.net.InetSocketAddress;
 import java.util.HashSet;
 import java.util.Set;
 
-import org.jboss.marshalling.MarshallerFactory;
-import org.jboss.marshalling.river.RiverMarshallerFactory;
 import org.junit.runner.Description;
 import org.junit.runner.Result;
 import org.junit.runner.notification.RunListener;
@@ -21,8 +18,6 @@ import io.undertow.connector.ByteBufferPool;
 import io.undertow.server.DefaultByteBufferPool;
 import io.undertow.server.HttpHandler;
 import io.undertow.server.handlers.PathHandler;
-import io.undertow.testutils.DebuggingSlicePool;
-import io.undertow.testutils.DefaultServer;
 import io.undertow.util.NetworkUtils;
 
 /**
@@ -42,7 +37,7 @@ public class HTTPTestServer extends BlockJUnit4ClassRunner {
 
     private static XnioWorker worker;
 
-    private static final DebuggingSlicePool pool = new DebuggingSlicePool(new DefaultByteBufferPool(true, BUFFER_SIZE, 1000, 10, 100));
+    private static final DefaultByteBufferPool pool = new DefaultByteBufferPool(true, BUFFER_SIZE, 1000, 10, 100);
 
     private static final Set<String> registeredPaths = new HashSet<>();
 
@@ -55,10 +50,6 @@ public class HTTPTestServer extends BlockJUnit4ClassRunner {
 
     public static String getDefaultRootServerURL() {
         return "http://" + NetworkUtils.formatPossibleIpv6Address(getHostAddress()) + ":" + getHostPort();
-    }
-
-    public static InetSocketAddress getDefaultServerAddress() {
-        return new InetSocketAddress(DefaultServer.getHostAddress("default"), DefaultServer.getHostPort("default"));
     }
 
     public HTTPTestServer(Class<?> klass) throws InitializationError {

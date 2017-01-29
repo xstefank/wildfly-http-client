@@ -1,0 +1,89 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<!--
+  ~ JBoss, Home of Professional Open Source.
+  ~ Copyright 2016, Red Hat, Inc., and individual contributors
+  ~ as indicated by the @author tags. See the copyright.txt file in the
+  ~ distribution for a full listing of individual contributors.
+  ~
+  ~ This is free software; you can redistribute it and/or modify it
+  ~ under the terms of the GNU Lesser General Public License as
+  ~ published by the Free Software Foundation; either version 2.1 of
+  ~ the License, or (at your option) any later version.
+  ~
+  ~ This software is distributed in the hope that it will be useful,
+  ~ but WITHOUT ANY WARRANTY; without even the implied warranty of
+  ~ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
+  ~ Lesser General Public License for more details.
+  ~
+  ~ You should have received a copy of the GNU Lesser General Public
+  ~ License along with this software; if not, write to the Free
+  ~ Software Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA
+  ~ 02110-1301 USA, or see the FSF site: http://www.fsf.org.
+  -->
+
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema"
+            targetNamespace="urn:ejb-http-client:1.0"
+            xmlns="urn:ejb-http-client:1.0"
+            elementFormDefault="qualified"
+            attributeFormDefault="unqualified"
+            version="1.0">
+
+    <xs:element name="ejb-http" type="ejb-http-type"/>
+
+    <xs:complexType name="ejb-http-type">
+        <xs:all minOccurs="0" maxOccurs="1">
+            <xs:element name="connections" type="connections-type" minOccurs="0" maxOccurs="1"/>
+            <xs:element name="default-bind" type="bind-address-type" minOccurs="0" maxOccurs="1"/>
+        </xs:all>
+    </xs:complexType>
+
+    <xs:complexType name="connections-type">
+        <xs:choice minOccurs="0" maxOccurs="unbounded">
+            <xs:element name="connection" type="connection-type"/>
+        </xs:choice>
+    </xs:complexType>
+
+    <xs:complexType name="connection-type">
+        <xs:all>
+            <xs:element name="hosts" type="hosts-type" minOccurs="1" maxOccurs="1"/>
+            <xs:element name="bind" type="bind-address-type" minOccurs="0"/>
+            <xs:element name="modules" type="modules-type" minOccurs="0"/>
+        </xs:all>
+        <xs:attribute name="idle-timeout" use="optional" type="xs:long" default="60000" />
+        <xs:attribute name="max-connections" use="optional" type="xs:int" default="10" />
+        <xs:attribute name="max-streams-per-connection" use="optional" type="xs:int" default="10" />
+    </xs:complexType>
+
+    <xs:complexType name="bind-address-type">
+        <xs:attribute name="address" use="required" type="xs:string"/>
+        <xs:attribute name="port" use="optional" type="port-type"/>
+    </xs:complexType>
+
+    <xs:simpleType name="port-type">
+        <xs:restriction base="xs:integer">
+            <xs:minInclusive value="0"/>
+            <xs:maxInclusive value="65535"/>
+        </xs:restriction>
+    </xs:simpleType>
+
+    <xs:complexType name="modules-type">
+        <xs:sequence>
+            <xs:element name="module" type="module-type" minOccurs="0" maxOccurs="unbounded" />
+        </xs:sequence>
+    </xs:complexType>
+
+    <xs:complexType name="module-type">
+        <xs:attribute name="app" type="xs:string" use="optional" />
+        <xs:attribute name="module" type="xs:string" use="optional" />
+        <xs:attribute name="distinct" type="xs:string" use="optional" />
+    </xs:complexType>
+    <xs:complexType name="hosts-type">
+        <xs:sequence>
+            <xs:element name="host" type="host-type" minOccurs="0" maxOccurs="unbounded" />
+        </xs:sequence>
+    </xs:complexType>
+    <xs:complexType name="host-type">
+        <xs:attribute name="host" type="xs:string" use="required" />
+    </xs:complexType>
+</xs:schema>

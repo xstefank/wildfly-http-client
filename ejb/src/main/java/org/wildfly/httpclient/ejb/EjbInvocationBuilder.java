@@ -1,6 +1,10 @@
 package org.wildfly.httpclient.ejb;
 
+import static io.undertow.util.Headers.AUTHORIZATION;
+import static io.undertow.util.Headers.BASIC;
+
 import io.undertow.client.ClientRequest;
+import io.undertow.util.FlexBase64;
 import io.undertow.util.Headers;
 import io.undertow.util.HttpString;
 import io.undertow.util.Methods;
@@ -218,6 +222,7 @@ class EjbInvocationBuilder {
         if(sessionId != null) {
             clientRequest.getRequestHeaders().put(Headers.COOKIE, "JSESSIONID=" + sessionId); //TODO: fix this
         }
+        clientRequest.getRequestHeaders().put(Headers.AUTHORIZATION, BASIC + " " + FlexBase64.encodeString("user1:password1".getBytes(), false));
         if(invocationType == InvocationType.METHOD_INVOCATION) {
             clientRequest.setMethod(Methods.POST);
             clientRequest.getRequestHeaders().add(Headers.ACCEPT, INVOCATION_ACCEPT);

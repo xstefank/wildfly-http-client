@@ -2,19 +2,19 @@ package org.wildfly.httpclient.ejb;
 
 import java.io.IOException;
 
-import org.jboss.ejb.client.EJBClientContextIdentifier;
 import org.jboss.logging.BasicLogger;
 import org.jboss.logging.Logger;
 import org.jboss.logging.annotations.Cause;
 import org.jboss.logging.annotations.LogMessage;
 import org.jboss.logging.annotations.Message;
 import org.jboss.logging.annotations.MessageLogger;
+import org.wildfly.client.config.ConfigXMLParseException;
 import io.undertow.client.ClientResponse;
 
 @MessageLogger(projectCode = "WFHTTPEJB")
-interface EJBHttpClientMessages extends BasicLogger {
+interface EjbHttpClientMessages extends BasicLogger {
 
-    EJBHttpClientMessages MESSAGES = Logger.getMessageLogger(EJBHttpClientMessages.class, EJBHttpClientMessages.class.getPackage().getName());
+    EjbHttpClientMessages MESSAGES = Logger.getMessageLogger(EjbHttpClientMessages.class, EjbHttpClientMessages.class.getPackage().getName());
 
     @Message(id = 1, value = "Invalid response type %s")
     IOException invalidResponseType(String type);
@@ -28,9 +28,6 @@ interface EJBHttpClientMessages extends BasicLogger {
     @Message(id = 4, value = "Failed to acquire session")
     @LogMessage(level = Logger.Level.ERROR)
     void failedToAcquireSession(@Cause Throwable t);
-
-    @Message(id = 5, value = "An EJB client context is already registered for EJB client context identifier %s")
-    IllegalStateException ejbClientContextAlreadyRegisteredForIdentifier(EJBClientContextIdentifier identifier);
 
     @Message(id = 6, value = "No URI provided for connection %s")
     @LogMessage(level = Logger.Level.ERROR)
@@ -50,4 +47,7 @@ interface EJBHttpClientMessages extends BasicLogger {
 
     @Message(id = 11, value = "No session id in response")
     IOException noSessionIdInResponse();
+
+    @Message(id = 12, value = "Port value %s out of range")
+    ConfigXMLParseException portValueOutOfRange(int port);
 }

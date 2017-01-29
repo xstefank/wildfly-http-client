@@ -29,14 +29,13 @@ import javax.transaction.xa.Xid;
 
 import org.jboss.ejb.client.Affinity;
 import org.jboss.ejb.client.AttachmentKey;
-import org.jboss.ejb.client.EJBClientConfiguration;
 import org.jboss.ejb.client.EJBClientInvocationContext;
 import org.jboss.ejb.client.EJBLocator;
 import org.jboss.ejb.client.EJBReceiver;
-import org.jboss.ejb.client.EJBReceiverContext;
 import org.jboss.ejb.client.EJBReceiverInvocationContext;
 import org.jboss.ejb.client.SessionID;
 import org.jboss.ejb.client.StatefulEJBLocator;
+import org.jboss.ejb.client.StatelessEJBLocator;
 import org.jboss.ejb.client.TransactionID;
 import org.jboss.ejb.client.XidTransactionID;
 import org.jboss.marshalling.ByteOutput;
@@ -72,8 +71,8 @@ import io.undertow.util.StatusCodes;
 /**
  * @author Stuart Douglas
  */
-public class HttpEJBReceiver extends EJBReceiver {
-
+class HttpEJBReceiver /* extends EJBReceiver*/ {
+/*
     private static final String JSESSIONID = "JSESSIONID"; //TODO: make configurable
     private final AttachmentKey<HttpConnectionPool> poolAttachmentKey = new AttachmentKey<>();
     private final AttachmentKey<AtomicReference<String>> sessionIdAttachmentKey = new AttachmentKey<>();
@@ -88,8 +87,7 @@ public class HttpEJBReceiver extends EJBReceiver {
     private final MarshallerFactory marshallerFactory;
     private final boolean eagerlyAcquireSession;
 
-    public HttpEJBReceiver(String nodeName, URI uri, XnioWorker worker, ByteBufferPool bufferPool, XnioSsl ssl, OptionMap options, MarshallerFactory marshallerFactory, boolean eagerlyAcquireSession, ModuleID... moduleIDs) {
-        super(nodeName);
+    private HttpEJBReceiver(URI uri, XnioWorker worker, ByteBufferPool bufferPool, XnioSsl ssl, OptionMap options, MarshallerFactory marshallerFactory, boolean eagerlyAcquireSession, ModuleID... moduleIDs) {
         this.uri = uri;
         this.worker = worker;
         this.bufferPool = bufferPool;
@@ -120,7 +118,7 @@ public class HttpEJBReceiver extends EJBReceiver {
                 .setInvocationType(EjbInvocationBuilder.InvocationType.AFFINITY);
         sendRequest(connection, builder.createRequest(uri.getPath()), null, null, (e) -> {
             latch.countDown();
-            EJBHttpClientMessages.MESSAGES.failedToAcquireSession(e);
+            EjbHttpClientMessages.MESSAGES.failedToAcquireSession(e);
         }, EjbHeaders.EJB_RESPONSE_AFFINITY_RESULT_VERSION_ONE, EjbHeaders.EJB_RESPONSE_EXCEPTION_VERSION_ONE, sessionIdReference, latch::countDown);
     }
 
@@ -189,7 +187,7 @@ public class HttpEJBReceiver extends EJBReceiver {
                         final Map<String, Object> attachments = readAttachments(unmarshaller);
                         // finish unmarshalling
                         if (unmarshaller.read() != -1) {
-                            exception = EJBHttpClientMessages.MESSAGES.unexpectedDataInResponse();
+                            exception = EjbHttpClientMessages.MESSAGES.unexpectedDataInResponse();
                         }
                         unmarshaller.finish();
                         connection.done(false);
@@ -230,7 +228,7 @@ public class HttpEJBReceiver extends EJBReceiver {
             IoFuture.Status await = result.getIoFuture().await(invocationTimeout, TimeUnit.MILLISECONDS);
             if (await != IoFuture.Status.DONE && await != IoFuture.Status.FAILED) {
                 result.setCancelled();
-                throw EJBHttpClientMessages.MESSAGES.sessionOpenTimedOut();
+                throw EjbHttpClientMessages.MESSAGES.sessionOpenTimedOut();
             }
         }
         try {
@@ -255,7 +253,7 @@ public class HttpEJBReceiver extends EJBReceiver {
                 ((unmarshaller, response) -> {
                     String sessionId = response.getResponseHeaders().getFirst(EjbHeaders.EJB_SESSION_ID);
                     if (sessionId == null) {
-                        result.setException(EJBHttpClientMessages.MESSAGES.noSessionIdInResponse());
+                        result.setException(EjbHttpClientMessages.MESSAGES.noSessionIdInResponse());
                         connection.done(true);
                     } else {
                         SessionID sessionID = SessionID.createSessionID(Base64.getDecoder().decode(sessionId));
@@ -283,7 +281,13 @@ public class HttpEJBReceiver extends EJBReceiver {
                             String type = response.getResponseHeaders().getFirst(Headers.CONTENT_TYPE);
                             //TODO: proper comparison, there may be spaces
                             if (type == null || !(type.equals(expectedResponse) || type.equals(exceptionType))) {
-                                failureHandler.handleFailure(EJBHttpClientMessages.MESSAGES.invalidResponseType(type));
+                                if(response.getResponseCode() >= 400) {
+                                    failureHandler.handleFailure(EjbHttpClientMessages.MESSAGES.invalidResponseCode(response.getResponseCode(), response));
+                                } else {
+                                    failureHandler.handleFailure(EjbHttpClientMessages.MESSAGES.invalidResponseType(type));
+                                }
+                                //close the connection to be safe
+                                connection.done(true);
                                 return;
                             }
                             try {
@@ -305,7 +309,7 @@ public class HttpEJBReceiver extends EJBReceiver {
                                     Exception exception = (Exception) unmarshaller.readObject();
                                     Map<String, Object> attachments = readAttachments(unmarshaller);
                                     if (unmarshaller.read() != -1) {
-                                        EJBHttpClientMessages.MESSAGES.debugf("Unexpected data when reading exception from %s", response);
+                                        EjbHttpClientMessages.MESSAGES.debugf("Unexpected data when reading exception from %s", response);
                                         connection.done(true);
                                     } else {
                                         connection.done(false);
@@ -315,7 +319,7 @@ public class HttpEJBReceiver extends EJBReceiver {
                                 } else if (response.getResponseCode() >= 400) {
                                     //unknown error
 
-                                    failureHandler.handleFailure(EJBHttpClientMessages.MESSAGES.invalidResponseCode(response.getResponseCode(), response));
+                                    failureHandler.handleFailure(EjbHttpClientMessages.MESSAGES.invalidResponseCode(response.getResponseCode(), response));
                                     //close the connection to be safe
                                     connection.done(true);
 
@@ -624,7 +628,7 @@ public class HttpEJBReceiver extends EJBReceiver {
         pool.getConnection(connection -> {
                     acquireSessionAffinity(connection, latch, context.getAttachment(this.sessionIdAttachmentKey));
                 },
-                (t) -> {latch.countDown(); EJBHttpClientMessages.MESSAGES.failedToAcquireSession(t);}, false);
+                (t) -> {latch.countDown(); EjbHttpClientMessages.MESSAGES.failedToAcquireSession(t);}, false);
     }
 
     private static Map<String, Object> readAttachments(final ObjectInput input) throws IOException, ClassNotFoundException {
@@ -641,6 +645,16 @@ public class HttpEJBReceiver extends EJBReceiver {
             attachments.put(key, val);
         }
         return attachments;
+    }
+
+    @Override
+    protected void processInvocation(EJBReceiverInvocationContext receiverContext) throws Exception {
+
+    }
+
+    @Override
+    protected <T> StatefulEJBLocator<T> createSession(StatelessEJBLocator<T> statelessLocator) throws Exception {
+        return null;
     }
 
     public static class ModuleID {
@@ -699,4 +713,5 @@ public class HttpEJBReceiver extends EJBReceiver {
 
         }
     }
+    */
 }

@@ -46,12 +46,13 @@
         <version.org.junit>4.11</version.org.junit>
         <version.org.jboss.logmanager>1.5.3.Final</version.org.jboss.logmanager>
         <version.xnio>3.3.4.Final</version.xnio>
-        <version.org.jboss.ejb-client>2.2.0.Beta1-SNAPSHOT</version.org.jboss.ejb-client>
+        <version.org.jboss.ejb-client>4.0.0.Beta4</version.org.jboss.ejb-client>
         <version.javax.ejb.api>1.0.0.Final</version.javax.ejb.api>
         <version.javax.transactions>1.0.0.Final</version.javax.transactions>
         <version.org.wildfly.checkstyle-config>1.0.4.Final</version.org.wildfly.checkstyle-config>
         <version.org.jboss.marshalling>1.4.10.Final</version.org.jboss.marshalling>
         <version.org.jboss.remote-naming>2.0.4.Final</version.org.jboss.remote-naming>
+        <version.org.jboss.modules>1.6.0.Beta3</version.org.jboss.modules>
     </properties>
 
     <modules>
@@ -140,6 +141,13 @@
                 <artifactId>jboss-logmanager</artifactId>
                 <scope>test</scope>
                 <version>${version.org.jboss.logmanager}</version>
+            </dependency>
+
+            <dependency>
+                <groupId>org.jboss.modules</groupId>
+                <artifactId>jboss-modules</artifactId>
+                <version>${version.org.jboss.modules}</version>
+                <scope>test</scope>
             </dependency>
         </dependencies>
     </dependencyManagement>
