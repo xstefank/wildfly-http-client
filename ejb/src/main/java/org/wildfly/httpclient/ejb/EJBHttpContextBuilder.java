@@ -73,35 +73,35 @@ class EJBHttpContextBuilder {
     }
 
 
-    public long getIdleTimeout() {
+    long getIdleTimeout() {
         return idleTimeout;
     }
 
-    public void setIdleTimeout(long idleTimeout) {
+    void setIdleTimeout(long idleTimeout) {
         this.idleTimeout = idleTimeout;
     }
 
-    public int getMaxConnections() {
+    int getMaxConnections() {
         return maxConnections;
     }
 
-    public void setMaxConnections(int maxConnections) {
+    void setMaxConnections(int maxConnections) {
         this.maxConnections = maxConnections;
     }
 
-    public int getMaxStreamsPerConnection() {
+    int getMaxStreamsPerConnection() {
         return maxStreamsPerConnection;
     }
 
-    public void setMaxStreamsPerConnection(int maxStreamsPerConnection) {
+    void setMaxStreamsPerConnection(int maxStreamsPerConnection) {
         this.maxStreamsPerConnection = maxStreamsPerConnection;
     }
 
-    public Boolean getEagerlyAcquireSession() {
+    Boolean getEagerlyAcquireSession() {
         return eagerlyAcquireSession;
     }
 
-    public void setEagerlyAcquireSession(Boolean eagerlyAcquireSession) {
+    void setEagerlyAcquireSession(Boolean eagerlyAcquireSession) {
         this.eagerlyAcquireSession = eagerlyAcquireSession;
     }
 
@@ -171,11 +171,11 @@ class EJBHttpContextBuilder {
             this.maxStreamsPerConnection = maxStreamsPerConnection;
         }
 
-        public Boolean getEagerlyAcquireSession() {
+        Boolean getEagerlyAcquireSession() {
             return eagerlyAcquireSession;
         }
 
-        public void setEagerlyAcquireSession(Boolean eagerlyAcquireSession) {
+        void setEagerlyAcquireSession(Boolean eagerlyAcquireSession) {
             this.eagerlyAcquireSession = eagerlyAcquireSession;
         }
     }
