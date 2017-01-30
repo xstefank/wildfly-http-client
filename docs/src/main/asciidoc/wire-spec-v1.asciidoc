@@ -61,6 +61,28 @@ These protocols must support mod_cluster, and should be designed to work with ex
 
 This protocol does not directly support clustering, clustering is achieved using standard HTTP load balancing based techniques.
 
+== Common Messages
+
+
+==== Session Affinity
+
+Method::: ++GET++
+URI:: +/common/v1/affinity+
+Additional Required Headers::
+Request Body::
+The request body is empty.
+
+This message generates a session id, that can be used to make sure requests end up at the same backend node.
+
+
+==== Session Affinity Result
+
+Required Headers::
++Set-Cookie: JSESSIONID=\{sessionAffinityKey}+
+Response Body:: None
+Response Codes::
+ * +202+ Returned for a successful invocation
+
 == EJB Protocol
 
 The EJB protocol is mapped to the +/ejb+ context inside the service context path. When specifying the URI for a request all fields are required, if they are null or empty they should be replaced with a ‘-’ character.
@@ -74,7 +96,7 @@ Cancellation support is provided through the use of a client side invocation id 
 ==== EJB Invocation
 Message Type:: +application/x-wf-jbmar-invocation+
 Method::: +POST+
-URI:: +/ejb/invoke/\{applicationName}/\{moduleName}/\{distinctName}/\{beanName}/\{sfsbSessionId}/\{viewClass}/\{methodName}/\{paramType1}/\{paramType1}/...+
+URI:: +/ejb/v1/invoke/\{applicationName}/\{moduleName}/\{distinctName}/\{beanName}/\{sfsbSessionId}/\{viewClass}/\{methodName}/\{paramType1}/\{paramType1}/...+
 Additional Required Headers::
 +Accept: application/x-wf-ejb-jbmar-response;version=1,application/x-wf-ejb-jbmar-exception;version=1+
 Additional Optional Headers::
@@ -92,9 +114,9 @@ The sfsbSessionId parameter is a base64 encoded representation of the SFSB EJB s
 ==== EJB Session Open
 
 Method::: +POST+
-URI:: +/ejb/new/\{applicationName}/\{moduleName}/\{distinctName}/\{beanName}+
+URI:: +/ejb/v1/new/\{applicationName}/\{moduleName}/\{distinctName}/\{beanName}+
 Additional Required Headers::
-+Accept: application/x-wf-jbmar-new-session;version=1,application/x-wf-ejb-jbmar-exception;version=1+
++Accept: application/x-wf-ejb-jbmar-exception;version=1+
 Additional Optional Headers::
 +Cookie: JSESSIONID=\{sessionAffinityKey}+
 Request Body::
@@ -105,25 +127,13 @@ This message sends a request to the server. Full details on how it is handled ca
 ==== EJB Cancel
 
 Method::: ++DELETE++
-URI:: +/ejb/cancel/\{applicationName}/\{moduleName}/\{distinctName}/\{invocation-id}+
+URI:: +/ejb/v1/cancel/\{applicationName}/\{moduleName}/\{distinctName}/\{invocation-id}+
 Additional Required Headers::
-+Accept: application/x-wf-ejb-jbmar-cancelled;version=1+
 +Cookie: JSESSIONID=\{sessionAffinityKey}+
 Request Body::
 The request body is empty.
 
 This message cancels an async request.
-
-==== EJB Affinity
-
-Method::: ++GET++
-URI:: +/ejb/affinity+
-Additional Required Headers::
-+Accept: application/x-wf-ejb-jbmar-affinity-result;version=1+
-Request Body::
-The request body is empty.
-
-This message generates a session id, that can be used to make sure requests end up at the same backend node.
 
 === Response Messages
 
@@ -152,9 +162,8 @@ Response Codes::
 
 ==== EJB New Session
 
-Message Type:: +application/x-wf-ejb-jbmar-new-session+
 Required Headers::
-+x-wf-ejb-jbmar-session-id: \{newSessionId}+
++x-wf-ejb-session-id: \{newSessionId}+
 Optional Headers::
 +Set-Cookie: JSESSIONID=\{sessionAffinityKey}+
 Response Body::
@@ -165,20 +174,10 @@ Notes::
 In most cases it is expected that session affinity will be used to make sure that invocations on the EJB target the correct server.
 
 ==== EJB Cancelled
-Message Type:: +application/x-wf-ejb-jbmar-cancelled+
 Response Body:: None
 Response Codes:: 
  * +202+ Returned for a successful invocation
  * +404+ Returned if the invocation was not found (i.e. it has already completed)
-
-==== EJB Affinity Result
-
-Message Type:: +application/x-wf-ejb-jbmar-affinity-result+
-Required Headers::
-+Set-Cookie: JSESSIONID=\{sessionAffinityKey}+
-Response Body:: None
-Response Codes::
- * +202+ Returned for a successful invocation
 
 == JNDI Protocol
 
@@ -189,7 +188,7 @@ The JNDI protocol provides similar functionality to the existing remote JNDI imp
 ==== JNDI Lookup
 
 Method:: +POST+
-URI:: +/jndi/lookup/\{jndiName}+
+URI:: +/jndi/v1/lookup/\{jndiName}+
 Additional Required Headers::
 +Accept: application/x-wf-jndi-jbmar-value;version=1,application/x-wf-jndi-jbmar-exception;version=1+
 Additional Optional Headers::
@@ -204,7 +203,7 @@ Note that because JNDI lookups are not idempotent this method is a +POST+, rathe
 ==== JNDI Lookup Link
 
 Method:: POST
-URI:: +/jndi/lookuplink/\{jndiName}+
+URI:: +/jndi/v1/lookuplink/\{jndiName}+
 Additional Required Headers::
 +Accept: application/x-wf-jndi-jbmar-value;version=1,application/x-wf-jndi-jbmar-exception;version=1+
 Additional Optional Headers:: Cookie: JSESSIONID=\{sessionAffinityKey}
@@ -217,7 +216,7 @@ Note that because JNDI lookups are not idempotent this method is a post, rather 
 
 Message Type:: +application/x-wf-jndi-jbmar-bind+
 Method:: PUT
-URI:: +/jndi/bind/\{jndiName}+
+URI:: +/jndi/v1/bind/\{jndiName}+
 Additional Required Headers:: 
 +Accept: application/x-wf-jndi-jbmar-result;version=1,application/x-wf-jndi-jbmar-exception;version=1+
 Additional Optional Headers:: 
@@ -228,7 +227,7 @@ Serialized representation of the object to bind
 ==== JNDI Rebind
 Message Type:: +application/x-wf-jndi-jbmar-rebind+
 Method:: +PATCH+
-URI:: +/jndi/rebind/\{jndiName}+
+URI:: +/jndi/v1/rebind/\{jndiName}+
 Additional Required Headers:: 
 +Accept: application/x-wf-jndi-jbmar-result;version=1,application/x-wf-jndi-jbmar-exception;version=1+
 Additional Optional Headers:: 
@@ -240,7 +239,7 @@ Serialized representation of the object to rebind
 
 Message Type:: +application/x-wf-jndi-jbmar-unbind+
 Method:: ++DELETE++
-URI:: +/jndi/unbind/\{jndiName}+
+URI:: +/jndi/v1/unbind/\{jndiName}+
 Additional Required Headers:: 
 +Accept: application/x-wf-jndi-jbmar-result;version=1,application/x-wf-jndi-jbmar-exception;version=1+
 Additional Optional Headers::
@@ -252,7 +251,7 @@ None
 
 Message Type:: +application/x-wf-jndi-jbmar-destroy+
 Method:: +DELETE+
-URI:: +/jndi/dest-subctx\{jndiName}+
+URI:: +/jndi/v1/dest-subctx\{jndiName}+
 Additional Required Headers::
 +Accept: application/x-wf-jndi-jbmar-result;version=1,application/x-wf-jndi-jbmar-exception;version=1+
 Additional Optional Headers::
@@ -264,7 +263,7 @@ None
 
 Message Type:: +application/x-wf-jndi-jbmar-list+
 Method:: +GET+
-URI:: +/jndi/list/\{jndiName}+
+URI:: +/jndi/v1/list/\{jndiName}+
 Additional Required Headers::
 +Accept: application/x-wf-jndi-jbmar-value;version=1,application/x-wf-jndi-jbmar-exception;version=1+
 Additional Optional Headers::
@@ -278,7 +277,7 @@ The response messages are the same as for a normal lookup, but contains a serial
 
 Message Type:: +application/x-wf-jndi-jbmar-list-bindings+
 Method:: +POST+
-URI:: +/jndi/list-bindings/\{jndiName}+
+URI:: +/jndi/v1/list-bindings/\{jndiName}+
 Additional Required Headers::
 +Accept: application/x-wf-jndi-jbmar-value;version=1,application/x-wf-jndi-jbmar-exception;version=1+
 Additional Optional Headers::
@@ -291,9 +290,9 @@ The response messages are the same as for a normal lookup, but contains a serial
 ==== JNDI Rename
 Message Type:: +application/x-wf-jndi-jbmar-rename+
 Method:: +PATCH+
-URI:: +/jndi/rename/\{jndiName}&new=\{newName}+
+URI:: +/jndi/v1/rename/\{jndiName}&new=\{newName}+
 Additional Required Headers::
-+Accept: application/x-wf-jndi-jbmar-result;version=1,application/x-wf-jndi-jbmar-exception;version=1+
++Accept: application/x-wf-jndi-jbmar-exception;version=1+
 Additional Optional Headers::
 +Cookie: JSESSIONID=\{sessionAffinityKey}+
 Request Body::
@@ -303,9 +302,9 @@ None
 
 Message Type:: +application/x-wf-jndi-jbmar-create-subcontext+
 Method:: +PUT+
-URI:: +/jndi/create-subcontext/\{jndiName}+
+URI:: +/jndi/v1/create-subcontext/\{jndiName}+
 Additional Required Headers::
-+Accept: application/x-wf-jndi-jbmar-result;version=1,application/x-wf-jndi-jbmar-exception;version=1+
++Accept: application/x-wf-jndi-jbmar-exception;version=1+
 Additional Optional Headers::
 +Cookie: JSESSIONID=\{sessionAffinityKey}+
 Request Body::
@@ -335,7 +334,6 @@ Response Codes::
  * +500+ Lookup caused an exception
 
 ==== JNDI Result
-Message Type:: +application/x-wf-jndi-jbmar-result+
 Response Body::
 Empty
 Response Codes::
@@ -350,9 +348,9 @@ This response is only used to indicate success for void returning methods.
 ==== Transaction Commit
 
 Method:: +POST+
-URI:: +/txn/\{type}/commit\{transactionId}+
+URI:: +/txn/v1/\{type}/commit\{transactionId}+
 Additional Required Headers::
-+Accept: application/x-wf-txn-jbmar-result;version=1,application/x-wf-tx-exception;version=1+
++Accept: application/x-wf-tx-exception;version=1+
 Additional Optional Headers::
 +Cookie: JSESSIONID=\{sessionAffinityKey}+
 Request Body::
@@ -361,9 +359,9 @@ The request body is empty.
 ==== Transaction Rollback
 
 Method:: +DELETE+
-URI:: +/txn/\{type}/rollback/\{transactionId}+
+URI:: +/txn/v1/\{type}/rollback/\{transactionId}+
 Additional Required Headers::
-+Accept: application/x-wf-txn-jbmar-result;version=1,application/x-wf-tx-exception;version=1+
++Accept: application/x-wf-tx-exception;version=1+
 Additional Optional Headers::
 +Cookie: JSESSIONID=\{sessionAffinityKey}+
 Request Body::
@@ -372,9 +370,9 @@ The request body is empty.
 ==== Transaction before completion
 
 Method:: +POST+
-URI:: +/txn/xa/bc/\{transactionId}+
+URI:: +/txn/v1/xa/bc/\{transactionId}+
 Additional Required Headers::
-+Accept: application/x-wf-txn-jbmar-result;version=1,application/x-wf-tx-exception;version=1+
++Accept: application/x-wf-tx-exception;version=1+
 Additional Optional Headers::
 +Cookie: JSESSIONID=\{sessionAffinityKey}+
 Request Body::
@@ -383,9 +381,9 @@ The request body is empty.
 ==== Distributed Transaction Prepare
 
 Method:: +POST+
-URI:: +/txn/xa/prep/\{transactionId}+
+URI:: +/txn/v1/xa/prep/\{transactionId}+
 Additional Required Headers::
-+Accept: application/x-wf-txn-jbmar-result;version=1,application/x-wf-tx-exception;version=1+
++Accept: application/x-wf-tx-exception;version=1+
 Additional Optional Headers::
 +Cookie: JSESSIONID=\{sessionAffinityKey}+
 Request Body::
@@ -394,9 +392,9 @@ The request body is empty.
 ==== Distributed Transaction Commit
 
 Method:: +POST+
-URI:: +/txn/xa/commit/\{transactionId}(?opc)?+
+URI:: +/txn/v1/xa/commit/\{transactionId}(?opc)?+
 Additional Required Headers::
-+Accept: application/x-wf-txn-jbmar-result;version=1,application/x-wf-tx-exception;version=1+
++Accept: application/x-wf-tx-exception;version=1+
 Additional Optional Headers::
 +Cookie: JSESSIONID=\{sessionAffinityKey}+
 Request Body::
@@ -407,9 +405,9 @@ If the opc request parameter is present then a one phase commit is done.
 ==== Distributed Transaction Forget
 
 Method:: +POST+
-URI:: +/txn/xa/forget/\{transactionId}+
+URI:: +/txn/v1/xa/forget/\{transactionId}+
 Additional Required Headers::
-+Accept: application/x-wf-txn-jbmar-result;version=1,application/x-wf-tx-exception;version=1+
++Accept: application/x-wf-tx-exception;version=1+
 Additional Optional Headers::
 +Cookie: JSESSIONID=\{sessionAffinityKey}+
 Request Body::
@@ -418,7 +416,7 @@ The request body is empty.
 ==== Distributed Transaction Recovery
 
 Method:: +GET+
-URI:: +/txn/xa/recover+
+URI:: +/txn/v1/xa/recover+
 Additional Required Headers::
 +Accept: text/x-wf-txn-jbmar-xids;version=1,application/x-wf-tx-exception;version=1+
 x-wf-txn-jbmar-parent-node-name: The parent node name
@@ -432,7 +430,6 @@ The request body is empty.
 
 ==== New Transaction
 
-Message Type:: +application/x-wf-txn-jbmar-new+
 Required Headers::
 +x-wf-txn-jbmar-id: \{transactionId}+
 Optional Headers::
@@ -455,7 +452,6 @@ Response Codes::
 
 ==== Transaction Result
 
-Message Type:: +application/x-wf-txn-jbmar-result+
 Response Body::
 Empty
 Response Codes::
