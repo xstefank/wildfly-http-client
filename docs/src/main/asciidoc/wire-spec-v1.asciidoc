@@ -72,18 +72,18 @@ Cancellation support is provided through the use of a client side invocation id 
 === Request Messages
 
 ==== EJB Invocation
-Message Type:: +application/x-wf-ejb-invocation+
+Message Type:: +application/x-wf-jbmar-invocation+
 Method::: +POST+
-URI:: +/ejb/\{applicationName}/\{moduleName}/\{distinctName}/\{beanName}/\{sfsbSessionId}/\{viewClass}/\{methodName}/\{paramType1}/\{paramType1}/...+
+URI:: +/ejb/invoke/\{applicationName}/\{moduleName}/\{distinctName}/\{beanName}/\{sfsbSessionId}/\{viewClass}/\{methodName}/\{paramType1}/\{paramType1}/...+
 Additional Required Headers::
-+Accept: application/x-wf-ejb-response;version=1,application/x-wf-ejb-exception;version=1+
++Accept: application/x-wf-ejb-jbmar-response;version=1,application/x-wf-ejb-jbmar-exception;version=1+
 Additional Optional Headers::
 +Cookie: JSESSIONID=\{sessionAffinityKey}+
 X-wf-invocation-id: {invocationId}
 Request Body::
 The method body consists of n parameter values, serialized using JBoss Marshalling, followed by a serialized attachments map of the form +Map<String, Object>+.
 Notes::
-This message sends a request to the server. If the request completes successfully (or is submitted successfully in the case of a void returning async EJB methods) the server will respond with an +x-wf-ejb-response response+. If an error occurred the server will respond with an +x-wf-ejb-exception+ response.
+This message sends a request to the server. If the request completes successfully (or is submitted successfully in the case of a void returning async EJB methods) the server will respond with an +x-wf-ejb-jbmar-response response+. If an error occurred the server will respond with an +x-wf-ejb-jbmar-exception+ response.
 
 If the invocation id is specified the session id must also be specified. The client can use an affinity message to get a session id if it does not already have one. The invocation id should only be set for requests that require cancellation support.
 
@@ -91,11 +91,10 @@ The sfsbSessionId parameter is a base64 encoded representation of the SFSB EJB s
 
 ==== EJB Session Open
 
-Message Type:: +application/x-wf-ejb-session-open+
 Method::: +POST+
-URI:: +/ejb/\{applicationName}/\{moduleName}/\{distinctName}/\{beanName}+
+URI:: +/ejb/new/\{applicationName}/\{moduleName}/\{distinctName}/\{beanName}+
 Additional Required Headers::
-+Accept: application/x-wf-ejb-new-session;version=1,application/x-wf-ejb-exception;version=1+
++Accept: application/x-wf-jbmar-new-session;version=1,application/x-wf-ejb-jbmar-exception;version=1+
 Additional Optional Headers::
 +Cookie: JSESSIONID=\{sessionAffinityKey}+
 Request Body::
@@ -105,11 +104,10 @@ This message sends a request to the server. Full details on how it is handled ca
 
 ==== EJB Cancel
 
-Message Type:: +application/x-wf-ejb-cancel+
 Method::: ++DELETE++
-URI:: +/ejb/\{applicationName}/\{moduleName}/\{distinctName}/\{invocation-id}+
+URI:: +/ejb/cancel/\{applicationName}/\{moduleName}/\{distinctName}/\{invocation-id}+
 Additional Required Headers::
-+Accept: application/x-wf-ejb-cancelled;version=1+
++Accept: application/x-wf-ejb-jbmar-cancelled;version=1+
 +Cookie: JSESSIONID=\{sessionAffinityKey}+
 Request Body::
 The request body is empty.
@@ -118,11 +116,10 @@ This message cancels an async request.
 
 ==== EJB Affinity
 
-Message Type:: +application/x-wf-ejb-affinity+
 Method::: ++GET++
-URI:: +/ejb/+
+URI:: +/ejb/affinity+
 Additional Required Headers::
-+Accept: application/x-wf-ejb-affinity-result;version=1+
++Accept: application/x-wf-ejb-jbmar-affinity-result;version=1+
 Request Body::
 The request body is empty.
 
@@ -132,7 +129,7 @@ This message generates a session id, that can be used to make sure requests end 
 
 ==== EJB Response
 
-Message Type:: +application/x-wf-ejb-response+
+Message Type:: +application/x-wf-ejb-jbmar-response+
 Optional Headers::
 +Set-Cookie: JSESSIONID=\{sessionAffinityKey}+
 Response Body::
@@ -143,7 +140,7 @@ Response Codes::
 
 ==== EJB Exception
 
-Message Type:: +application/x-wf-ejb-exception+
+Message Type:: +application/x-wf-ejb-jbmar-exception+
 Response Body::
 This response body contains a serialized representation of the exception, followed by a serialized representation of the attachments map
 Response Codes::
@@ -155,9 +152,9 @@ Response Codes::
 
 ==== EJB New Session
 
-Message Type:: +application/x-wf-ejb-new-session+
+Message Type:: +application/x-wf-ejb-jbmar-new-session+
 Required Headers::
-+X-wf-ejb-session-id: \{newSessionId}+
++x-wf-ejb-jbmar-session-id: \{newSessionId}+
 Optional Headers::
 +Set-Cookie: JSESSIONID=\{sessionAffinityKey}+
 Response Body::
@@ -168,7 +165,7 @@ Notes::
 In most cases it is expected that session affinity will be used to make sure that invocations on the EJB target the correct server.
 
 ==== EJB Cancelled
-Message Type:: +application/x-wf-ejb-cancelled+
+Message Type:: +application/x-wf-ejb-jbmar-cancelled+
 Response Body:: None
 Response Codes:: 
  * +202+ Returned for a successful invocation
@@ -176,7 +173,7 @@ Response Codes::
 
 ==== EJB Affinity Result
 
-Message Type:: +application/x-wf-ejb-affinity-result+
+Message Type:: +application/x-wf-ejb-jbmar-affinity-result+
 Required Headers::
 +Set-Cookie: JSESSIONID=\{sessionAffinityKey}+
 Response Body:: None
@@ -191,51 +188,49 @@ The JNDI protocol provides similar functionality to the existing remote JNDI imp
 
 ==== JNDI Lookup
 
-Message Type:: +application/x-wf-jndi-lookup+
 Method:: +POST+
-URI:: +/jndi?name=\{jndiName}+
+URI:: +/jndi/lookup/{jndiName}+
 Additional Required Headers::
-+Accept: application/x-wf-jndi-value;version=1,application/x-wf-jndi-exception;version=1+
++Accept: application/x-wf-jndi-jbmar-value;version=1,application/x-wf-jndi-jbmar-exception;version=1+
 Additional Optional Headers::
 +Cookie: JSESSIONID=\{sessionAffinityKey}+
 Request Body::
 The request body is empty.
 Notes::
-This message sends a JNDI Lookup request to the server. If the request completes successfully the server will respond with an +x-wf-jndi-value+ response. If an error occurred the server will respond with an +x-wf-jndi-exception+ response.
+This message sends a JNDI Lookup request to the server. If the request completes successfully the server will respond with an +x-wf-jndi-jbmar-value+ response. If an error occurred the server will respond with an +x-wf-jndi-jbmar-exception+ response.
 
 Note that because JNDI lookups are not idempotent this method is a +POST+, rather than a +GET+ (namely lookups can cause the creation of SFSB’s).
 
 ==== JNDI Lookup Link
 
-Message Type:: +application/x-wf-jndi-lookup-link+
 Method:: POST
-URI:: +/jndi?name=\{jndiName}+
+URI:: +/jndi/lookuplink/{jndiName}+
 Additional Required Headers::
-+Accept: application/x-wf-jndi-value;version=1,application/x-wf-jndi-exception;version=1+
++Accept: application/x-wf-jndi-jbmar-value;version=1,application/x-wf-jndi-jbmar-exception;version=1+
 Additional Optional Headers:: Cookie: JSESSIONID=\{sessionAffinityKey}
 Request Body:: The request body is empty
-Notes:: This message sends a JNDI Lookup Link request to the server. If the request completes successfully the server will respond with an +x-wf-jndi-value response+. If an error occurred the server will respond with an +x-wf-jndi-exception+ response.
+Notes:: This message sends a JNDI Lookup Link request to the server. If the request completes successfully the server will respond with an +x-wf-jndi-jbmar-value response+. If an error occurred the server will respond with an +x-wf-jndi-jbmar-exception+ response.
 
 Note that because JNDI lookups are not idempotent this method is a post, rather than a +GET+ (namely lookups can cause the creation of SFSB’s).
 
 ==== JNDI Bind
 
-Message Type:: +application/x-wf-jndi-bind+
+Message Type:: +application/x-wf-jndi-jbmar-bind+
 Method:: PUT
-URI:: +/jndi?name=\{jndiName}+
+URI:: +/jndi/put/{jndiName}+
 Additional Required Headers:: 
-+Accept: application/x-wf-jndi-result;version=1,application/x-wf-jndi-exception;version=1+
++Accept: application/x-wf-jndi-jbmar-result;version=1,application/x-wf-jndi-jbmar-exception;version=1+
 Additional Optional Headers:: 
 +Cookie: JSESSIONID=\{sessionAffinityKey}+
 Request Body::
 Serialized representation of the object to bind
 
 ==== JNDI Rebind
-Message Type:: +application/x-wf-jndi-rebind+
+Message Type:: +application/x-wf-jndi-jbmar-rebind+
 Method:: +PATCH+
-URI:: +/jndi?name=\{jndiName}+
+URI:: +/jndi/rebind/{jndiName}+
 Additional Required Headers:: 
-+Accept: application/x-wf-jndi-result;version=1,application/x-wf-jndi-exception;version=1+
++Accept: application/x-wf-jndi-jbmar-result;version=1,application/x-wf-jndi-jbmar-exception;version=1+
 Additional Optional Headers:: 
 +Cookie: JSESSIONID=\{sessionAffinityKey}+
 Request Body::
@@ -243,11 +238,11 @@ Serialized representation of the object to rebind
 
 ==== JNDI Unbind
 
-Message Type:: +application/x-wf-jndi-unbind+
+Message Type:: +application/x-wf-jndi-jbmar-unbind+
 Method:: ++DELETE++
 URI:: +/jndi?name=\{jndiName}+
 Additional Required Headers:: 
-+Accept: application/x-wf-jndi-result;version=1,application/x-wf-jndi-exception;version=1+
++Accept: application/x-wf-jndi-jbmar-result;version=1,application/x-wf-jndi-jbmar-exception;version=1+
 Additional Optional Headers::
 +Cookie: JSESSIONID=\{sessionAffinityKey}+
 Request Body::
@@ -255,11 +250,11 @@ None
 
 ==== JNDI Destroy Subcontext
 
-Message Type:: +application/x-wf-jndi-destroy+
+Message Type:: +application/x-wf-jndi-jbmar-destroy+
 Method:: +DELETE+
 URI:: +/jndi?name=\{jndiName}+
 Additional Required Headers::
-+Accept: application/x-wf-jndi-result;version=1,application/x-wf-jndi-exception;version=1+
++Accept: application/x-wf-jndi-jbmar-result;version=1,application/x-wf-jndi-jbmar-exception;version=1+
 Additional Optional Headers::
 +Cookie: JSESSIONID=\{sessionAffinityKey}+
 Request Body::
@@ -267,11 +262,11 @@ None
 
 ==== JNDI List
 
-Message Type:: +application/x-wf-jndi-list+
+Message Type:: +application/x-wf-jndi-jbmar-list+
 Method:: +GET+
 URI:: +/jndi?name=\{jndiName}+
 Additional Required Headers::
-+Accept: application/x-wf-jndi-value;version=1,application/x-wf-jndi-exception;version=1+
++Accept: application/x-wf-jndi-jbmar-value;version=1,application/x-wf-jndi-jbmar-exception;version=1+
 Additional Optional Headers::
 +Cookie: JSESSIONID=\{sessionAffinityKey}+
 Request Body::
@@ -281,11 +276,11 @@ The response messages are the same as for a normal lookup, but contains a serial
 
 ==== JNDI List Bindings
 
-Message Type:: +application/x-wf-jndi-list-bindings+
+Message Type:: +application/x-wf-jndi-jbmar-list-bindings+
 Method:: +POST+
 URI:: +/jndi?name=\{jndiName}+
 Additional Required Headers::
-+Accept: application/x-wf-jndi-value;version=1,application/x-wf-jndi-exception;version=1+
++Accept: application/x-wf-jndi-jbmar-value;version=1,application/x-wf-jndi-jbmar-exception;version=1+
 Additional Optional Headers::
 +Cookie: JSESSIONID=\{sessionAffinityKey}+
 Request Body::
@@ -294,11 +289,11 @@ Notes::
 The response messages are the same as for a normal lookup, but contains a serialized NamingEnumeration
 
 ==== JNDI Rename
-Message Type:: +application/x-wf-jndi-rename+
+Message Type:: +application/x-wf-jndi-jbmar-rename+
 Method:: +PATCH+
 URI:: +/jndi?old=\{jndiName}&new=\{newName}+
 Additional Required Headers::
-+Accept: application/x-wf-jndi-result;version=1,application/x-wf-jndi-exception;version=1+
++Accept: application/x-wf-jndi-jbmar-result;version=1,application/x-wf-jndi-jbmar-exception;version=1+
 Additional Optional Headers::
 +Cookie: JSESSIONID=\{sessionAffinityKey}+
 Request Body::
@@ -306,11 +301,11 @@ None
 
 ==== JNDI Create Subcontext
 
-Message Type:: +application/x-wf-jndi-create-subcontext+
+Message Type:: +application/x-wf-jndi-jbmar-create-subcontext+
 Method:: +PUT+
 URI:: +/jndi?name=\{jndiName}+
 Additional Required Headers::
-+Accept: application/x-wf-jndi-result;version=1,application/x-wf-jndi-exception;version=1+
++Accept: application/x-wf-jndi-jbmar-result;version=1,application/x-wf-jndi-jbmar-exception;version=1+
 Additional Optional Headers::
 +Cookie: JSESSIONID=\{sessionAffinityKey}+
 Request Body::
@@ -320,7 +315,7 @@ None
 
 ==== JNDI Value
 
-Message Type:: +application/x-wf-jndi-value+
+Message Type:: +application/x-wf-jndi-jbmar-value+
 Optional Headers::
 +Set-Cookie: JSESSIONID=\{sessionAffinityKey}+
 Response Body::
@@ -330,7 +325,7 @@ Response Codes::
 
 ==== JNDI Exception
 
-Message Type:: +application/x-wf-jndi-exception+
+Message Type:: +application/x-wf-jndi-jbmar-exception+
 Response Body::
 This response body contains a serialized representation of the exception
 Response Codes::
@@ -340,7 +335,7 @@ Response Codes::
  * +500+ Lookup caused an exception
 
 ==== JNDI Result
-Message Type:: +application/x-wf-jndi-result+
+Message Type:: +application/x-wf-jndi-jbmar-result+
 Response Body::
 Empty
 Response Codes::

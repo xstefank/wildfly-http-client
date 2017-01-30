@@ -1,34 +1,32 @@
 package org.wildfly.httpclient.ejb;
 
+import org.wildfly.client.config.ConfigXMLParseException;
+
 import java.io.IOException;
 import java.security.AccessController;
 import java.security.PrivilegedAction;
 import java.util.function.Supplier;
 
-import org.wildfly.client.config.ConfigXMLParseException;
-
 /**
- * A configuration-based HttpContext supplier.
+ * A configuration-based EJBHttpContext supplier.
  *
  * @author <a href="mailto:david.lloyd@redhat.com">David M. Lloyd</a>
  */
-public final class ConfigurationHttpContextSupplier implements Supplier<HttpContext> {
-    private static final HttpContext CONFIGURED_HTTP_CONTEXT;
+public final class ConfigurationHttpContextSupplier implements Supplier<EJBHttpContext> {
+    private static final EJBHttpContext CONFIGURED_HTTP_CONTEXT;
 
     static {
-        CONFIGURED_HTTP_CONTEXT = AccessController.doPrivileged((PrivilegedAction<HttpContext>) () -> {
-            HttpContext httpContext = null;
+        CONFIGURED_HTTP_CONTEXT = AccessController.doPrivileged((PrivilegedAction<EJBHttpContext>) () -> {
             try {
-                httpContext = EjbHttpClientXmlParser.parseHttpContext();
+                return EjbHttpClientXmlParser.parseHttpContext();
             } catch (ConfigXMLParseException | IOException e) {
-                EjbHttpClientMessages.MESSAGES.trace("Failed to parse HttpContext XML definition", e);
+                EjbHttpClientMessages.MESSAGES.trace("Failed to parse EJBHttpContext XML definition", e);
             }
-            httpContext = new HttpContextBuilder().build();
-            return httpContext;
+            return new EJBHttpContextBuilder().build();
         });
     }
 
-    public HttpContext get() {
+    public EJBHttpContext get() {
         return CONFIGURED_HTTP_CONTEXT;
     }
 }

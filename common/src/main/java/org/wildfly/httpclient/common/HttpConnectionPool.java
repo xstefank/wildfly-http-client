@@ -107,7 +107,7 @@ public class HttpConnectionPool implements Closeable {
                             connections.remove(channel);
                         }
                     });
-                    ClientConnectionHolder clientConnectionHolder = new ClientConnectionHolder(result);
+                    ClientConnectionHolder clientConnectionHolder = new ClientConnectionHolder(result, holder.getURI());
                     clientConnectionHolder.tryAquire(); //aways suceeds
                     next.connectionListener.done(clientConnectionHolder);
                 }
@@ -147,6 +147,8 @@ public class HttpConnectionPool implements Closeable {
         ClientConnection getConnection();
 
         void done(boolean close);
+
+        URI getUri();
     }
 
 
@@ -169,6 +171,7 @@ public class HttpConnectionPool implements Closeable {
         //2 - closed
         private volatile AtomicInteger state = new AtomicInteger();
         private final ClientConnection connection;
+        private final URI uri;
         private volatile XnioExecutor.Key timeoutKey;
         private long timeout;
 
@@ -191,8 +194,9 @@ public class HttpConnectionPool implements Closeable {
             }
         };
 
-        private ClientConnectionHolder(ClientConnection connection) {
+        private ClientConnectionHolder(ClientConnection connection, URI uri) {
             this.connection = connection;
+            this.uri = uri;
         }
 
         boolean tryClose() {
@@ -227,6 +231,11 @@ public class HttpConnectionPool implements Closeable {
                 timeoutKey = connection.getIoThread().executeAfter(timeoutTask, connectionIdleTimeout, TimeUnit.MILLISECONDS);
             }
             returnConnection(this);
+        }
+
+        @Override
+        public URI getUri() {
+            return uri;
         }
     }
 

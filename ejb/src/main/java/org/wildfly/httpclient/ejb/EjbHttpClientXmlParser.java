@@ -1,22 +1,20 @@
 package org.wildfly.httpclient.ejb;
 
-import static javax.xml.stream.XMLStreamConstants.END_ELEMENT;
-import static javax.xml.stream.XMLStreamConstants.START_ELEMENT;
+import org.wildfly.client.config.ClientConfiguration;
+import org.wildfly.client.config.ConfigXMLParseException;
+import org.wildfly.client.config.ConfigurationXMLStreamReader;
+import org.wildfly.security.auth.client.AuthenticationContext;
 
+import javax.xml.stream.XMLInputFactory;
 import java.io.IOException;
-import java.io.InputStream;
 import java.net.InetSocketAddress;
 import java.net.URI;
 import java.security.AccessController;
 import java.security.PrivilegedAction;
 import java.util.Collections;
 
-import javax.xml.stream.XMLInputFactory;
-
-import org.wildfly.client.config.ClientConfiguration;
-import org.wildfly.client.config.ConfigXMLParseException;
-import org.wildfly.client.config.ConfigurationXMLStreamReader;
-import org.wildfly.security.auth.client.AuthenticationContext;
+import static javax.xml.stream.XMLStreamConstants.END_ELEMENT;
+import static javax.xml.stream.XMLStreamConstants.START_ELEMENT;
 
 /**
  * @author Stuart Douglas
@@ -24,9 +22,9 @@ import org.wildfly.security.auth.client.AuthenticationContext;
 final class EjbHttpClientXmlParser {
     private static final String NS_EJB_HTTP_CLIENT = "urn:ejb-http-client:1.0";
 
-    static HttpContext parseHttpContext() throws ConfigXMLParseException, IOException {
+    static EJBHttpContext parseHttpContext() throws ConfigXMLParseException, IOException {
         final ClientConfiguration clientConfiguration = ClientConfiguration.getInstance();
-        final HttpContextBuilder builder = new HttpContextBuilder();
+        final EJBHttpContextBuilder builder = new EJBHttpContextBuilder();
         if (clientConfiguration != null) try (final ConfigurationXMLStreamReader streamReader = clientConfiguration.readConfiguration(Collections.singleton(NS_EJB_HTTP_CLIENT))) {
             parseDocument(streamReader, builder);
             return builder.build();
@@ -36,15 +34,15 @@ final class EjbHttpClientXmlParser {
     }
 
     //for testing
-    static HttpContextBuilder parseConfig(URI uri) throws ConfigXMLParseException {
-        final HttpContextBuilder builder = new HttpContextBuilder();
+    static EJBHttpContextBuilder parseConfig(URI uri) throws ConfigXMLParseException {
+        final EJBHttpContextBuilder builder = new EJBHttpContextBuilder();
         try (final ConfigurationXMLStreamReader streamReader = ConfigurationXMLStreamReader.openUri(uri, XMLInputFactory.newFactory())) {
             parseDocument(streamReader, builder);
             return builder;
         }
     }
 
-    private static void parseDocument(final ConfigurationXMLStreamReader reader, final HttpContextBuilder builder) throws ConfigXMLParseException {
+    private static void parseDocument(final ConfigurationXMLStreamReader reader, final EJBHttpContextBuilder builder) throws ConfigXMLParseException {
         if (reader.hasNext()) switch (reader.nextTag()) {
             case START_ELEMENT: {
                 switch (reader.getNamespaceURI()) {
@@ -66,7 +64,7 @@ final class EjbHttpClientXmlParser {
         }
     }
 
-    private static void parseRootElement(final ConfigurationXMLStreamReader reader, final HttpContextBuilder builder) throws ConfigXMLParseException {
+    private static void parseRootElement(final ConfigurationXMLStreamReader reader, final EJBHttpContextBuilder builder) throws ConfigXMLParseException {
 
         final int attributeCount = reader.getAttributeCount();
         for (int i = 0; i < attributeCount; i++) {
@@ -84,12 +82,12 @@ final class EjbHttpClientXmlParser {
                         default: throw reader.unexpectedElement();
                     }
                     switch (reader.getLocalName()) {
-                        case "connections": {
-                            parseConnectionsElement(reader, builder);
+                        case "targets": {
+                            parseTargetsElement(reader, builder);
                             break;
                         }
-                        case "default-bind": {
-                            builder.setDefaultBindAddress(parseBind(reader));
+                        case "defaults": {
+                            parseDefaults(reader, builder);
                             break;
                         }
                         default: throw reader.unexpectedElement();
@@ -138,7 +136,7 @@ final class EjbHttpClientXmlParser {
             }
         }
     }
-    private static void parseConnectionsElement(final ConfigurationXMLStreamReader reader, final HttpContextBuilder builder) throws ConfigXMLParseException {
+    private static void parseTargetsElement(final ConfigurationXMLStreamReader reader, final EJBHttpContextBuilder builder) throws ConfigXMLParseException {
         final int attributeCount = reader.getAttributeCount();
         if (attributeCount > 0) {
             throw reader.unexpectedAttribute(0);
@@ -151,8 +149,8 @@ final class EjbHttpClientXmlParser {
                         default: throw reader.unexpectedElement();
                     }
                     switch (reader.getLocalName()) {
-                        case "connection": {
-                            parseConnectionElement(reader, builder);
+                        case "target": {
+                            parseTarget(reader, builder);
                             break;
                         }
                         default: throw reader.unexpectedElement();
@@ -166,11 +164,12 @@ final class EjbHttpClientXmlParser {
         }
     }
 
-    private static void parseConnectionElement(final ConfigurationXMLStreamReader reader, final HttpContextBuilder builder) throws ConfigXMLParseException {
+    private static void parseDefaults(final ConfigurationXMLStreamReader reader, final EJBHttpContextBuilder builder) throws ConfigXMLParseException {
         final int attributeCount = reader.getAttributeCount();
-        long idleTimeout = 60000;
-        int maxConnections = 10;
-        int maxStreamsPerConnection = 10;
+        long idleTimeout = -1;
+        int maxConnections = -1 ;
+        int maxStreamsPerConnection = -1;
+        Boolean eagerlyAcquireSession = null;
         for (int i = 0; i < attributeCount; i ++) {
             final String attributeNamespace = reader.getAttributeNamespace(i);
             if (attributeNamespace != null && ! attributeNamespace.isEmpty()) {
@@ -189,17 +188,19 @@ final class EjbHttpClientXmlParser {
                     idleTimeout = reader.getLongAttributeValue(i);
                     break;
                 }
+                case "eagerly-acquire-session": {
+                    eagerlyAcquireSession = reader.getBooleanAttributeValue(i);
+                    break;
+                }
                 default: {
                     throw reader.unexpectedAttribute(i);
                 }
             }
         }
-        final HttpContextBuilder.ConnectionBuilder connectionBuilder = builder.addConnection();
-        connectionBuilder.setIdleTimeout(idleTimeout);
-        connectionBuilder.setMaxConnections(maxConnections);
-        connectionBuilder.setMaxStreamsPerConnection(maxStreamsPerConnection);
-
-        connectionBuilder.setAuthenticationContext(getGlobalDefaultAuthCtxt());
+        builder.setIdleTimeout(idleTimeout);
+        builder.setMaxConnections(maxConnections);
+        builder.setMaxStreamsPerConnection(maxStreamsPerConnection);
+        builder.setEagerlyAcquireSession(eagerlyAcquireSession);
         while (reader.hasNext()) {
             switch (reader.nextTag()) {
                 case START_ELEMENT: {
@@ -208,16 +209,8 @@ final class EjbHttpClientXmlParser {
                         default: throw reader.unexpectedElement();
                     }
                     switch (reader.getLocalName()) {
-                        case "bind": {
-                            connectionBuilder.setBindAddress(parseBind(reader));
-                            break;
-                        }
-                        case "modules": {
-                            parseModules(reader, connectionBuilder);
-                            break;
-                        }
-                        case "hosts": {
-                            parseHosts(reader, connectionBuilder);
+                        case "bind-address": {
+                            builder.setDefaultBindAddress(parseBind(reader));
                             break;
                         }
                         default: throw reader.unexpectedElement();
@@ -231,7 +224,78 @@ final class EjbHttpClientXmlParser {
         }
     }
 
-    private static void parseModules(final ConfigurationXMLStreamReader reader, final HttpContextBuilder.ConnectionBuilder builder) throws ConfigXMLParseException {
+    private static void parseTarget(final ConfigurationXMLStreamReader reader, final EJBHttpContextBuilder builder) throws ConfigXMLParseException {
+        final int attributeCount = reader.getAttributeCount();
+        long idleTimeout = -1;
+        int maxConnections = -1;
+        int maxStreamsPerConnection = -1;
+        Boolean eagerlyAcquireSession = null;
+        for (int i = 0; i < attributeCount; i ++) {
+            final String attributeNamespace = reader.getAttributeNamespace(i);
+            if (attributeNamespace != null && ! attributeNamespace.isEmpty()) {
+                throw reader.unexpectedAttribute(i);
+            }
+            switch (reader.getAttributeLocalName(i)) {
+                case "max-connections": {
+                    maxConnections = reader.getIntAttributeValue(i);
+                    break;
+                }
+                case "max-streams-per-connection": {
+                    maxStreamsPerConnection = reader.getIntAttributeValue(i);
+                    break;
+                }
+                case "idle-timeout": {
+                    idleTimeout = reader.getLongAttributeValue(i);
+                    break;
+                }
+                case "eagerly-acquire-session": {
+                    eagerlyAcquireSession = reader.getBooleanAttributeValue(i);
+                    break;
+                }
+                default: {
+                    throw reader.unexpectedAttribute(i);
+                }
+            }
+        }
+        final EJBHttpContextBuilder.EJBTargetBuilder targetBuilder = builder.addConnection();
+        targetBuilder.setIdleTimeout(idleTimeout);
+        targetBuilder.setMaxConnections(maxConnections);
+        targetBuilder.setMaxStreamsPerConnection(maxStreamsPerConnection);
+        targetBuilder.setEagerlyAcquireSession(eagerlyAcquireSession);
+
+        targetBuilder.setAuthenticationContext(getGlobalDefaultAuthCtxt());
+        while (reader.hasNext()) {
+            switch (reader.nextTag()) {
+                case START_ELEMENT: {
+                    switch (reader.getNamespaceURI()) {
+                        case NS_EJB_HTTP_CLIENT: break;
+                        default: throw reader.unexpectedElement();
+                    }
+                    switch (reader.getLocalName()) {
+                        case "bind": {
+                            targetBuilder.setBindAddress(parseBind(reader));
+                            break;
+                        }
+                        case "modules": {
+                            parseModules(reader, targetBuilder);
+                            break;
+                        }
+                        case "uris": {
+                            parseURIs(reader, targetBuilder);
+                            break;
+                        }
+                        default: throw reader.unexpectedElement();
+                    }
+                    break;
+                }
+                case END_ELEMENT: {
+                    return;
+                }
+            }
+        }
+    }
+
+    private static void parseModules(final ConfigurationXMLStreamReader reader, final EJBHttpContextBuilder.EJBTargetBuilder builder) throws ConfigXMLParseException {
         final int attributeCount = reader.getAttributeCount();
         if (attributeCount > 0) {
             throw reader.unexpectedAttribute(0);
@@ -259,7 +323,7 @@ final class EjbHttpClientXmlParser {
         }
     }
 
-    private static void parseHosts(final ConfigurationXMLStreamReader reader, final HttpContextBuilder.ConnectionBuilder builder) throws ConfigXMLParseException {
+    private static void parseURIs(final ConfigurationXMLStreamReader reader, final EJBHttpContextBuilder.EJBTargetBuilder builder) throws ConfigXMLParseException {
         final int attributeCount = reader.getAttributeCount();
         if (attributeCount > 0) {
             throw reader.unexpectedAttribute(0);
@@ -272,8 +336,8 @@ final class EjbHttpClientXmlParser {
                         default: throw reader.unexpectedElement();
                     }
                     switch (reader.getLocalName()) {
-                        case "host": {
-                            parseHost(reader, builder);
+                        case "uri": {
+                            parseURI(reader, builder);
                             break;
                         }
                         default: throw reader.unexpectedElement();
@@ -287,7 +351,7 @@ final class EjbHttpClientXmlParser {
         }
     }
 
-    private static void parseModule(final ConfigurationXMLStreamReader reader, final HttpContextBuilder.ConnectionBuilder connectionBuilder) throws ConfigXMLParseException {
+    private static void parseModule(final ConfigurationXMLStreamReader reader, final EJBHttpContextBuilder.EJBTargetBuilder builder) throws ConfigXMLParseException {
         final int attributeCount = reader.getAttributeCount();
         String app = null;
         String module = null;
@@ -317,11 +381,11 @@ final class EjbHttpClientXmlParser {
         }
         if (! reader.hasNext()) throw reader.unexpectedDocumentEnd();
         if (reader.nextTag() != END_ELEMENT) throw reader.unexpectedElement();
-        connectionBuilder.addModule(app, module, distinct);
+        builder.addModule(app, module, distinct);
     }
 
 
-    private static void parseHost(final ConfigurationXMLStreamReader reader, final HttpContextBuilder.ConnectionBuilder connectionBuilder) throws ConfigXMLParseException {
+    private static void parseURI(final ConfigurationXMLStreamReader reader, final EJBHttpContextBuilder.EJBTargetBuilder EJBTargetBuilder) throws ConfigXMLParseException {
         final int attributeCount = reader.getAttributeCount();
         URI host = null;
         for (int i = 0; i < attributeCount; i ++) {
@@ -330,7 +394,7 @@ final class EjbHttpClientXmlParser {
                 throw reader.unexpectedAttribute(i);
             }
             switch (reader.getAttributeLocalName(i)) {
-                case "host": {
+                case "value": {
                     host = reader.getURIAttributeValue(i);
                     break;
                 }
@@ -341,7 +405,7 @@ final class EjbHttpClientXmlParser {
         }
         if (! reader.hasNext()) throw reader.unexpectedDocumentEnd();
         if (reader.nextTag() != END_ELEMENT) throw reader.unexpectedElement();
-        connectionBuilder.addUri(host);
+        EJBTargetBuilder.addUri(host);
     }
 
     static AuthenticationContext getGlobalDefaultAuthCtxt() {

@@ -1,51 +1,49 @@
 package org.wildfly.httpclient.ejb;
 
-import java.net.URI;
-import java.util.Base64;
-import javax.ejb.ApplicationException;
-
 import org.jboss.ejb.client.EJBClient;
 import org.jboss.ejb.client.EJBClientContext;
-import org.jboss.ejb.client.StatefulEJBLocator;
 import org.jboss.ejb.client.StatelessEJBLocator;
+import org.jboss.ejb.client.URIAffinity;
 import org.jboss.marshalling.MarshallerFactory;
 import org.jboss.marshalling.river.RiverMarshallerFactory;
 import org.junit.Assert;
 import org.junit.Test;
 import org.junit.runner.RunWith;
-import org.wildfly.httpclient.ejb.HttpEJBReceiver;
-import org.wildfly.httpclient.ejb.EJBTestServer;
-import org.wildfly.httpclient.ejb.common.EchoBean;
-import org.wildfly.httpclient.ejb.common.EchoRemote;
 import org.xnio.OptionMap;
+
+import java.net.URI;
 
 /**
  * @author Stuart Douglas
  */
 @RunWith(EJBTestServer.class)
 public class SimpleInvocationTestCase {
-/*
-    public static final String APP = "-";
+
+    public static final String APP = "wildfly-app";
     public static final String MODULE = "wildfly-ejb-remote-server-side";
 
     @Test
-    public void testSimpleInvocation() throws Exception {
+    public void testSimpleInvocationViaURLAffinity() throws Exception {
         EJBTestServer.setHandler((invocation, out) -> invocation.getParams()[0]);
-        final StatelessEJBLocator<EchoRemote> statelessEJBLocator = new StatelessEJBLocator<EchoRemote>(EchoRemote.class, APP, MODULE, "CalculatorBean", "");
+        final StatelessEJBLocator<EchoRemote> statelessEJBLocator = new StatelessEJBLocator<>(EchoRemote.class, APP, MODULE, "CalculatorBean", "");
         final EchoRemote proxy = EJBClient.createProxy(statelessEJBLocator);
         final String message = "Hello World!!!";
-        final EJBClientContext ejbClientContext = EJBClientContext.create();
-        MarshallerFactory factory = new RiverMarshallerFactory();
-        ejbClientContext.registerEJBReceiver(new HttpEJBReceiver("node", new URI(EJBTestServer.getDefaultServerURL()), EJBTestServer.getWorker(), EJBTestServer.getBufferPool(), null, OptionMap.EMPTY, factory, true, new HttpEJBReceiver.ModuleID(APP, MODULE, null)));
-        final ContextSelector<EJBClientContext> oldClientContextSelector = EJBClientContext.setConstantContext(ejbClientContext);
-        try {
-            final String echo = proxy.echo(message);
-            Assert.assertEquals("Unexpected echo message", message, echo);
-        } finally {
-            EJBClientContext.setSelector(oldClientContextSelector);
-        }
+        EJBClient.setStrongAffinity(proxy, URIAffinity.forUri(new URI(EJBTestServer.getDefaultServerURL())));
+        final String echo = proxy.echo(message);
+        Assert.assertEquals("Unexpected echo message", message, echo);
     }
 
+    @Test
+    public void testSimpleInvocationViaDiscovery() throws Exception {
+        EJBTestServer.setHandler((invocation, out) -> invocation.getParams()[0]);
+        final StatelessEJBLocator<EchoRemote> statelessEJBLocator = new StatelessEJBLocator<>(EchoRemote.class, APP, MODULE, "CalculatorBean", "");
+        final EchoRemote proxy = EJBClient.createProxy(statelessEJBLocator);
+        final String message = "Hello World!!!";
+        final String echo = proxy.echo(message);
+        Assert.assertEquals("Unexpected echo message", message, echo);
+    }
+
+    /*
 
     @Test
     public void testInvocationAffinity() throws Exception {
@@ -132,5 +130,6 @@ public class SimpleInvocationTestCase {
         public TestException(String message) {
             super(message);
         }
-    }*/
+    }
+    */
 }

@@ -12,6 +12,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 
+import io.undertow.server.handlers.BlockingHandler;
 import org.junit.Assert;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -29,7 +30,7 @@ import io.undertow.util.Methods;
 @RunWith(HTTPTestServer.class)
 public class ConnectionPoolTestCase {
 
-    public static final int THREADS = 10;
+    public static final int THREADS = 20;
     public static final int MAX_CONNECTION_COUNT = 3;
     public static final int CONNECTION_IDLE_TIMEOUT = 1000;
     public static String MAX_CONNECTIONS_PATH = "/max-connections-test";
@@ -70,7 +71,7 @@ public class ConnectionPoolTestCase {
 
     @Test
     public void testMaxConnections() throws Exception {
-        HTTPTestServer.registerPathHandler(MAX_CONNECTIONS_PATH, (exchange -> {
+        HTTPTestServer.registerPathHandler(MAX_CONNECTIONS_PATH, new BlockingHandler(exchange -> {
             synchronized (ConnectionPoolTestCase.class) {
                 currentRequests++;
                 if (currentRequests > maxActiveRequests) {

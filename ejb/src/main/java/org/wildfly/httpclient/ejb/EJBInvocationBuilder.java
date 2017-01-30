@@ -1,8 +1,5 @@
 package org.wildfly.httpclient.ejb;
 
-import static io.undertow.util.Headers.AUTHORIZATION;
-import static io.undertow.util.Headers.BASIC;
-
 import io.undertow.client.ClientRequest;
 import io.undertow.util.FlexBase64;
 import io.undertow.util.Headers;
@@ -11,12 +8,14 @@ import io.undertow.util.Methods;
 
 import java.lang.reflect.Method;
 
+import static io.undertow.util.Headers.BASIC;
+
 /**
  * Builder for invocations against a specific EJB, such as invocation and session open
  *
  * @author Stuart Douglas
  */
-class EjbInvocationBuilder {
+class EJBInvocationBuilder {
 
     private static final HttpString INVOCATION_ID = new HttpString("X-wf-invocation-id");
     private static final String INVOCATION_ACCEPT = "application/x-wf-ejb-response;version=1,application/x-wf-ejb-exception;version=1";
@@ -38,7 +37,7 @@ class EjbInvocationBuilder {
         return appName;
     }
 
-    public EjbInvocationBuilder setAppName(String appName) {
+    public EJBInvocationBuilder setAppName(String appName) {
         this.appName = appName;
         return this;
     }
@@ -47,7 +46,7 @@ class EjbInvocationBuilder {
         return moduleName;
     }
 
-    public EjbInvocationBuilder setModuleName(String moduleName) {
+    public EJBInvocationBuilder setModuleName(String moduleName) {
         this.moduleName = moduleName;
         return this;
     }
@@ -56,7 +55,7 @@ class EjbInvocationBuilder {
         return distinctName;
     }
 
-    public EjbInvocationBuilder setDistinctName(String distinctName) {
+    public EJBInvocationBuilder setDistinctName(String distinctName) {
         this.distinctName = distinctName;
         return this;
     }
@@ -65,7 +64,7 @@ class EjbInvocationBuilder {
         return beanName;
     }
 
-    public EjbInvocationBuilder setBeanName(String beanName) {
+    public EJBInvocationBuilder setBeanName(String beanName) {
         this.beanName = beanName;
         return this;
     }
@@ -74,7 +73,7 @@ class EjbInvocationBuilder {
         return beanId;
     }
 
-    public EjbInvocationBuilder setBeanId(String beanId) {
+    public EJBInvocationBuilder setBeanId(String beanId) {
         this.beanId = beanId;
         return this;
     }
@@ -83,7 +82,7 @@ class EjbInvocationBuilder {
         return method;
     }
 
-    public EjbInvocationBuilder setMethod(Method method) {
+    public EJBInvocationBuilder setMethod(Method method) {
         this.method = method;
         return this;
     }
@@ -92,7 +91,7 @@ class EjbInvocationBuilder {
         return view;
     }
 
-    public EjbInvocationBuilder setView(String view) {
+    public EJBInvocationBuilder setView(String view) {
         this.view = view;
         return this;
     }
@@ -101,7 +100,7 @@ class EjbInvocationBuilder {
         return invocationType;
     }
 
-    public EjbInvocationBuilder setInvocationType(InvocationType invocationType) {
+    public EJBInvocationBuilder setInvocationType(InvocationType invocationType) {
         this.invocationType = invocationType;
         return this;
     }
@@ -110,7 +109,7 @@ class EjbInvocationBuilder {
         return invocationId;
     }
 
-    public EjbInvocationBuilder setInvocationId(Long invocationId) {
+    public EJBInvocationBuilder setInvocationId(Long invocationId) {
         this.invocationId = invocationId;
         return this;
     }
@@ -119,7 +118,7 @@ class EjbInvocationBuilder {
         return sessionId;
     }
 
-    public EjbInvocationBuilder setSessionId(String sessionId) {
+    public EJBInvocationBuilder setSessionId(String sessionId) {
         this.sessionId = sessionId;
         return this;
     }

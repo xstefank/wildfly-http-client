@@ -23,16 +23,18 @@
   -->
 
 <ejb-http xmlns="urn:ejb-http-client:1.0">
-    <connections>
-        <connection idle-timeout="30000" max-connections="20" max-streams-per-connection="20">
-            <hosts>
-                <host host="http://localhost:8080" />
-            </hosts>
+    <targets>
+        <target idle-timeout="30000" max-connections="20" max-streams-per-connection="20" eagerly-acquire-session="true">
+            <uris>
+                <uri value="http://localhost:8080" />
+            </uris>
             <bind address="127.0.0.1" port="5678" />
             <modules>
                 <module app="myapp" module="mymodule" distinct="distinct" />
             </modules>
-        </connection>
-    </connections>
-    <default-bind address="127.0.0.1" port="3456" />
+        </target>
+    </targets>
+    <defaults idle-timeout="10000" max-connections="1" max-streams-per-connection="1" eagerly-acquire-session="false">
+        <bind-address address="127.0.0.1" port="3456" />
+    </defaults>
 </ejb-http>

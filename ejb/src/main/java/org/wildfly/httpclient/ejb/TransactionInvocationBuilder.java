@@ -1,12 +1,12 @@
 package org.wildfly.httpclient.ejb;
 
-import java.util.Base64;
-
-import org.jboss.ejb.client.TransactionID;
-import org.jboss.ejb.client.UserTransactionID;
 import io.undertow.client.ClientRequest;
 import io.undertow.util.Headers;
 import io.undertow.util.Methods;
+import org.jboss.ejb.client.TransactionID;
+import org.jboss.ejb.client.UserTransactionID;
+
+import java.util.Base64;
 
 /**
  * @author Stuart Douglas

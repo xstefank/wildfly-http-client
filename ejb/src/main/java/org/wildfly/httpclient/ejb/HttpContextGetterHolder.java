@@ -5,5 +5,5 @@ import java.security.PrivilegedAction;
 import java.util.function.Supplier;
 
 final class HttpContextGetterHolder {
-    static final Supplier<HttpContext> SUPPLIER = AccessController.doPrivileged((PrivilegedAction<Supplier<HttpContext>>) HttpContext.HTTP_CONTEXT_MANAGER::getPrivilegedSupplier);
+    static final Supplier<EJBHttpContext> SUPPLIER = AccessController.doPrivileged((PrivilegedAction<Supplier<EJBHttpContext>>) EJBHttpContext.HTTP_CONTEXT_MANAGER::getPrivilegedSupplier);
 }
