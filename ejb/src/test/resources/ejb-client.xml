@@ -29,9 +29,6 @@
                 <uri value="http://localhost:8080" />
             </uris>
             <bind address="127.0.0.1" port="5678" />
-            <modules>
-                <module app="myapp" module="mymodule" distinct="distinct" />
-            </modules>
         </target>
     </targets>
     <defaults idle-timeout="10000" max-connections="1" max-streams-per-connection="1" eagerly-acquire-session="false">

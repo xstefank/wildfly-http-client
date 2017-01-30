@@ -48,7 +48,6 @@
         <xs:all>
             <xs:element name="uris" type="uris-type" minOccurs="1" maxOccurs="1"/>
             <xs:element name="bind" type="bind-address-type" minOccurs="0"/>
-            <xs:element name="modules" type="modules-type" minOccurs="0"/>
         </xs:all>
         <xs:attribute name="idle-timeout" use="optional" type="xs:long" default="60000" />
         <xs:attribute name="max-connections" use="optional" type="xs:int" default="10" />
@@ -78,17 +77,6 @@
         </xs:restriction>
     </xs:simpleType>
 
-    <xs:complexType name="modules-type">
-        <xs:sequence>
-            <xs:element name="module" type="module-type" minOccurs="0" maxOccurs="unbounded" />
-        </xs:sequence>
-    </xs:complexType>
-
-    <xs:complexType name="module-type">
-        <xs:attribute name="app" type="xs:string" use="optional" />
-        <xs:attribute name="module" type="xs:string" use="optional" />
-        <xs:attribute name="distinct" type="xs:string" use="optional" />
-    </xs:complexType>
     <xs:complexType name="uris-type">
         <xs:sequence>
             <xs:element name="uri" type="uri-type" minOccurs="0" maxOccurs="unbounded" />

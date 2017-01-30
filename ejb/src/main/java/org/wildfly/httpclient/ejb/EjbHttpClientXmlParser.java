@@ -276,40 +276,8 @@ final class EjbHttpClientXmlParser {
                             targetBuilder.setBindAddress(parseBind(reader));
                             break;
                         }
-                        case "modules": {
-                            parseModules(reader, targetBuilder);
-                            break;
-                        }
                         case "uris": {
                             parseURIs(reader, targetBuilder);
-                            break;
-                        }
-                        default: throw reader.unexpectedElement();
-                    }
-                    break;
-                }
-                case END_ELEMENT: {
-                    return;
-                }
-            }
-        }
-    }
-
-    private static void parseModules(final ConfigurationXMLStreamReader reader, final EJBHttpContextBuilder.EJBTargetBuilder builder) throws ConfigXMLParseException {
-        final int attributeCount = reader.getAttributeCount();
-        if (attributeCount > 0) {
-            throw reader.unexpectedAttribute(0);
-        }
-        while (reader.hasNext()) {
-            switch (reader.nextTag()) {
-                case START_ELEMENT: {
-                    switch (reader.getNamespaceURI()) {
-                        case NS_EJB_HTTP_CLIENT: break;
-                        default: throw reader.unexpectedElement();
-                    }
-                    switch (reader.getLocalName()) {
-                        case "module": {
-                            parseModule(reader, builder);
                             break;
                         }
                         default: throw reader.unexpectedElement();
@@ -350,40 +318,6 @@ final class EjbHttpClientXmlParser {
             }
         }
     }
-
-    private static void parseModule(final ConfigurationXMLStreamReader reader, final EJBHttpContextBuilder.EJBTargetBuilder builder) throws ConfigXMLParseException {
-        final int attributeCount = reader.getAttributeCount();
-        String app = null;
-        String module = null;
-        String distinct = null;
-        for (int i = 0; i < attributeCount; i ++) {
-            final String attributeNamespace = reader.getAttributeNamespace(i);
-            if (attributeNamespace != null && ! attributeNamespace.isEmpty()) {
-                throw reader.unexpectedAttribute(i);
-            }
-            switch (reader.getAttributeLocalName(i)) {
-                case "app": {
-                    app = reader.getAttributeValue(i);
-                    break;
-                }
-                case "module": {
-                    module = reader.getAttributeValue(i);
-                    break;
-                }
-                case "distinct": {
-                    distinct = reader.getAttributeValue(i);
-                    break;
-                }
-                default: {
-                    throw reader.unexpectedAttribute(i);
-                }
-            }
-        }
-        if (! reader.hasNext()) throw reader.unexpectedDocumentEnd();
-        if (reader.nextTag() != END_ELEMENT) throw reader.unexpectedElement();
-        builder.addModule(app, module, distinct);
-    }
-
 
     private static void parseURI(final ConfigurationXMLStreamReader reader, final EJBHttpContextBuilder.EJBTargetBuilder EJBTargetBuilder) throws ConfigXMLParseException {
         final int attributeCount = reader.getAttributeCount();

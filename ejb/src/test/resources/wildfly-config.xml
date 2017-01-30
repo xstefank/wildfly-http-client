@@ -25,10 +25,16 @@
                 <uris>
                     <uri value="http://localhost:7788/wildfly-services" />
                 </uris>
-                <modules>
-                    <module app="wildfly-app" module="wildfly-ejb-remote-server-side" />
-                </modules>
             </target>
         </targets>
     </ejb-http>
+    <discovery xmlns="urn:wildfly-discovery:1.0">
+        <discovery-provider>
+            <static>
+                <service uri="http://localhost:7788/wildfly-services" abstract-type="ejb" abstract-type-authority="jboss"  >
+                        <attribute name="ejb-module" value="&quot;wildfly-app/wildfly-ejb-remote-server-side&quot;" />
+                </service>
+            </static>
+        </discovery-provider>
+    </discovery>
 </configuration>

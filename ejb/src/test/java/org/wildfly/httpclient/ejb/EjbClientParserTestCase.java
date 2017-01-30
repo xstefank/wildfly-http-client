@@ -32,12 +32,6 @@ public class EjbClientParserTestCase {
         Assert.assertEquals(20, context.getMaxStreamsPerConnection());
         Assert.assertEquals(true, context.getEagerlyAcquireSession());
 
-        Assert.assertEquals(1, context.getModules().size());
-        EJBHttpContext.Module module = context.getModules().get(0);
-        Assert.assertEquals("myapp", module.getApp().toString());
-        Assert.assertEquals("mymodule", module.getModule().toString());
-        Assert.assertEquals("distinct", module.getDistinct().toString());
-
         Assert.assertEquals(1, context.getUris().size());
         URI host = context.getUris().get(0);
         Assert.assertEquals("http://localhost:8080", host.toString());

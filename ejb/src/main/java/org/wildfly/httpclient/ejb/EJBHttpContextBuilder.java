@@ -45,7 +45,7 @@ class EJBHttpContextBuilder {
                 if(sb.getEagerlyAcquireSession() != null && sb.getEagerlyAcquireSession()) {
                     eager = true;
                 }
-                EJBHttpContext.EJBTarget connection = new EJBHttpContext.EJBTarget(sb.modules, new EJBTargetContext(new HttpConnectionPool(sb.getMaxConnections() > 0 ? sb.getMaxConnections() : maxConnections, sb.getMaxStreamsPerConnection() > 0 ? sb.getMaxStreamsPerConnection() : maxStreamsPerConnection, worker, pool, null, OptionMap.EMPTY, hp, sb.getIdleTimeout() > 0 ? sb.getIdleTimeout() : idleTimout), eager), sb.getUris());
+                EJBHttpContext.EJBTarget connection = new EJBHttpContext.EJBTarget(new EJBTargetContext(new HttpConnectionPool(sb.getMaxConnections() > 0 ? sb.getMaxConnections() : maxConnections, sb.getMaxStreamsPerConnection() > 0 ? sb.getMaxStreamsPerConnection() : maxStreamsPerConnection, worker, pool, null, OptionMap.EMPTY, hp, sb.getIdleTimeout() > 0 ? sb.getIdleTimeout() : idleTimout), eager), sb.getUris());
                 connections[i] = connection;
             }
             return new EJBHttpContext(connections, maxConnections, maxStreamsPerConnection, idleTimeout, eagerlyAcquireSession == null ? false : eagerlyAcquireSession, worker, pool);
@@ -109,7 +109,6 @@ class EJBHttpContextBuilder {
         final List<URI> uris = new ArrayList<>();
         private AuthenticationContext authenticationContext;
         private InetSocketAddress bindAddress;
-        private final List<EJBHttpContext.Module> modules = new ArrayList<>();
         private long idleTimeout;
         private int maxConnections;
         private int maxStreamsPerConnection;
@@ -121,10 +120,6 @@ class EJBHttpContextBuilder {
 
         List<URI> getUris() {
             return uris;
-        }
-
-        List<EJBHttpContext.Module> getModules() {
-            return modules;
         }
 
         void setAuthenticationContext(AuthenticationContext authenticationContext) {
@@ -141,10 +136,6 @@ class EJBHttpContextBuilder {
 
         InetSocketAddress getBindAddress() {
             return bindAddress;
-        }
-
-        void addModule(String app, String module, String distinct) {
-            modules.add(new EJBHttpContext.Module(app, module, distinct));
         }
 
         long getIdleTimeout() {

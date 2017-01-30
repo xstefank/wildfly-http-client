@@ -1,18 +1,14 @@
 package org.wildfly.httpclient.ejb;
 
+import java.net.URI;
+import javax.ejb.ApplicationException;
+
 import org.jboss.ejb.client.EJBClient;
-import org.jboss.ejb.client.EJBClientContext;
 import org.jboss.ejb.client.StatelessEJBLocator;
 import org.jboss.ejb.client.URIAffinity;
-import org.jboss.marshalling.MarshallerFactory;
-import org.jboss.marshalling.river.RiverMarshallerFactory;
 import org.junit.Assert;
 import org.junit.Test;
 import org.junit.runner.RunWith;
-import org.xnio.OptionMap;
-
-import javax.ejb.ApplicationException;
-import java.net.URI;
 
 /**
  * @author Stuart Douglas
@@ -58,6 +54,7 @@ public class SimpleInvocationTestCase {
             Assert.assertEquals("Unexpected echo message", message, echo);
         }
     }
+
     /*
 
     @Test
