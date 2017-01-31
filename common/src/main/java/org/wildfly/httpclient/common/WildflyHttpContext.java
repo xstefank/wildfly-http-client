@@ -76,6 +76,7 @@ public class WildflyHttpContext implements Contextual<WildflyHttpContext> {
     private HttpTargetContext getConnectionPoolForURI(URI uri) {
         HttpTargetContext context = uriConnectionPools.get(uri);
         if (context != null) {
+            context.init();
             return context;
         }
         for (ConfigSection target : targets) {

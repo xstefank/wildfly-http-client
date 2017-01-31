@@ -1,14 +1,12 @@
 package org.wildfly.httpclient.ejb;
 
 import io.undertow.client.ClientRequest;
-import io.undertow.util.FlexBase64;
 import io.undertow.util.Headers;
 import io.undertow.util.HttpString;
 import io.undertow.util.Methods;
 
 import java.lang.reflect.Method;
 
-import static io.undertow.util.Headers.BASIC;
 
 /**
  * Builder for invocations against a specific EJB, such as invocation and session open
@@ -20,7 +18,6 @@ class EJBInvocationBuilder {
     private static final HttpString INVOCATION_ID = new HttpString("X-wf-invocation-id");
     private static final String INVOCATION_ACCEPT = "application/x-wf-ejb-response;version=1,application/x-wf-jbmar-exception;version=1";
     private static final String STATEFUL_CREATE_ACCEPT = "application/x-wf-jbmar-exception;version=1";
-    private static final String AFFINITY_ACCEPT = "application/x-wf-jbmar-exception;version=1";
 
     private String appName;
     private String moduleName;
@@ -28,7 +25,6 @@ class EJBInvocationBuilder {
     private String beanName;
     private String beanId;
     private String view;
-    private String sessionId;
     private Method method;
     private InvocationType invocationType;
     private Long invocationId;
@@ -115,15 +111,6 @@ class EJBInvocationBuilder {
         return this;
     }
 
-    public String getSessionId() {
-        return sessionId;
-    }
-
-    public EJBInvocationBuilder setSessionId(String sessionId) {
-        this.sessionId = sessionId;
-        return this;
-    }
-
     public int getVersion() {
         return version;
     }
@@ -135,12 +122,12 @@ class EJBInvocationBuilder {
 
     /**
      * Constructs an EJB invocation path
-     * @param mountPoint The mount point of the EJB context
-     * @param appName The application name
-     * @param moduleName The module name
-     * @param distinctName The distinct name
-     * @param beanName The bean name
      *
+     * @param mountPoint   The mount point of the EJB context
+     * @param appName      The application name
+     * @param moduleName   The module name
+     * @param distinctName The distinct name
+     * @param beanName     The bean name
      * @return The request path to invoke
      */
     private String buildPath(final String mountPoint, final String appName, final String moduleName, final String distinctName, final String beanName) {
@@ -151,20 +138,20 @@ class EJBInvocationBuilder {
 
     /**
      * Constructs an EJB invocation path
-     * @param mountPoint The mount point of the EJB context
-     * @param appName The application name
-     * @param moduleName The module name
-     * @param distinctName The distinct name
-     * @param beanName The bean name
-     * @param beanId The bean id
      *
+     * @param mountPoint   The mount point of the EJB context
+     * @param appName      The application name
+     * @param moduleName   The module name
+     * @param distinctName The distinct name
+     * @param beanName     The bean name
+     * @param beanId       The bean id
      * @return The request path to invoke
      */
     private String buildPath(final String mountPoint, final String appName, final String moduleName, final String distinctName, final String beanName, final String beanId, final String view, final Method method) {
         StringBuilder sb = new StringBuilder();
         buildBeanPath(mountPoint, appName, moduleName, distinctName, beanName, sb);
         sb.append("/");
-        if(beanId == null) {
+        if (beanId == null) {
             sb.append("-");
         } else {
             sb.append(beanId);
@@ -173,7 +160,7 @@ class EJBInvocationBuilder {
         sb.append(view);
         sb.append("/");
         sb.append(method.getName());
-        for(Class<?> param : method.getParameterTypes()) {
+        for (Class<?> param : method.getParameterTypes()) {
             sb.append("/");
             sb.append(param.getName());
         }
@@ -187,25 +174,25 @@ class EJBInvocationBuilder {
     }
 
     private void buildModulePath(String mountPoint, String appName, String moduleName, String distinctName, StringBuilder sb) {
-        if(mountPoint != null) {
+        if (mountPoint != null) {
             sb.append(mountPoint);
         }
         sb.append("/ejb/v");
         sb.append(version);
         sb.append("/");
-        if(appName == null || appName.isEmpty()) {
+        if (appName == null || appName.isEmpty()) {
             sb.append("-");
         } else {
             sb.append(appName);
         }
         sb.append("/");
-        if(moduleName == null || moduleName.isEmpty()) {
+        if (moduleName == null || moduleName.isEmpty()) {
             sb.append("-");
         } else {
             sb.append(moduleName);
         }
         sb.append("/");
-        if(distinctName == null || distinctName.isEmpty()) {
+        if (distinctName == null || distinctName.isEmpty()) {
             sb.append("-");
         } else {
             sb.append(distinctName);
@@ -214,28 +201,20 @@ class EJBInvocationBuilder {
 
     public ClientRequest createRequest(String mountPoint) {
         ClientRequest clientRequest = new ClientRequest();
-        if(sessionId != null) {
-            clientRequest.getRequestHeaders().put(Headers.COOKIE, "JSESSIONID=" + sessionId); //TODO: fix this
-        }
-        clientRequest.getRequestHeaders().put(Headers.AUTHORIZATION, BASIC + " " + FlexBase64.encodeString("user1:password1".getBytes(), false));
-        if(invocationType == InvocationType.METHOD_INVOCATION) {
+        if (invocationType == InvocationType.METHOD_INVOCATION) {
             clientRequest.setMethod(Methods.POST);
             clientRequest.getRequestHeaders().add(Headers.ACCEPT, INVOCATION_ACCEPT);
             if (invocationId != null) {
-                if (sessionId == null ) {
-                    throw new IllegalStateException();
-                }
                 clientRequest.getRequestHeaders().put(INVOCATION_ID, invocationId);
             }
             clientRequest.setPath(buildPath(mountPoint, appName, moduleName, distinctName, beanName, beanId, view, method));
             clientRequest.getRequestHeaders().put(Headers.CONTENT_TYPE, EjbHeaders.INVOCATION_VERSION_ONE);
-        } else if(invocationType == InvocationType.STATEFUL_CREATE) {
+        } else if (invocationType == InvocationType.STATEFUL_CREATE) {
             clientRequest.setMethod(Methods.POST);
             clientRequest.setPath(buildPath(mountPoint, appName, moduleName, distinctName, beanName));
             clientRequest.getRequestHeaders().put(Headers.CONTENT_TYPE, EjbHeaders.SESSION_OPEN_VERSION_ONE);
             clientRequest.getRequestHeaders().add(Headers.ACCEPT, STATEFUL_CREATE_ACCEPT);
         }
-
         return clientRequest;
     }
 

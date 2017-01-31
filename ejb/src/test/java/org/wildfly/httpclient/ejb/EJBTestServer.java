@@ -95,19 +95,11 @@ public class EJBTestServer extends HTTPTestServer {
                 case EjbHeaders.SESSION_OPEN_VERSION_ONE:
                     handleSessionCreate(parts, exchange);
                     break;
-                case EjbHeaders.AFFINITY_VERSION_ONE:
-                    handleAffinity(parts, exchange);
-                    break;
                 default:
                     sendException(exchange, 400, new RuntimeException("Unknown content type " + content));
                     return;
             }
 
-        }
-
-        private void handleAffinity(String[] parts, HttpServerExchange exchange) {
-            exchange.getResponseHeaders().put(Headers.CONTENT_TYPE, EjbHeaders.EJB_RESPONSE_AFFINITY_RESULT_VERSION_ONE);
-            exchange.getResponseCookies().put("JSESSIONID", new CookieImpl("JSESSIONID", INITIAL_SESSION_AFFINITY).setPath(WILDFLY_SERVICES));
         }
 
         private void handleSessionCreate(String[] parts, HttpServerExchange exchange) throws Exception {
@@ -128,11 +120,11 @@ public class EJBTestServer extends HTTPTestServer {
             marshallingConfiguration.setVersion(2);
 
             Cookie sessionCookie = exchange.getRequestCookies().get(JSESSIONID);
-            if(sessionCookie == null) {
+            if (sessionCookie == null) {
                 exchange.getResponseCookies().put(JSESSIONID, new CookieImpl(JSESSIONID, LAZY_SESSION_AFFINITY).setPath(WILDFLY_SERVICES));
             }
 
-            exchange.getResponseHeaders().put(Headers.CONTENT_TYPE, EjbHeaders.EJB_RESPONSE_NEW_SESSION);
+            exchange.getResponseHeaders().put(Headers.CONTENT_TYPE, EjbHeaders.EJB_RESPONSE_NEW_SESSION.toString());
             exchange.getResponseHeaders().put(EjbHeaders.EJB_SESSION_ID, Base64.getEncoder().encodeToString(SFSB_ID.getBytes(StandardCharsets.US_ASCII)));
 
             exchange.setStatusCode(StatusCodes.NO_CONTENT);
@@ -238,7 +230,7 @@ public class EJBTestServer extends HTTPTestServer {
 
 
     private static String handleDash(String s) {
-        if(s.equals("-")) {
+        if (s.equals("-")) {
             return "";
         }
         return s;

@@ -46,7 +46,7 @@ public class HttpTargetContext extends AbstractAttachable {
 
     private final HttpConnectionPool connectionPool;
     private final boolean eagerlyAcquireAffinity;
-    private final CountDownLatch sessionAffinityLatch = new CountDownLatch(1);
+    private volatile CountDownLatch sessionAffinityLatch = new CountDownLatch(1);
     private volatile String sessionId;
 
     private final AtomicBoolean affinityRequestSent = new AtomicBoolean();
@@ -95,7 +95,9 @@ public class HttpTargetContext extends AbstractAttachable {
     }
 
     public void sendRequest(final HttpConnectionPool.ConnectionHandle connection, ClientRequest request, HttpMarshaller httpMarshaller, HttpResultHandler httpResultHandler, HttpFailureHandler failureHandler, ContentType expectedResponse, Runnable completedTask) {
-
+        if(sessionId != null) {
+            request.getRequestHeaders().add(Headers.COOKIE, "JSESSIONID=" + sessionId);
+        }
         connection.getConnection().sendRequest(request, new ClientCallback<ClientExchange>() {
             @Override
             public void completed(ClientExchange result) {
@@ -260,7 +262,20 @@ public class HttpTargetContext extends AbstractAttachable {
         this.sessionId = sessionId;
     }
 
-    public String awaitSessionId() {
+
+    public void clearSessionId() {
+        synchronized (this) {
+            CountDownLatch old = sessionAffinityLatch;
+            sessionAffinityLatch = new CountDownLatch(1);
+            old.countDown();
+            this.affinityRequestSent.set(false);
+            this.sessionId = null;
+        }
+    }
+    public String awaitSessionId(boolean required) {
+        if(required) {
+            acquireAffinitiy();
+        }
         if(affinityRequestSent.get()) {
             try {
                 sessionAffinityLatch.await();

@@ -13,13 +13,10 @@ interface EjbHeaders {
     //request headers
     String INVOCATION_VERSION_ONE = "application/x-wf-ejb-jbmar-invocation;version=1";
     String SESSION_OPEN_VERSION_ONE = "application/x-wf-ejb-jbmar-session-open;version=1";
-    String AFFINITY_VERSION_ONE = "application/x-wf-ejb-jbmar-affinity;version=1";
-
 
     //response headers
     ContentType EJB_RESPONSE_VERSION_ONE = new ContentType("application/x-wf-ejb-jbmar-response", 1);
-    String EJB_RESPONSE_NEW_SESSION = "application/x-wf-ejb-jbmar-new-session;version=1";
-    String EJB_RESPONSE_AFFINITY_RESULT_VERSION_ONE = "application/x-wf-ejb-jbmar-affinity-result;version=1";
+    ContentType EJB_RESPONSE_NEW_SESSION = new ContentType("application/x-wf-ejb-jbmar-new-session", 1);
 
     String TXN_RESULT_VERSION_ONE = "application/x-wf-txn-result;version=1";
     String TXN_XIDS_VERSION_ONE = "application/x-wf-txn-xids;version=1";

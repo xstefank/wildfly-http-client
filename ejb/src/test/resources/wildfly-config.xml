@@ -19,15 +19,11 @@
   -->
 
 <configuration >
-    <ejb-http xmlns="urn:ejb-http-client:1.0">
-        <targets>
-            <target idle-timeout="30000" max-connections="20" max-streams-per-connection="20">
-                <uris>
-                    <uri value="http://localhost:7788/wildfly-services" />
-                </uris>
-            </target>
-        </targets>
-    </ejb-http>
+    <http-client xmlns="urn:wildfly-http-client:1.0">
+        <defaults>
+            <eagerly-acquire-session value="true"/>
+        </defaults>
+    </http-client>
     <discovery xmlns="urn:wildfly-discovery:1.0">
         <discovery-provider>
             <static>

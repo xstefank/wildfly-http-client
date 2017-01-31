@@ -16,11 +16,11 @@ import io.undertow.server.handlers.CookieImpl;
 public class AquireAffinityTestCase {
 
     @Test
-    public void testAquireAffinity() throws URISyntaxException {
+    public void testAcquireAffinity() throws URISyntaxException {
         HTTPTestServer.registerServicesHandler("common/v1/affinity", exchange -> exchange.getResponseCookies().put("JSESSIONID", new CookieImpl("JSESSIONID", "foo")));
 
         HttpTargetContext context = WildflyHttpContext.getCurrent().getTargetContext(new URI(HTTPTestServer.getDefaultServerURL()));
-        Assert.assertEquals("foo", context.awaitSessionId());
+        Assert.assertEquals("foo", context.awaitSessionId(false));
 
     }
 }

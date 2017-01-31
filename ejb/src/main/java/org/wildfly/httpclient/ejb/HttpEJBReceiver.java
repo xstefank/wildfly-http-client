@@ -9,6 +9,7 @@ import org.jboss.ejb.client.EJBClientInvocationContext;
 import org.jboss.ejb.client.EJBLocator;
 import org.jboss.ejb.client.EJBReceiver;
 import org.jboss.ejb.client.EJBReceiverInvocationContext;
+import org.jboss.ejb.client.SessionID;
 import org.jboss.ejb.client.StatefulEJBLocator;
 import org.jboss.ejb.client.StatelessEJBLocator;
 import org.jboss.ejb.client.URIAffinity;
@@ -20,6 +21,7 @@ import org.jboss.marshalling.Unmarshaller;
 import org.wildfly.httpclient.common.HttpConnectionPool;
 import org.wildfly.httpclient.common.HttpTargetContext;
 import org.wildfly.httpclient.common.WildflyHttpContext;
+import org.xnio.FutureResult;
 
 import javax.ejb.Asynchronous;
 import java.io.IOException;
@@ -67,14 +69,67 @@ class HttpEJBReceiver extends EJBReceiver {
                 }
             }
         }
+        targetContext.awaitSessionId(false);
         targetContext.getConnectionPool().getConnection((connection) -> invocationConnectionReady(clientInvocationContext, receiverContext, connection, targetContext), (e) -> receiverContext.resultReady(new StaticResultProducer(e, null)), false);
     }
 
     @Override
-    protected <T> StatefulEJBLocator<T> createSession(StatelessEJBLocator<T> statelessEJBLocator) throws Exception {
-        return null;
+    protected <T> StatefulEJBLocator<T> createSession(StatelessEJBLocator<T> locator) throws Exception {
+
+        Affinity affinity = locator.getAffinity();
+        URI uri;
+        if (affinity instanceof URIAffinity) {
+            uri = affinity.getUri();
+        } else {
+            throw EjbHttpClientMessages.MESSAGES.invalidAffinity(affinity);
+        }
+        WildflyHttpContext current = WildflyHttpContext.getCurrent();
+        HttpTargetContext targetContext = current.getTargetContext(uri);
+        if (targetContext == null) {
+            throw EjbHttpClientMessages.MESSAGES.couldNotResolveTargetForLocator(locator);
+        }
+        if (targetContext.getAttachment(EJB_CONTEXT_DATA) == null) {
+            synchronized (this) {
+                if (targetContext.getAttachment(EJB_CONTEXT_DATA) == null) {
+                    targetContext.putAttachment(EJB_CONTEXT_DATA, new EjbContextData());
+                }
+            }
+        }
+        targetContext.awaitSessionId(true);
+        FutureResult<StatefulEJBLocator<T>> result = new FutureResult<>();
+        targetContext.getConnectionPool().getConnection((connection) -> openSessionConnectionReady(connection, result, locator, targetContext), (e) -> result.setException(new IOException(e)), false);
+        try {
+            return result.getIoFuture().get();
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
     }
 
+    private <T> void openSessionConnectionReady(HttpConnectionPool.ConnectionHandle connection, FutureResult<StatefulEJBLocator<T>> result, StatelessEJBLocator<T> locator, HttpTargetContext targetContext) throws IllegalArgumentException {
+
+        EJBInvocationBuilder builder = new EJBInvocationBuilder()
+                .setInvocationType(EJBInvocationBuilder.InvocationType.STATEFUL_CREATE)
+                .setAppName(locator.getAppName())
+                .setModuleName(locator.getModuleName())
+                .setDistinctName(locator.getDistinctName())
+                .setView(locator.getViewType().getName())
+                .setBeanName(locator.getBeanName());
+        ClientRequest request = builder.createRequest(connection.getUri().getPath());
+        targetContext.sendRequest(connection, request, null,
+                ((unmarshaller, response) -> {
+                    String sessionId = response.getResponseHeaders().getFirst(EjbHeaders.EJB_SESSION_ID);
+                    if (sessionId == null) {
+                        result.setException(EjbHttpClientMessages.MESSAGES.noSessionIdInResponse());
+                        connection.done(true);
+                    } else {
+                        SessionID sessionID = SessionID.createSessionID(Base64.getDecoder().decode(sessionId));
+                        result.setResult(new StatefulEJBLocator<T>(locator, sessionID));
+                        connection.done(false);
+                    }
+                })
+                , (e) -> result.setException(new IOException(e)), EjbHeaders.EJB_RESPONSE_NEW_SESSION, null);
+
+    }
 
     private void invocationConnectionReady(EJBClientInvocationContext clientInvocationContext, EJBReceiverInvocationContext receiverContext, HttpConnectionPool.ConnectionHandle connection, HttpTargetContext targetContext) {
         EjbContextData ejbData = targetContext.getAttachment(EJB_CONTEXT_DATA);
@@ -86,7 +141,6 @@ class HttpEJBReceiver extends EJBReceiver {
                 .setModuleName(locator.getModuleName())
                 .setDistinctName(locator.getDistinctName())
                 .setView(clientInvocationContext.getViewClass().getName())
-                .setSessionId(targetContext.getSessionId())
                 .setBeanName(locator.getBeanName());
         if (locator instanceof StatefulEJBLocator) {
             builder.setBeanId(Base64.getEncoder().encodeToString(((StatefulEJBLocator) locator).getSessionId().getEncodedForm()));
