@@ -2,3 +2,5 @@
 - Buffer Config
 - Request Timeouts
 - Compression
+- SSL
+- Authentication
