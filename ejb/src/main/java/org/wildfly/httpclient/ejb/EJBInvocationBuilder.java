@@ -18,9 +18,9 @@ import static io.undertow.util.Headers.BASIC;
 class EJBInvocationBuilder {
 
     private static final HttpString INVOCATION_ID = new HttpString("X-wf-invocation-id");
-    private static final String INVOCATION_ACCEPT = "application/x-wf-ejb-response;version=1,application/x-wf-ejb-exception;version=1";
-    private static final String STATEFUL_CREATE_ACCEPT = "application/x-wf-ejb-new-session;version=1,application/x-wf-ejb-exception;version=1";
-    private static final String AFFINITY_ACCEPT = "application/x-wf-ejb-affinity-result;version=1,application/x-wf-ejb-exception;version=1";
+    private static final String INVOCATION_ACCEPT = "application/x-wf-ejb-response;version=1,application/x-wf-jbmar-exception;version=1";
+    private static final String STATEFUL_CREATE_ACCEPT = "application/x-wf-jbmar-exception;version=1";
+    private static final String AFFINITY_ACCEPT = "application/x-wf-jbmar-exception;version=1";
 
     private String appName;
     private String moduleName;
@@ -32,6 +32,7 @@ class EJBInvocationBuilder {
     private Method method;
     private InvocationType invocationType;
     private Long invocationId;
+    private int version = 1;
 
     public String getAppName() {
         return appName;
@@ -123,21 +124,15 @@ class EJBInvocationBuilder {
         return this;
     }
 
-    /**
-     * Constructs an EJB invocation path
-     * @param mountPoint The mount point of the EJB context
-     * @param appName The application name
-     * @param moduleName The module name
-     * @param distinctName The distinct name
-     * @param beanName The bean name
-     *
-     * @return The request path to invoke
-     */
-    private static String buildPath(final String mountPoint, final String appName, final String moduleName, final String distinctName, final String beanName) {
-        StringBuilder sb = new StringBuilder();
-        buildBeanPath(mountPoint, appName, moduleName, distinctName, beanName, sb);
-        return sb.toString();
+    public int getVersion() {
+        return version;
     }
+
+    public EJBInvocationBuilder setVersion(int version) {
+        this.version = version;
+        return this;
+    }
+
     /**
      * Constructs an EJB invocation path
      * @param mountPoint The mount point of the EJB context
@@ -148,10 +143,9 @@ class EJBInvocationBuilder {
      *
      * @return The request path to invoke
      */
-    private static String buildPath(final String mountPoint, final String appName, final String moduleName, final String distinctName, final String beanName, String view) {
+    private String buildPath(final String mountPoint, final String appName, final String moduleName, final String distinctName, final String beanName) {
         StringBuilder sb = new StringBuilder();
         buildBeanPath(mountPoint, appName, moduleName, distinctName, beanName, sb);
-        sb.append("/").append(view);
         return sb.toString();
     }
 
@@ -166,7 +160,7 @@ class EJBInvocationBuilder {
      *
      * @return The request path to invoke
      */
-    private static String buildPath(final String mountPoint, final String appName, final String moduleName, final String distinctName, final String beanName, final String beanId, final String view, final Method method) {
+    private String buildPath(final String mountPoint, final String appName, final String moduleName, final String distinctName, final String beanName, final String beanId, final String view, final Method method) {
         StringBuilder sb = new StringBuilder();
         buildBeanPath(mountPoint, appName, moduleName, distinctName, beanName, sb);
         sb.append("/");
@@ -186,17 +180,19 @@ class EJBInvocationBuilder {
         return sb.toString();
     }
 
-    private static void buildBeanPath(String mountPoint, String appName, String moduleName, String distinctName, String beanName, StringBuilder sb) {
+    private void buildBeanPath(String mountPoint, String appName, String moduleName, String distinctName, String beanName, StringBuilder sb) {
         buildModulePath(mountPoint, appName, moduleName, distinctName, sb);
         sb.append("/");
         sb.append(beanName);
     }
 
-    private static void buildModulePath(String mountPoint, String appName, String moduleName, String distinctName, StringBuilder sb) {
+    private void buildModulePath(String mountPoint, String appName, String moduleName, String distinctName, StringBuilder sb) {
         if(mountPoint != null) {
             sb.append(mountPoint);
         }
-        sb.append("/ejb/");
+        sb.append("/ejb/v");
+        sb.append(version);
+        sb.append("/");
         if(appName == null || appName.isEmpty()) {
             sb.append("-");
         } else {
@@ -238,11 +234,6 @@ class EJBInvocationBuilder {
             clientRequest.setPath(buildPath(mountPoint, appName, moduleName, distinctName, beanName));
             clientRequest.getRequestHeaders().put(Headers.CONTENT_TYPE, EjbHeaders.SESSION_OPEN_VERSION_ONE);
             clientRequest.getRequestHeaders().add(Headers.ACCEPT, STATEFUL_CREATE_ACCEPT);
-        } else if(invocationType == InvocationType.AFFINITY) {
-            clientRequest.setMethod(Methods.GET);
-            clientRequest.getRequestHeaders().add(Headers.ACCEPT, AFFINITY_ACCEPT);
-            clientRequest.setPath(mountPoint + "/ejb");
-            clientRequest.getRequestHeaders().put(Headers.CONTENT_TYPE, EjbHeaders.AFFINITY_VERSION_ONE);
         }
 
         return clientRequest;
@@ -253,7 +244,6 @@ class EJBInvocationBuilder {
         METHOD_INVOCATION,
         STATEFUL_CREATE,
         CANCEL,
-        AFFINITY
     }
 
 }

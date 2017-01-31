@@ -11,11 +11,11 @@ import org.wildfly.client.config.ConfigXMLParseException;
 /**
  * @author Stuart Douglas
  */
-public class EjbClientParserTestCase {
+public class WildflyClientParserTestCase {
 
     @Test
     public void testXMLParsing() throws URISyntaxException, ConfigXMLParseException {
-        WildflyHttpContextBuilder builder = HttpClientXmlParser.parseConfig(getClass().getClassLoader().getResource("ejb-client.xml").toURI());
+        WildflyHttpContext.Builder builder = HttpClientXmlParser.parseConfig(getClass().getClassLoader().getResource("ejb-client.xml").toURI());
         Assert.assertEquals(InetSocketAddress.createUnresolved("127.0.0.1", 3456), builder.getDefaultBindAddress());
 
         Assert.assertEquals(10000, builder.getIdleTimeout());
@@ -25,7 +25,7 @@ public class EjbClientParserTestCase {
 
 
         Assert.assertEquals(1, builder.getTargets().size());
-        WildflyHttpContextBuilder.HttpConfigBuilder context = builder.getTargets().get(0);
+        WildflyHttpContext.Builder.HttpConfigBuilder context = builder.getTargets().get(0);
         Assert.assertEquals(InetSocketAddress.createUnresolved("127.0.0.1", 5678), context.getBindAddress());
         Assert.assertEquals(30000, context.getIdleTimeout());
         Assert.assertEquals(20, context.getMaxConnections());

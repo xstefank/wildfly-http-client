@@ -21,7 +21,7 @@ final class HttpClientXmlParser {
 
     static WildflyHttpContext parseHttpContext() throws ConfigXMLParseException, IOException {
         final ClientConfiguration clientConfiguration = ClientConfiguration.getInstance();
-        final WildflyHttpContextBuilder builder = new WildflyHttpContextBuilder();
+        final WildflyHttpContext.Builder builder = new WildflyHttpContext.Builder();
         if (clientConfiguration != null)
             try (final ConfigurationXMLStreamReader streamReader = clientConfiguration.readConfiguration(Collections.singleton(NS_EJB_HTTP_CLIENT))) {
                 parseDocument(streamReader, builder);
@@ -33,15 +33,15 @@ final class HttpClientXmlParser {
     }
 
     //for testing
-    static WildflyHttpContextBuilder parseConfig(URI uri) throws ConfigXMLParseException {
-        final WildflyHttpContextBuilder builder = new WildflyHttpContextBuilder();
+    static WildflyHttpContext.Builder parseConfig(URI uri) throws ConfigXMLParseException {
+        final WildflyHttpContext.Builder builder = new WildflyHttpContext.Builder();
         try (final ConfigurationXMLStreamReader streamReader = ConfigurationXMLStreamReader.openUri(uri, XMLInputFactory.newFactory())) {
             parseDocument(streamReader, builder);
             return builder;
         }
     }
 
-    private static void parseDocument(final ConfigurationXMLStreamReader reader, final WildflyHttpContextBuilder builder) throws ConfigXMLParseException {
+    private static void parseDocument(final ConfigurationXMLStreamReader reader, final WildflyHttpContext.Builder builder) throws ConfigXMLParseException {
         if (reader.hasNext()) switch (reader.nextTag()) {
             case START_ELEMENT: {
                 switch (reader.getNamespaceURI()) {
@@ -66,7 +66,7 @@ final class HttpClientXmlParser {
         }
     }
 
-    private static void parseRootElement(final ConfigurationXMLStreamReader reader, final WildflyHttpContextBuilder builder) throws ConfigXMLParseException {
+    private static void parseRootElement(final ConfigurationXMLStreamReader reader, final WildflyHttpContext.Builder builder) throws ConfigXMLParseException {
 
         final int attributeCount = reader.getAttributeCount();
         for (int i = 0; i < attributeCount; i++) {
@@ -223,7 +223,7 @@ final class HttpClientXmlParser {
         }
     }
 
-    private static void parseConfigsElement(final ConfigurationXMLStreamReader reader, final WildflyHttpContextBuilder builder) throws ConfigXMLParseException {
+    private static void parseConfigsElement(final ConfigurationXMLStreamReader reader, final WildflyHttpContext.Builder builder) throws ConfigXMLParseException {
         final int attributeCount = reader.getAttributeCount();
         if (attributeCount > 0) {
             throw reader.unexpectedAttribute(0);
@@ -254,7 +254,7 @@ final class HttpClientXmlParser {
         }
     }
 
-    private static void parseDefaults(final ConfigurationXMLStreamReader reader, final WildflyHttpContextBuilder builder) throws ConfigXMLParseException {
+    private static void parseDefaults(final ConfigurationXMLStreamReader reader, final WildflyHttpContext.Builder builder) throws ConfigXMLParseException {
         if (reader.getAttributeCount() > 0) {
             throw reader.unexpectedAttribute(0);
         }
@@ -300,11 +300,11 @@ final class HttpClientXmlParser {
         }
     }
 
-    private static void parseConfig(final ConfigurationXMLStreamReader reader, final WildflyHttpContextBuilder builder) throws ConfigXMLParseException {
+    private static void parseConfig(final ConfigurationXMLStreamReader reader, final WildflyHttpContext.Builder builder) throws ConfigXMLParseException {
         if (reader.getAttributeCount() > 0) {
             throw reader.unexpectedAttribute(0);
         }
-        final WildflyHttpContextBuilder.HttpConfigBuilder targetBuilder = builder.addConfig();
+        final WildflyHttpContext.Builder.HttpConfigBuilder targetBuilder = builder.addConfig();
 
         while (reader.hasNext()) {
             switch (reader.nextTag()) {
@@ -352,7 +352,7 @@ final class HttpClientXmlParser {
         }
     }
 
-    private static void parseURIs(final ConfigurationXMLStreamReader reader, final WildflyHttpContextBuilder.HttpConfigBuilder builder) throws ConfigXMLParseException {
+    private static void parseURIs(final ConfigurationXMLStreamReader reader, final WildflyHttpContext.Builder.HttpConfigBuilder builder) throws ConfigXMLParseException {
         final int attributeCount = reader.getAttributeCount();
         if (attributeCount > 0) {
             throw reader.unexpectedAttribute(0);
@@ -383,7 +383,7 @@ final class HttpClientXmlParser {
         }
     }
 
-    private static void parseURI(final ConfigurationXMLStreamReader reader, final WildflyHttpContextBuilder.HttpConfigBuilder HttpConfigBuilder) throws ConfigXMLParseException {
+    private static void parseURI(final ConfigurationXMLStreamReader reader, final WildflyHttpContext.Builder.HttpConfigBuilder HttpConfigBuilder) throws ConfigXMLParseException {
         final int attributeCount = reader.getAttributeCount();
         URI host = null;
         for (int i = 0; i < attributeCount; i++) {

@@ -68,7 +68,8 @@ public class EJBTestServer extends HTTPTestServer {
 
     @Override
     protected void registerPaths(PathHandler servicesHandler) {
-        servicesHandler.addPrefixPath("/ejb", new TestEJBHTTPHandler());
+        servicesHandler.addPrefixPath("/ejb", new PathHandler().addPrefixPath("v1", new TestEJBHTTPHandler()));
+
     }
 
     private static final class TestEJBHTTPHandler implements HttpHandler {
@@ -197,7 +198,7 @@ public class EJBTestServer extends HTTPTestServer {
             try {
                 TestEjbOutput output = new TestEjbOutput();
                 Object result = handler.handle(invocation, output);
-                exchange.getResponseHeaders().put(Headers.CONTENT_TYPE, EjbHeaders.EJB_RESPONSE_VERSION_ONE);
+                exchange.getResponseHeaders().put(Headers.CONTENT_TYPE, EjbHeaders.EJB_RESPONSE_VERSION_ONE.toString());
                 if (output.getSessionAffinity() != null) {
                     exchange.getResponseCookies().put("JSESSIONID", new CookieImpl("JSESSIONID", output.getSessionAffinity()).setPath(WILDFLY_SERVICES));
                 }
@@ -220,11 +221,9 @@ public class EJBTestServer extends HTTPTestServer {
 
     private static void sendException(HttpServerExchange exchange, int status, Exception e) throws IOException {
         exchange.setStatusCode(status);
-        exchange.getResponseHeaders().put(Headers.CONTENT_TYPE, EjbHeaders.EJB_RESPONSE_EXCEPTION_VERSION_ONE);
+        exchange.getResponseHeaders().put(Headers.CONTENT_TYPE, EjbHeaders.RESPONSE_EXCEPTION_VERSION_ONE.toString());
 
         final MarshallingConfiguration marshallingConfiguration = new MarshallingConfiguration();
-        marshallingConfiguration.setClassTable(ProtocolV1ClassTable.INSTANCE);
-        marshallingConfiguration.setObjectTable(ProtocolV1ObjectTable.INSTANCE);
         marshallingConfiguration.setVersion(2);
         final Marshaller marshaller = marshallerFactory.createMarshaller(marshallingConfiguration);
         OutputStream outputStream = exchange.getOutputStream();

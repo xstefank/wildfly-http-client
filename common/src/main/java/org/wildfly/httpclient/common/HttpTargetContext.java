@@ -13,6 +13,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 
 import org.jboss.marshalling.ByteOutput;
 import org.jboss.marshalling.InputStreamByteInput;
+import org.jboss.marshalling.Marshaller;
 import org.jboss.marshalling.MarshallerFactory;
 import org.jboss.marshalling.Marshalling;
 import org.jboss.marshalling.MarshallingConfiguration;
@@ -38,7 +39,7 @@ import io.undertow.util.StatusCodes;
  */
 public class HttpTargetContext extends AbstractAttachable {
 
-    private static final String EXCEPTION_TYPE = "x-wf-jbmar-exception";
+    private static final String EXCEPTION_TYPE = "application/x-wf-jbmar-exception";
 
     private static final String JSESSIONID = "JSESSIONID";
     static final MarshallerFactory MARSHALLER_FACTORY = new RiverMarshallerFactory();
@@ -83,6 +84,14 @@ public class HttpTargetContext extends AbstractAttachable {
             latch.countDown();
             HttpClientMessages.MESSAGES.failedToAcquireSession(e);
         }, null, latch::countDown);
+    }
+
+    public Unmarshaller createUnmarshaller(MarshallingConfiguration marshallingConfiguration) throws IOException {
+        return MARSHALLER_FACTORY.createUnmarshaller(marshallingConfiguration);
+    }
+
+    public Marshaller createMarshaller(MarshallingConfiguration marshallingConfiguration) throws IOException {
+        return MARSHALLER_FACTORY.createMarshaller(marshallingConfiguration);
     }
 
     public void sendRequest(final HttpConnectionPool.ConnectionHandle connection, ClientRequest request, HttpMarshaller httpMarshaller, HttpResultHandler httpResultHandler, HttpFailureHandler failureHandler, ContentType expectedResponse, Runnable completedTask) {
@@ -262,15 +271,15 @@ public class HttpTargetContext extends AbstractAttachable {
         return sessionId;
     }
 
-    interface HttpMarshaller {
+    public interface HttpMarshaller {
         void marshall(ByteOutput output) throws IOException;
     }
 
-    interface HttpResultHandler {
+    public interface HttpResultHandler {
         void handleResult(InputStream result, ClientResponse response);
     }
 
-    interface HttpFailureHandler {
+    public interface HttpFailureHandler {
         void handleFailure(Throwable throwable);
     }
 }

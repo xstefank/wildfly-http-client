@@ -22,7 +22,7 @@ public final class ConfigurationHttpContextSupplier implements Supplier<WildflyH
             } catch (ConfigXMLParseException | IOException e) {
                 HttpClientMessages.MESSAGES.trace("Failed to parse EJBHttpContext XML definition", e);
             }
-            return new WildflyHttpContextBuilder().build();
+            return new WildflyHttpContext.Builder().build();
         });
     }
 
