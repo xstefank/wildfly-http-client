@@ -29,7 +29,7 @@ import io.undertow.connector.ByteBufferPool;
 public class HttpConnectionPool implements Closeable {
 
     private final int maxConnections;
-    private final int maxRequestsPerConnection;
+    private final int maxStreamsPerConnection;
     private final XnioWorker worker;
     private final ByteBufferPool byteBufferPool;
     private final XnioSsl ssl;
@@ -42,9 +42,9 @@ public class HttpConnectionPool implements Closeable {
     private final AtomicInteger currentConnectionCount = new AtomicInteger();
 
 
-    public HttpConnectionPool(int maxConnections, int maxRequestsPerConnection, XnioWorker worker, ByteBufferPool byteBufferPool, XnioSsl ssl, OptionMap options, HostPool hostPool, long connectionIdleTimeout) {
+    public HttpConnectionPool(int maxConnections, int maxStreamsPerConnection, XnioWorker worker, ByteBufferPool byteBufferPool, XnioSsl ssl, OptionMap options, HostPool hostPool, long connectionIdleTimeout) {
         this.maxConnections = maxConnections;
-        this.maxRequestsPerConnection = maxRequestsPerConnection;
+        this.maxStreamsPerConnection = maxStreamsPerConnection;
         this.worker = worker;
         this.byteBufferPool = byteBufferPool;
         this.ssl = ssl;

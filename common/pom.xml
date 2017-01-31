@@ -47,11 +47,6 @@
             <scope>provided</scope>
         </dependency>
 
-        <dependency>
-            <groupId>org.jboss</groupId>
-            <artifactId>jboss-ejb-client</artifactId>
-        </dependency>
-
         <!-- Test dependencies -->
         <dependency>
             <groupId>org.jboss.xnio</groupId>
@@ -72,6 +67,14 @@
         <dependency>
             <groupId>org.jboss.marshalling</groupId>
             <artifactId>jboss-marshalling-river</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.wildfly.common</groupId>
+            <artifactId>wildfly-common</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.wildfly.client</groupId>
+            <artifactId>wildfly-client-config</artifactId>
         </dependency>
         <dependency>
             <groupId>junit</groupId>

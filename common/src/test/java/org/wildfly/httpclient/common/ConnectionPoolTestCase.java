@@ -30,11 +30,11 @@ import io.undertow.util.Methods;
 @RunWith(HTTPTestServer.class)
 public class ConnectionPoolTestCase {
 
-    public static final int THREADS = 20;
-    public static final int MAX_CONNECTION_COUNT = 3;
-    public static final int CONNECTION_IDLE_TIMEOUT = 1000;
-    public static String MAX_CONNECTIONS_PATH = "/max-connections-test";
-    public static String IDLE_TIMEOUT_PATH = "/idle-timeout-path";
+    static final int THREADS = 20;
+    static final int MAX_CONNECTION_COUNT = 3;
+    static final int CONNECTION_IDLE_TIMEOUT = 1000;
+    static String MAX_CONNECTIONS_PATH = "/max-connections-test";
+    static String IDLE_TIMEOUT_PATH = "/idle-timeout-path";
 
     private static final List<ServerConnection> connections = new CopyOnWriteArrayList<>();
 

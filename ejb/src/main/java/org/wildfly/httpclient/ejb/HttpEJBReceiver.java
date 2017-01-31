@@ -1,24 +1,40 @@
 package org.wildfly.httpclient.ejb;
 
 import io.undertow.client.ClientRequest;
+import io.undertow.util.AttachmentKey;
 import io.undertow.util.Headers;
 import io.undertow.util.StatusCodes;
+import org.jboss.ejb.client.Affinity;
 import org.jboss.ejb.client.EJBClientInvocationContext;
 import org.jboss.ejb.client.EJBLocator;
 import org.jboss.ejb.client.EJBReceiver;
 import org.jboss.ejb.client.EJBReceiverInvocationContext;
 import org.jboss.ejb.client.StatefulEJBLocator;
 import org.jboss.ejb.client.StatelessEJBLocator;
+import org.jboss.ejb.client.URIAffinity;
+import org.jboss.marshalling.ByteOutput;
 import org.jboss.marshalling.InputStreamByteInput;
 import org.jboss.marshalling.Marshaller;
 import org.jboss.marshalling.MarshallingConfiguration;
 import org.jboss.marshalling.Unmarshaller;
+import org.wildfly.httpclient.common.EJBHttpContext;
+import org.wildfly.httpclient.common.EJBTargetContext;
 import org.wildfly.httpclient.common.HttpConnectionPool;
+import org.wildfly.httpclient.common.HttpTargetContext;
+import org.wildfly.httpclient.common.WildflyHttpContext;
 
 import javax.ejb.Asynchronous;
+import javax.ejb.EJB;
 import java.io.IOException;
+import java.io.ObjectInput;
+import java.lang.reflect.Method;
+import java.net.URI;
 import java.util.Base64;
+import java.util.Collections;
+import java.util.HashMap;
 import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Future;
 
 /**
@@ -26,17 +42,34 @@ import java.util.concurrent.Future;
  */
 class HttpEJBReceiver extends EJBReceiver {
 
+    private final AttachmentKey<EjbContextData> EJB_CONTEXT_DATA = AttachmentKey.create(EjbContextData.class);
+
     @Override
     protected void processInvocation(EJBReceiverInvocationContext receiverContext) throws Exception {
 
         EJBClientInvocationContext clientInvocationContext = receiverContext.getClientInvocationContext();
         EJBLocator locator = clientInvocationContext.getLocator();
-        EJBHttpContext current = EJBHttpContext.getCurrent();
-        EJBTargetContext targetContext = current.getEJBTargetContext(locator);
+
+        Affinity affinity = locator.getAffinity();
+        URI uri;
+        if (affinity instanceof URIAffinity) {
+            uri = affinity.getUri();
+        } else {
+            throw EjbHttpClientMessages.MESSAGES.invalidAffinity(affinity);
+        }
+
+        WildflyHttpContext current = WildflyHttpContext.getCurrent();
+        HttpTargetContext targetContext = current.getTargetContext(uri);
         if (targetContext == null) {
             throw EjbHttpClientMessages.MESSAGES.couldNotResolveTargetForLocator(locator);
         }
-        targetContext.init();
+        if(targetContext.getAttachment(EJB_CONTEXT_DATA) == null) {
+            synchronized (this) {
+                if(targetContext.getAttachment(EJB_CONTEXT_DATA) == null) {
+                    targetContext.putAttachment(EJB_CONTEXT_DATA, new EjbContextData());
+                }
+            }
+        }
         targetContext.getConnectionPool().getConnection((connection) -> invocationConnectionReady(clientInvocationContext, receiverContext, connection, targetContext), (e) -> receiverContext.resultReady(new StaticResultProducer(e, null)), false);
     }
 
@@ -46,8 +79,8 @@ class HttpEJBReceiver extends EJBReceiver {
     }
 
 
-    private void invocationConnectionReady(EJBClientInvocationContext clientInvocationContext, EJBReceiverInvocationContext receiverContext, HttpConnectionPool.ConnectionHandle connection, EJBTargetContext ejbTargetContext) {
-
+    private void invocationConnectionReady(EJBClientInvocationContext clientInvocationContext, EJBReceiverInvocationContext receiverContext, HttpConnectionPool.ConnectionHandle connection, HttpTargetContext ejbTargetContext) {
+        EjbContextData ejbData = ejbTargetContext.getAttachment(EJB_CONTEXT_DATA);
         EJBLocator<?> locator = clientInvocationContext.getLocator();
         EJBInvocationBuilder builder = new EJBInvocationBuilder()
                 .setInvocationType(EJBInvocationBuilder.InvocationType.METHOD_INVOCATION)
@@ -66,7 +99,7 @@ class HttpEJBReceiver extends EJBReceiver {
         } else if (clientInvocationContext.getInvokedMethod().getReturnType() == void.class) {
             if (clientInvocationContext.getInvokedMethod().isAnnotationPresent(Asynchronous.class)) {
                 receiverContext.proceedAsynchronously();
-            } else if (ejbTargetContext.getAsyncMethodMap().contains(clientInvocationContext.getInvokedMethod())) {
+            } else if (ejbData.asyncMethods.contains(clientInvocationContext.getInvokedMethod())) {
                 receiverContext.proceedAsynchronously();
             }
         }
@@ -78,7 +111,7 @@ class HttpEJBReceiver extends EJBReceiver {
 
                 ((input, response) -> {
                     if (response.getResponseCode() == StatusCodes.ACCEPTED && clientInvocationContext.getInvokedMethod().getReturnType() == void.class) {
-                        ejbTargetContext.getAsyncMethodMap().add(clientInvocationContext.getInvokedMethod());
+                        ejbData.asyncMethods.add(clientInvocationContext.getInvokedMethod());
                     }
                     Exception exception = null;
                     Object returned = null;
@@ -90,7 +123,7 @@ class HttpEJBReceiver extends EJBReceiver {
                         returned = unmarshaller.readObject();
                         // read the attachments
                         //TODO: do we need attachments?
-                        final Map<String, Object> attachments = EJBTargetContext.readAttachments(unmarshaller);
+                        final Map<String, Object> attachments = HttpTargetContext.readAttachments(unmarshaller);
                         // finish unmarshalling
                         if (unmarshaller.read() != -1) {
                             exception = EjbHttpClientMessages.MESSAGES.unexpectedDataInResponse();
@@ -114,7 +147,7 @@ class HttpEJBReceiver extends EJBReceiver {
     }
 
 
-    private void marshalEJBRequest(Marshaller marshaller, EJBClientInvocationContext clientInvocationContext) throws IOException {
+    private void marshalEJBRequest(ByteOutput byteOutput, EJBClientInvocationContext clientInvocationContext) throws IOException {
 
 
         Object[] methodParams = clientInvocationContext.getParameters();
@@ -155,6 +188,21 @@ class HttpEJBReceiver extends EJBReceiver {
         marshaller.finish();
     }
 
+    private static Map<String, Object> readAttachments(final ObjectInput input) throws IOException, ClassNotFoundException {
+        final int numAttachments = input.readByte();
+        if (numAttachments == 0) {
+            return null;
+        }
+        final Map<String, Object> attachments = new HashMap<>(numAttachments);
+        for (int i = 0; i < numAttachments; i++) {
+            // read the key
+            final String key = (String) input.readObject();
+            // read the attachment value
+            final Object val = input.readObject();
+            attachments.put(key, val);
+        }
+        return attachments;
+    }
     private static class StaticResultProducer implements EJBReceiverInvocationContext.ResultProducer {
         private final Exception ex;
         private final Object ret;
@@ -176,5 +224,10 @@ class HttpEJBReceiver extends EJBReceiver {
         public void discardResult() {
 
         }
+    }
+
+    private static class EjbContextData {
+        final Set<Method> asyncMethods =Collections.newSetFromMap(new ConcurrentHashMap());
+
     }
 }

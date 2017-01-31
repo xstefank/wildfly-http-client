@@ -41,7 +41,7 @@
         <maven.compiler.target>1.8</maven.compiler.target>
         <maven.compiler.source>1.8</maven.compiler.source>
         <!-- Versions -->
-        <version.io.undertow>1.3.23.Final</version.io.undertow>
+        <version.io.undertow>1.4.7.Final</version.io.undertow>
         <version.org.jboss.logging>1.2.0.Final</version.org.jboss.logging>
         <version.org.junit>4.11</version.org.junit>
         <version.org.jboss.logmanager>1.5.3.Final</version.org.jboss.logmanager>
@@ -52,6 +52,8 @@
         <version.org.wildfly.checkstyle-config>1.0.4.Final</version.org.wildfly.checkstyle-config>
         <version.org.jboss.marshalling>2.0.0.Beta2</version.org.jboss.marshalling>
         <version.org.jboss.modules>1.6.0.Beta3</version.org.jboss.modules>
+        <version.org.wildfly.client-config>1.0.0.Alpha3</version.org.wildfly.client-config>
+        <version.org.wildfly.common>1.2.0.Beta4</version.org.wildfly.common>
     </properties>
 
     <modules>
@@ -135,6 +137,16 @@
             </dependency>
 
             <dependency>
+                <groupId>org.wildfly.common</groupId>
+                <artifactId>wildfly-common</artifactId>
+                <version>${version.org.wildfly.common}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.wildfly.client</groupId>
+                <artifactId>wildfly-client-config</artifactId>
+                <version>${version.org.wildfly.client-config}</version>
+            </dependency>
+            <dependency>
                 <groupId>junit</groupId>
                 <artifactId>junit</artifactId>
                 <scope>test</scope>
@@ -153,6 +165,7 @@
                 <version>${version.org.jboss.modules}</version>
                 <scope>test</scope>
             </dependency>
+
         </dependencies>
     </dependencyManagement>
 

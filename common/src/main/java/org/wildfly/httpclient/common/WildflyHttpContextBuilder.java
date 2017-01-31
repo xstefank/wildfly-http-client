@@ -1,10 +1,7 @@
-package org.wildfly.httpclient.ejb;
+package org.wildfly.httpclient.common;
 
 import io.undertow.connector.ByteBufferPool;
 import io.undertow.server.DefaultByteBufferPool;
-import org.wildfly.httpclient.common.HostPool;
-import org.wildfly.httpclient.common.HttpConnectionPool;
-import org.wildfly.security.auth.client.AuthenticationContext;
 import org.xnio.OptionMap;
 import org.xnio.Xnio;
 import org.xnio.XnioWorker;
@@ -18,37 +15,37 @@ import java.util.List;
 /**
  * @author Stuart Douglas
  */
-class EJBHttpContextBuilder {
+class WildflyHttpContextBuilder {
     private InetSocketAddress defaultBindAddress;
     private long idleTimeout;
     private int maxConnections;
     private int maxStreamsPerConnection;
     private Boolean eagerlyAcquireSession;
-    private final List<EJBTargetBuilder> targets = new ArrayList<>();
+    private final List<HttpConfigBuilder> targets = new ArrayList<>();
 
-    EJBHttpContext build() {
+    WildflyHttpContext build() {
         try {
             Xnio xnio = Xnio.getInstance();
             XnioWorker worker = xnio.createWorker(OptionMap.EMPTY); //TODO
             ByteBufferPool pool = new DefaultByteBufferPool(true, 1024); //TODO
             //TODO: ssl config
-            EJBHttpContext.EJBTarget[] connections = new EJBHttpContext.EJBTarget[this.targets.size()];
+            WildflyHttpContext.ConfigSection[] connections = new WildflyHttpContext.ConfigSection[this.targets.size()];
 
             long idleTimout = this.idleTimeout > 0 ? this.idleTimeout : 60000;
             int maxConnections = this.maxConnections > 0 ? this.maxConnections : 10;
             int maxStreamsPerConnection = this.maxStreamsPerConnection > 0? this.maxStreamsPerConnection : 10;
 
             for (int i = 0; i < this.targets.size(); ++i) {
-                EJBTargetBuilder sb = this.targets.get(i);
+                HttpConfigBuilder sb = this.targets.get(i);
                 HostPool hp = new HostPool(sb.getUris());
                 boolean eager = this.eagerlyAcquireSession == null ? false: this.eagerlyAcquireSession;
                 if(sb.getEagerlyAcquireSession() != null && sb.getEagerlyAcquireSession()) {
                     eager = true;
                 }
-                EJBHttpContext.EJBTarget connection = new EJBHttpContext.EJBTarget(new EJBTargetContext(new HttpConnectionPool(sb.getMaxConnections() > 0 ? sb.getMaxConnections() : maxConnections, sb.getMaxStreamsPerConnection() > 0 ? sb.getMaxStreamsPerConnection() : maxStreamsPerConnection, worker, pool, null, OptionMap.EMPTY, hp, sb.getIdleTimeout() > 0 ? sb.getIdleTimeout() : idleTimout), eager), sb.getUris());
+                WildflyHttpContext.ConfigSection connection = new WildflyHttpContext.ConfigSection(new HttpTargetContext(new HttpConnectionPool(sb.getMaxConnections() > 0 ? sb.getMaxConnections() : maxConnections, sb.getMaxStreamsPerConnection() > 0 ? sb.getMaxStreamsPerConnection() : maxStreamsPerConnection, worker, pool, null, OptionMap.EMPTY, hp, sb.getIdleTimeout() > 0 ? sb.getIdleTimeout() : idleTimout), eager), sb.getUris());
                 connections[i] = connection;
             }
-            return new EJBHttpContext(connections, maxConnections, maxStreamsPerConnection, idleTimeout, eagerlyAcquireSession == null ? false : eagerlyAcquireSession, worker, pool);
+            return new WildflyHttpContext(connections, maxConnections, maxStreamsPerConnection, idleTimeout, eagerlyAcquireSession == null ? false : eagerlyAcquireSession, worker, pool);
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
@@ -62,13 +59,13 @@ class EJBHttpContextBuilder {
         return defaultBindAddress;
     }
 
-    EJBTargetBuilder addConnection() {
-        EJBTargetBuilder EJBTargetBuilder = new EJBTargetBuilder();
-        targets.add(EJBTargetBuilder);
-        return EJBTargetBuilder;
+    HttpConfigBuilder addConfig() {
+        HttpConfigBuilder builder = new HttpConfigBuilder();
+        targets.add(builder);
+        return builder;
     }
 
-    List<EJBTargetBuilder> getTargets() {
+    List<HttpConfigBuilder> getTargets() {
         return targets;
     }
 
@@ -105,9 +102,8 @@ class EJBHttpContextBuilder {
         this.eagerlyAcquireSession = eagerlyAcquireSession;
     }
 
-    class EJBTargetBuilder {
+    class HttpConfigBuilder {
         final List<URI> uris = new ArrayList<>();
-        private AuthenticationContext authenticationContext;
         private InetSocketAddress bindAddress;
         private long idleTimeout;
         private int maxConnections;
@@ -120,14 +116,6 @@ class EJBHttpContextBuilder {
 
         List<URI> getUris() {
             return uris;
-        }
-
-        void setAuthenticationContext(AuthenticationContext authenticationContext) {
-            this.authenticationContext = authenticationContext;
-        }
-
-        public AuthenticationContext getAuthenticationContext() {
-            return authenticationContext;
         }
 
         void setBindAddress(InetSocketAddress bindAddress) {

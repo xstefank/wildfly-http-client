@@ -1,4 +1,4 @@
-package org.wildfly.httpclient.ejb;
+package org.wildfly.httpclient.common;
 
 import java.net.InetSocketAddress;
 import java.net.URI;
@@ -15,7 +15,7 @@ public class EjbClientParserTestCase {
 
     @Test
     public void testXMLParsing() throws URISyntaxException, ConfigXMLParseException {
-        EJBHttpContextBuilder builder = EjbHttpClientXmlParser.parseConfig(getClass().getClassLoader().getResource("ejb-client.xml").toURI());
+        WildflyHttpContextBuilder builder = HttpClientXmlParser.parseConfig(getClass().getClassLoader().getResource("ejb-client.xml").toURI());
         Assert.assertEquals(InetSocketAddress.createUnresolved("127.0.0.1", 3456), builder.getDefaultBindAddress());
 
         Assert.assertEquals(10000, builder.getIdleTimeout());
@@ -25,7 +25,7 @@ public class EjbClientParserTestCase {
 
 
         Assert.assertEquals(1, builder.getTargets().size());
-        EJBHttpContextBuilder.EJBTargetBuilder context = builder.getTargets().get(0);
+        WildflyHttpContextBuilder.HttpConfigBuilder context = builder.getTargets().get(0);
         Assert.assertEquals(InetSocketAddress.createUnresolved("127.0.0.1", 5678), context.getBindAddress());
         Assert.assertEquals(30000, context.getIdleTimeout());
         Assert.assertEquals(20, context.getMaxConnections());

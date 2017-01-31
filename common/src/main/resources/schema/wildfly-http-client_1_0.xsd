@@ -23,46 +23,46 @@
   -->
 
 <xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema"
-            targetNamespace="urn:ejb-http-client:1.0"
-            xmlns="urn:ejb-http-client:1.0"
+            targetNamespace="urn:wildfly-http-client:1.0"
+            xmlns="urn:wildfly-http-client:1.0"
             elementFormDefault="qualified"
             attributeFormDefault="unqualified"
             version="1.0">
 
-    <xs:element name="ejb-http" type="ejb-http-type"/>
+    <xs:element name="http-client" type="http-client-type"/>
 
-    <xs:complexType name="ejb-http-type">
+    <xs:complexType name="http-client-type">
         <xs:all minOccurs="0" maxOccurs="1">
-            <xs:element name="targets" type="targets-type" minOccurs="0" maxOccurs="1"/>
+            <xs:element name="configs" type="configs-type" minOccurs="0" maxOccurs="1"/>
             <xs:element name="defaults" type="defaults-type" minOccurs="0" maxOccurs="1"/>
         </xs:all>
     </xs:complexType>
 
-    <xs:complexType name="targets-type">
+    <xs:complexType name="configs-type">
         <xs:choice minOccurs="0" maxOccurs="unbounded">
-            <xs:element name="target" type="connection-type"/>
+            <xs:element name="config" type="config-type"/>
         </xs:choice>
     </xs:complexType>
 
-    <xs:complexType name="connection-type">
-        <xs:all>
+    <xs:complexType name="config-type">
+        <xs:sequence>
             <xs:element name="uris" type="uris-type" minOccurs="1" maxOccurs="1"/>
-            <xs:element name="bind" type="bind-address-type" minOccurs="0"/>
-        </xs:all>
-        <xs:attribute name="idle-timeout" use="optional" type="xs:long" default="60000" />
-        <xs:attribute name="max-connections" use="optional" type="xs:int" default="10" />
-        <xs:attribute name="max-streams-per-connection" use="optional" type="xs:int" default="10" />
-        <xs:attribute name="eagerly-acquire-session" use="optional" type="xs:boolean" default="false" />
+            <xs:element name="idle-timeout" minOccurs="0" maxOccurs="1" type="idle-timeout-type" />
+            <xs:element name="max-connections" minOccurs="0" maxOccurs="1" type="max-connections-type" />
+            <xs:element name="max-streams-per-connection" minOccurs="0" maxOccurs="1" type="max-streams-type"  />
+            <xs:element name="eagerly-acquire-session" minOccurs="0" maxOccurs="1" type="eager-session-type" />
+            <xs:element name="bind-address" type="bind-address-type" minOccurs="0"/>
+        </xs:sequence>
     </xs:complexType>
 
     <xs:complexType name="defaults-type">
         <xs:all>
+            <xs:element name="idle-timeout" minOccurs="0" maxOccurs="1" type="idle-timeout-type" />
+            <xs:element name="max-connections" minOccurs="0" maxOccurs="1" type="max-connections-type" />
+            <xs:element name="max-streams-per-connection" minOccurs="0" maxOccurs="1" type="max-streams-type"  />
+            <xs:element name="eagerly-acquire-session" minOccurs="0" maxOccurs="1" type="eager-session-type" />
             <xs:element name="bind-address" type="bind-address-type" minOccurs="0" maxOccurs="1"/>
         </xs:all>
-        <xs:attribute name="idle-timeout" use="optional" type="xs:long" default="60000" />
-        <xs:attribute name="max-connections" use="optional" type="xs:int" default="10" />
-        <xs:attribute name="max-streams-per-connection" use="optional" type="xs:int" default="10" />
-        <xs:attribute name="eagerly-acquire-session" use="optional" type="xs:boolean" default="false" />
     </xs:complexType>
 
     <xs:complexType name="bind-address-type">
@@ -84,5 +84,17 @@
     </xs:complexType>
     <xs:complexType name="uri-type">
         <xs:attribute name="value" type="xs:string" use="required" />
+    </xs:complexType>
+    <xs:complexType name="idle-timeout-type">
+        <xs:attribute name="value" type="xs:long" use="required" default="60000"/>
+    </xs:complexType>
+    <xs:complexType name="max-connections-type">
+        <xs:attribute name="value" type="xs:int" use="required" default="10"/>
+    </xs:complexType>
+    <xs:complexType name="max-streams-type">
+        <xs:attribute name="value" type="xs:int" use="required" default="10"/>
+    </xs:complexType>
+    <xs:complexType name="eager-session-type">
+        <xs:attribute name="value" type="xs:boolean" use="required" default="false"/>
     </xs:complexType>
 </xs:schema>

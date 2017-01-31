@@ -28,6 +28,7 @@ public class HTTPTestServer extends BlockJUnit4ClassRunner {
 
     public static final int BUFFER_SIZE = Integer.getInteger("test.bufferSize", 8192 * 3);
     private static final PathHandler PATH_HANDLER = new PathHandler();
+    private static final PathHandler SERVICES_HANDLER = new PathHandler();
     public static final String SFSB_ID = "SFSB_ID";
     public static final String WILDFLY_SERVICES = "/wildfly-services";
     public static final String INITIAL_SESSION_AFFINITY = "initial-session-affinity";
@@ -40,6 +41,7 @@ public class HTTPTestServer extends BlockJUnit4ClassRunner {
     private static final DefaultByteBufferPool pool = new DefaultByteBufferPool(true, BUFFER_SIZE, 1000, 10, 100);
 
     private static final Set<String> registeredPaths = new HashSet<>();
+    private static final Set<String> registeredServices = new HashSet<>();
 
     /**
      * @return The base URL that can be used to make connections to this server
@@ -75,6 +77,10 @@ public class HTTPTestServer extends BlockJUnit4ClassRunner {
                     PATH_HANDLER.removePrefixPath(reg);
                 }
                 registeredPaths.clear();
+                for (String reg : registeredServices) {
+                    SERVICES_HANDLER.removePrefixPath(reg);
+                }
+                registeredServices.clear();
             }
         });
         super.run(notifier);
@@ -85,6 +91,10 @@ public class HTTPTestServer extends BlockJUnit4ClassRunner {
         registeredPaths.add(path);
     }
 
+    public static void registerServicesHandler(String path, HttpHandler handler) {
+        SERVICES_HANDLER.addPrefixPath(path, handler);
+        registeredServices.add(path);
+    }
     public static XnioWorker getWorker() {
         return worker;
     }
@@ -95,11 +105,10 @@ public class HTTPTestServer extends BlockJUnit4ClassRunner {
                 first = false;
                 Xnio xnio = Xnio.getInstance("nio");
                 worker = xnio.createWorker(OptionMap.create(Options.WORKER_TASK_CORE_THREADS, 20, Options.WORKER_IO_THREADS, 10));
-                PathHandler servicesHandler = new PathHandler();
-                registerPaths(servicesHandler);
+                registerPaths(SERVICES_HANDLER);
                 undertow = Undertow.builder()
                         .addHttpListener(getHostPort(), getHostAddress())
-                        .setHandler(PATH_HANDLER.addPrefixPath("/wildfly-services", servicesHandler))
+                        .setHandler(PATH_HANDLER.addPrefixPath("/wildfly-services", SERVICES_HANDLER))
                         .build();
                 undertow.start();
                 notifier.addListener(new RunListener() {

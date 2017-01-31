@@ -22,16 +22,25 @@
   ~ 02110-1301 USA, or see the FSF site: http://www.fsf.org.
   -->
 
-<ejb-http xmlns="urn:ejb-http-client:1.0">
-    <targets>
-        <target idle-timeout="30000" max-connections="20" max-streams-per-connection="20" eagerly-acquire-session="true">
+<http-client xmlns="urn:wildfly-http-client:1.0">
+
+    <configs>
+        <config >
             <uris>
                 <uri value="http://localhost:8080" />
             </uris>
-            <bind address="127.0.0.1" port="5678" />
-        </target>
-    </targets>
-    <defaults idle-timeout="10000" max-connections="1" max-streams-per-connection="1" eagerly-acquire-session="false">
+            <idle-timeout value="30000"/>
+            <max-connections value="20"/>
+            <max-streams-per-connection value="20"/>
+            <eagerly-acquire-session value="true" />
+            <bind-address address="127.0.0.1" port="5678" />
+        </config>
+    </configs>
+    <defaults >
+        <idle-timeout value="10000"/>
+        <max-connections value="1"/>
+        <max-streams-per-connection value="1"/>
+        <eagerly-acquire-session value="false"/>
         <bind-address address="127.0.0.1" port="3456" />
     </defaults>
-</ejb-http>
+</http-client>
