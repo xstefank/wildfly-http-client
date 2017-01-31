@@ -128,7 +128,7 @@ The sfsbSessionId parameter is a base64 encoded representation of the SFSB EJB s
 ==== EJB Session Open
 
 Method::: +POST+
-URI:: +/ejb/v1/new/\{applicationName}/\{moduleName}/\{distinctName}/\{beanName}+
+URI:: +/ejb/v1/open/\{applicationName}/\{moduleName}/\{distinctName}/\{beanName}+
 Additional Required Headers::
 +Accept: application/x-wf-jbmar-exception;version=1+
 Additional Optional Headers::

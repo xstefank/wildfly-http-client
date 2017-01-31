@@ -1,16 +1,12 @@
 package org.wildfly.httpclient.ejb;
 
-import java.io.IOException;
-import java.io.OutputStream;
-import java.net.InetSocketAddress;
-import java.nio.charset.StandardCharsets;
-import java.util.Base64;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.Map;
-import java.util.Set;
-
+import io.undertow.server.HttpHandler;
+import io.undertow.server.HttpServerExchange;
+import io.undertow.server.handlers.Cookie;
+import io.undertow.server.handlers.CookieImpl;
+import io.undertow.server.handlers.PathHandler;
+import io.undertow.util.Headers;
+import io.undertow.util.StatusCodes;
 import org.jboss.marshalling.ByteOutput;
 import org.jboss.marshalling.InputStreamByteInput;
 import org.jboss.marshalling.Marshaller;
@@ -19,30 +15,16 @@ import org.jboss.marshalling.Marshalling;
 import org.jboss.marshalling.MarshallingConfiguration;
 import org.jboss.marshalling.Unmarshaller;
 import org.jboss.marshalling.river.RiverMarshallerFactory;
-import org.junit.runner.Description;
-import org.junit.runner.Result;
-import org.junit.runner.notification.RunListener;
-import org.junit.runner.notification.RunNotifier;
-import org.junit.runners.BlockJUnit4ClassRunner;
 import org.junit.runners.model.InitializationError;
 import org.wildfly.httpclient.common.HTTPTestServer;
-import org.xnio.OptionMap;
-import org.xnio.Options;
-import org.xnio.Xnio;
-import org.xnio.XnioWorker;
-import io.undertow.Undertow;
-import io.undertow.connector.ByteBufferPool;
-import io.undertow.server.DefaultByteBufferPool;
-import io.undertow.server.HttpHandler;
-import io.undertow.server.HttpServerExchange;
-import io.undertow.server.handlers.Cookie;
-import io.undertow.server.handlers.CookieImpl;
-import io.undertow.server.handlers.PathHandler;
-import io.undertow.testutils.DebuggingSlicePool;
-import io.undertow.testutils.DefaultServer;
-import io.undertow.util.Headers;
-import io.undertow.util.NetworkUtils;
-import io.undertow.util.StatusCodes;
+
+import java.io.IOException;
+import java.io.OutputStream;
+import java.nio.charset.StandardCharsets;
+import java.util.Base64;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.Map;
 
 /**
  * @author Stuart Douglas
@@ -87,13 +69,21 @@ public class EJBTestServer extends HTTPTestServer {
                 relativePath = relativePath.substring(1);
             }
             String[] parts = relativePath.split("/");
+            String[] newParts = new String[parts.length - 1];
+            System.arraycopy(parts, 1, newParts, 0, newParts.length);
             String content = exchange.getRequestHeaders().getFirst(Headers.CONTENT_TYPE);
-            switch (content) {
-                case EjbHeaders.INVOCATION_VERSION_ONE:
-                    handleInvocation(parts, exchange);
+            switch (parts[0]) {
+                case "invoke":
+                    if (!content.equals(EjbHeaders.INVOCATION_VERSION_ONE)) {
+                        throw new RuntimeException("Wrong content type");
+                    }
+                    handleInvocation(newParts, exchange);
                     break;
-                case EjbHeaders.SESSION_OPEN_VERSION_ONE:
-                    handleSessionCreate(parts, exchange);
+                case "open":
+                    if (!content.equals(EjbHeaders.SESSION_OPEN_VERSION_ONE)) {
+                        throw new RuntimeException("Wrong content type");
+                    }
+                    handleSessionCreate(newParts, exchange);
                     break;
                 default:
                     sendException(exchange, 400, new RuntimeException("Unknown content type " + content));

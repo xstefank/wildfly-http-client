@@ -130,9 +130,9 @@ class EJBInvocationBuilder {
      * @param beanName     The bean name
      * @return The request path to invoke
      */
-    private String buildPath(final String mountPoint, final String appName, final String moduleName, final String distinctName, final String beanName) {
+    private String buildPath(final String mountPoint, String type, final String appName, final String moduleName, final String distinctName, final String beanName) {
         StringBuilder sb = new StringBuilder();
-        buildBeanPath(mountPoint, appName, moduleName, distinctName, beanName, sb);
+        buildBeanPath(mountPoint, type, appName, moduleName, distinctName, beanName, sb);
         return sb.toString();
     }
 
@@ -147,9 +147,9 @@ class EJBInvocationBuilder {
      * @param beanId       The bean id
      * @return The request path to invoke
      */
-    private String buildPath(final String mountPoint, final String appName, final String moduleName, final String distinctName, final String beanName, final String beanId, final String view, final Method method) {
+    private String buildPath(final String mountPoint, String type, final String appName, final String moduleName, final String distinctName, final String beanName, final String beanId, final String view, final Method method) {
         StringBuilder sb = new StringBuilder();
-        buildBeanPath(mountPoint, appName, moduleName, distinctName, beanName, sb);
+        buildBeanPath(mountPoint, type, appName, moduleName, distinctName, beanName, sb);
         sb.append("/");
         if (beanId == null) {
             sb.append("-");
@@ -167,18 +167,20 @@ class EJBInvocationBuilder {
         return sb.toString();
     }
 
-    private void buildBeanPath(String mountPoint, String appName, String moduleName, String distinctName, String beanName, StringBuilder sb) {
-        buildModulePath(mountPoint, appName, moduleName, distinctName, sb);
+    private void buildBeanPath(String mountPoint, String type, String appName, String moduleName, String distinctName, String beanName, StringBuilder sb) {
+        buildModulePath(mountPoint, type, appName, moduleName, distinctName, sb);
         sb.append("/");
         sb.append(beanName);
     }
 
-    private void buildModulePath(String mountPoint, String appName, String moduleName, String distinctName, StringBuilder sb) {
+    private void buildModulePath(String mountPoint, String type, String appName, String moduleName, String distinctName, StringBuilder sb) {
         if (mountPoint != null) {
             sb.append(mountPoint);
         }
         sb.append("/ejb/v");
         sb.append(version);
+        sb.append("/");
+        sb.append(type);
         sb.append("/");
         if (appName == null || appName.isEmpty()) {
             sb.append("-");
@@ -207,11 +209,11 @@ class EJBInvocationBuilder {
             if (invocationId != null) {
                 clientRequest.getRequestHeaders().put(INVOCATION_ID, invocationId);
             }
-            clientRequest.setPath(buildPath(mountPoint, appName, moduleName, distinctName, beanName, beanId, view, method));
+            clientRequest.setPath(buildPath(mountPoint, "invoke", appName, moduleName, distinctName, beanName, beanId, view, method));
             clientRequest.getRequestHeaders().put(Headers.CONTENT_TYPE, EjbHeaders.INVOCATION_VERSION_ONE);
         } else if (invocationType == InvocationType.STATEFUL_CREATE) {
             clientRequest.setMethod(Methods.POST);
-            clientRequest.setPath(buildPath(mountPoint, appName, moduleName, distinctName, beanName));
+            clientRequest.setPath(buildPath(mountPoint,"open", appName, moduleName, distinctName, beanName));
             clientRequest.getRequestHeaders().put(Headers.CONTENT_TYPE, EjbHeaders.SESSION_OPEN_VERSION_ONE);
             clientRequest.getRequestHeaders().add(Headers.ACCEPT, STATEFUL_CREATE_ACCEPT);
         }
