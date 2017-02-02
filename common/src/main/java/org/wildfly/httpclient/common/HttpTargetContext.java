@@ -98,11 +98,10 @@ public class HttpTargetContext extends AbstractAttachable {
         if(sessionId != null) {
             request.getRequestHeaders().add(Headers.COOKIE, "JSESSIONID=" + sessionId);
         }
+        request.getRequestHeaders().put(Headers.HOST, connection.getUri().getHost());
         connection.getConnection().sendRequest(request, new ClientCallback<ClientExchange>() {
             @Override
             public void completed(ClientExchange result) {
-
-
                 result.setResponseListener(new ClientCallback<ClientExchange>() {
                     @Override
                     public void completed(ClientExchange result) {

@@ -22,6 +22,7 @@ import io.undertow.client.ClientCallback;
 import io.undertow.client.ClientExchange;
 import io.undertow.client.ClientRequest;
 import io.undertow.server.ServerConnection;
+import io.undertow.util.Headers;
 import io.undertow.util.Methods;
 
 /**
@@ -108,6 +109,7 @@ public class ConnectionPoolTestCase {
 
         pool.getConnection((connectionHandle) -> {
             ClientRequest request = new ClientRequest().setMethod(Methods.GET).setPath(path);
+            request.getRequestHeaders().add(Headers.HOST, HTTPTestServer.getHostAddress());
             connectionHandle.getConnection().sendRequest(request, new ClientCallback<ClientExchange>() {
                 @Override
                 public void completed(ClientExchange result) {

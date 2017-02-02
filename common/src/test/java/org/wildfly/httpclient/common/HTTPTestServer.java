@@ -14,6 +14,7 @@ import org.xnio.Options;
 import org.xnio.Xnio;
 import org.xnio.XnioWorker;
 import io.undertow.Undertow;
+import io.undertow.UndertowOptions;
 import io.undertow.connector.ByteBufferPool;
 import io.undertow.server.DefaultByteBufferPool;
 import io.undertow.server.HttpHandler;
@@ -108,6 +109,7 @@ public class HTTPTestServer extends BlockJUnit4ClassRunner {
                 registerPaths(SERVICES_HANDLER);
                 undertow = Undertow.builder()
                         .addHttpListener(getHostPort(), getHostAddress())
+                        .setServerOption(UndertowOptions.REQUIRE_HOST_HTTP11, true)
                         .setHandler(PATH_HANDLER.addPrefixPath("/wildfly-services", SERVICES_HANDLER))
                         .build();
                 undertow.start();

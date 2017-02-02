@@ -29,7 +29,7 @@
         <relativePath>../</relativePath>
     </parent>
 
-    <artifactId>wildfly-http-jndi-client</artifactId>
+    <artifactId>wildfly-http-naming-client</artifactId>
     <packaging>jar</packaging>
 
     <name>Wildfly HTTP Client JNDI invocation support</name>
@@ -47,9 +47,18 @@
         </dependency>
 
         <dependency>
+            <groupId>org.wildfly</groupId>
+            <artifactId>wildfly-naming-client</artifactId>
+        </dependency>
+        <dependency>
             <groupId>org.jboss.logging</groupId>
             <artifactId>jboss-logging-processor</artifactId>
             <scope>provided</scope>
+        </dependency>
+
+        <dependency>
+            <groupId>io.undertow</groupId>
+            <artifactId>undertow-core</artifactId>
         </dependency>
 
         <!-- Test dependencies -->

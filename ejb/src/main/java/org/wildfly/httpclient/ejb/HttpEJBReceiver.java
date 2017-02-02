@@ -1,9 +1,19 @@
 package org.wildfly.httpclient.ejb;
 
-import io.undertow.client.ClientRequest;
-import io.undertow.util.AttachmentKey;
-import io.undertow.util.Headers;
-import io.undertow.util.StatusCodes;
+import java.io.IOException;
+import java.io.ObjectInput;
+import java.lang.reflect.Method;
+import java.net.URI;
+import java.util.Base64;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.Future;
+import javax.ejb.Asynchronous;
+
 import org.jboss.ejb.client.Affinity;
 import org.jboss.ejb.client.EJBClientInvocationContext;
 import org.jboss.ejb.client.EJBLocator;
@@ -21,20 +31,10 @@ import org.jboss.marshalling.Unmarshaller;
 import org.wildfly.httpclient.common.HttpConnectionPool;
 import org.wildfly.httpclient.common.HttpTargetContext;
 import org.wildfly.httpclient.common.WildflyHttpContext;
-import org.xnio.FutureResult;
-
-import javax.ejb.Asynchronous;
-import java.io.IOException;
-import java.io.ObjectInput;
-import java.lang.reflect.Method;
-import java.net.URI;
-import java.util.Base64;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.Map;
-import java.util.Set;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.Future;
+import io.undertow.client.ClientRequest;
+import io.undertow.util.AttachmentKey;
+import io.undertow.util.Headers;
+import io.undertow.util.StatusCodes;
 
 /**
  * @author Stuart Douglas
@@ -96,16 +96,13 @@ class HttpEJBReceiver extends EJBReceiver {
             }
         }
         targetContext.awaitSessionId(true);
-        FutureResult<StatefulEJBLocator<T>> result = new FutureResult<>();
-        targetContext.getConnectionPool().getConnection((connection) -> openSessionConnectionReady(connection, result, locator, targetContext), (e) -> result.setException(new IOException(e)), false);
-        try {
-            return result.getIoFuture().get();
-        } catch (IOException e) {
-            throw new RuntimeException(e);
-        }
+        CompletableFuture<StatefulEJBLocator<T>> result = new CompletableFuture<>();
+        targetContext.getConnectionPool().getConnection((connection) -> openSessionConnectionReady(connection, result, locator, targetContext), (e) -> result.completeExceptionally(new IOException(e)), false);
+
+        return result.get();
     }
 
-    private <T> void openSessionConnectionReady(HttpConnectionPool.ConnectionHandle connection, FutureResult<StatefulEJBLocator<T>> result, StatelessEJBLocator<T> locator, HttpTargetContext targetContext) throws IllegalArgumentException {
+    private <T> void openSessionConnectionReady(HttpConnectionPool.ConnectionHandle connection, CompletableFuture<StatefulEJBLocator<T>> result, StatelessEJBLocator<T> locator, HttpTargetContext targetContext) throws IllegalArgumentException {
 
         EJBInvocationBuilder builder = new EJBInvocationBuilder()
                 .setInvocationType(EJBInvocationBuilder.InvocationType.STATEFUL_CREATE)
@@ -119,15 +116,15 @@ class HttpEJBReceiver extends EJBReceiver {
                 ((unmarshaller, response) -> {
                     String sessionId = response.getResponseHeaders().getFirst(EjbHeaders.EJB_SESSION_ID);
                     if (sessionId == null) {
-                        result.setException(EjbHttpClientMessages.MESSAGES.noSessionIdInResponse());
+                        result.completeExceptionally(EjbHttpClientMessages.MESSAGES.noSessionIdInResponse());
                         connection.done(true);
                     } else {
                         SessionID sessionID = SessionID.createSessionID(Base64.getDecoder().decode(sessionId));
-                        result.setResult(new StatefulEJBLocator<T>(locator, sessionID));
+                        result.complete(new StatefulEJBLocator<T>(locator, sessionID));
                         connection.done(false);
                     }
                 })
-                , (e) -> result.setException(new IOException(e)), EjbHeaders.EJB_RESPONSE_NEW_SESSION, null);
+                , result::completeExceptionally, EjbHeaders.EJB_RESPONSE_NEW_SESSION, null);
 
     }
 
