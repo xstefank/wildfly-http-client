@@ -1,8 +1,16 @@
 package org.wildfly.httpclient.common;
 
+import java.io.IOException;
+import java.io.OutputStream;
 import java.util.HashSet;
 import java.util.Set;
 
+import org.jboss.marshalling.ByteOutput;
+import org.jboss.marshalling.Marshaller;
+import org.jboss.marshalling.MarshallerFactory;
+import org.jboss.marshalling.Marshalling;
+import org.jboss.marshalling.MarshallingConfiguration;
+import org.jboss.marshalling.river.RiverMarshallerFactory;
 import org.junit.runner.Description;
 import org.junit.runner.Result;
 import org.junit.runner.notification.RunListener;
@@ -18,7 +26,9 @@ import io.undertow.UndertowOptions;
 import io.undertow.connector.ByteBufferPool;
 import io.undertow.server.DefaultByteBufferPool;
 import io.undertow.server.HttpHandler;
+import io.undertow.server.HttpServerExchange;
 import io.undertow.server.handlers.PathHandler;
+import io.undertow.util.Headers;
 import io.undertow.util.NetworkUtils;
 
 /**
@@ -26,6 +36,7 @@ import io.undertow.util.NetworkUtils;
  */
 public class HTTPTestServer extends BlockJUnit4ClassRunner {
 
+    protected static final MarshallerFactory marshallerFactory = new RiverMarshallerFactory();
 
     public static final int BUFFER_SIZE = Integer.getInteger("test.bufferSize", 8192 * 3);
     private static final PathHandler PATH_HANDLER = new PathHandler();
@@ -129,6 +140,22 @@ public class HTTPTestServer extends BlockJUnit4ClassRunner {
 
     }
 
+    public static void sendException(HttpServerExchange exchange, int status, Exception e) throws IOException {
+        exchange.setStatusCode(status);
+        exchange.getResponseHeaders().put(Headers.CONTENT_TYPE, "application/x-wf-jbmar-exception;version=1");
+
+        final MarshallingConfiguration marshallingConfiguration = new MarshallingConfiguration();
+        marshallingConfiguration.setVersion(2);
+        final Marshaller marshaller = marshallerFactory.createMarshaller(marshallingConfiguration);
+        OutputStream outputStream = exchange.getOutputStream();
+        final ByteOutput byteOutput = Marshalling.createByteOutput(outputStream);
+        // start the marshaller
+        marshaller.start(byteOutput);
+        marshaller.writeObject(e);
+        marshaller.write(0);
+        marshaller.finish();
+        marshaller.flush();
+    }
 
     public static String getHostAddress() {
         return System.getProperty("server.address", "localhost");

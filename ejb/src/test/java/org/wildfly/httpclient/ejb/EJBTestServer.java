@@ -32,7 +32,6 @@ import java.util.Map;
 public class EJBTestServer extends HTTPTestServer {
 
     private static final String JSESSIONID = "JSESSIONID";
-    private static final MarshallerFactory marshallerFactory = new RiverMarshallerFactory();
 
     private static volatile TestEJBHandler handler;
 
@@ -199,23 +198,6 @@ public class EJBTestServer extends HTTPTestServer {
             }
 
         }
-    }
-
-    private static void sendException(HttpServerExchange exchange, int status, Exception e) throws IOException {
-        exchange.setStatusCode(status);
-        exchange.getResponseHeaders().put(Headers.CONTENT_TYPE, EjbHeaders.RESPONSE_EXCEPTION_VERSION_ONE.toString());
-
-        final MarshallingConfiguration marshallingConfiguration = new MarshallingConfiguration();
-        marshallingConfiguration.setVersion(2);
-        final Marshaller marshaller = marshallerFactory.createMarshaller(marshallingConfiguration);
-        OutputStream outputStream = exchange.getOutputStream();
-        final ByteOutput byteOutput = Marshalling.createByteOutput(outputStream);
-        // start the marshaller
-        marshaller.start(byteOutput);
-        marshaller.writeObject(e);
-        marshaller.write(0);
-        marshaller.finish();
-        marshaller.flush();
     }
 
 

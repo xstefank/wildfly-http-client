@@ -31,12 +31,7 @@ public class SimpleInvocationTestCase {
 
     @Before
     public void before() {
-        EJBTestServer.registerServicesHandler("common/v1/affinity", new HttpHandler() {
-            @Override
-            public void handleRequest(HttpServerExchange httpServerExchange) throws Exception {
-                httpServerExchange.getResponseHeaders().put(Headers.SET_COOKIE, "JSESSIONID=" + EJBTestServer.INITIAL_SESSION_AFFINITY);
-            }
-        });
+        EJBTestServer.registerServicesHandler("common/v1/affinity", httpServerExchange -> httpServerExchange.getResponseHeaders().put(Headers.SET_COOKIE, "JSESSIONID=" + EJBTestServer.INITIAL_SESSION_AFFINITY));
     }
 
     @Test

@@ -190,7 +190,7 @@ The JNDI protocol provides similar functionality to the existing remote JNDI imp
 ==== JNDI Lookup
 
 Method:: +POST+
-URI:: +/jndi/v1/lookup/\{jndiName}+
+URI:: +/naming/v1/lookup/\{jndiName}+
 Additional Required Headers::
 +Accept: application/x-wf-jndi-jbmar-value;version=1,application/x-wf-jbmar-exception;version=1+
 Additional Optional Headers::
@@ -205,7 +205,7 @@ Note that because JNDI lookups are not idempotent this method is a +POST+, rathe
 ==== JNDI Lookup Link
 
 Method:: POST
-URI:: +/jndi/v1/lookuplink/\{jndiName}+
+URI:: +/naming/v1/lookuplink/\{jndiName}+
 Additional Required Headers::
 +Accept: application/x-wf-jndi-jbmar-value;version=1,application/x-wf-jbmar-exception;version=1+
 Additional Optional Headers:: Cookie: JSESSIONID=\{sessionAffinityKey}
@@ -218,7 +218,7 @@ Note that because JNDI lookups are not idempotent this method is a post, rather 
 
 Message Type:: +application/x-wf-jndi-jbmar-bind+
 Method:: PUT
-URI:: +/jndi/v1/bind/\{jndiName}+
+URI:: +/naming/v1/bind/\{jndiName}+
 Additional Required Headers:: 
 +Accept: application/x-wf-jndi-jbmar-result;version=1,application/x-wf-jbmar-exception;version=1+
 Additional Optional Headers:: 
@@ -229,7 +229,7 @@ Serialized representation of the object to bind
 ==== JNDI Rebind
 Message Type:: +application/x-wf-jndi-jbmar-rebind+
 Method:: +PATCH+
-URI:: +/jndi/v1/rebind/\{jndiName}+
+URI:: +/naming/v1/rebind/\{jndiName}+
 Additional Required Headers:: 
 +Accept: application/x-wf-jndi-jbmar-result;version=1,application/x-wf-jbmar-exception;version=1+
 Additional Optional Headers:: 
@@ -241,7 +241,7 @@ Serialized representation of the object to rebind
 
 Message Type:: +application/x-wf-jndi-jbmar-unbind+
 Method:: ++DELETE++
-URI:: +/jndi/v1/unbind/\{jndiName}+
+URI:: +/naming/v1/unbind/\{jndiName}+
 Additional Required Headers:: 
 +Accept: application/x-wf-jndi-jbmar-result;version=1,application/x-wf-jbmar-exception;version=1+
 Additional Optional Headers::
@@ -253,7 +253,7 @@ None
 
 Message Type:: +application/x-wf-jndi-jbmar-destroy+
 Method:: +DELETE+
-URI:: +/jndi/v1/dest-subctx\{jndiName}+
+URI:: +/naming/v1/dest-subctx\{jndiName}+
 Additional Required Headers::
 +Accept: application/x-wf-jndi-jbmar-result;version=1,application/x-wf-jbmar-exception;version=1+
 Additional Optional Headers::
@@ -265,7 +265,7 @@ None
 
 Message Type:: +application/x-wf-jndi-jbmar-list+
 Method:: +GET+
-URI:: +/jndi/v1/list/\{jndiName}+
+URI:: +/naming/v1/list/\{jndiName}+
 Additional Required Headers::
 +Accept: application/x-wf-jndi-jbmar-value;version=1,application/x-wf-jbmar-exception;version=1+
 Additional Optional Headers::
@@ -279,7 +279,7 @@ The response messages are the same as for a normal lookup, but contains a serial
 
 Message Type:: +application/x-wf-jndi-jbmar-list-bindings+
 Method:: +POST+
-URI:: +/jndi/v1/list-bindings/\{jndiName}+
+URI:: +/naming/v1/list-bindings/\{jndiName}+
 Additional Required Headers::
 +Accept: application/x-wf-jndi-jbmar-value;version=1,application/x-wf-jbmar-exception;version=1+
 Additional Optional Headers::
@@ -292,7 +292,7 @@ The response messages are the same as for a normal lookup, but contains a serial
 ==== JNDI Rename
 Message Type:: +application/x-wf-jndi-jbmar-rename+
 Method:: +PATCH+
-URI:: +/jndi/v1/rename/\{jndiName}&new=\{newName}+
+URI:: +/naming/v1/rename/\{jndiName}&new=\{newName}+
 Additional Required Headers::
 +Accept: application/x-wf-jbmar-exception;version=1+
 Additional Optional Headers::
@@ -304,7 +304,7 @@ None
 
 Message Type:: +application/x-wf-jndi-jbmar-create-subcontext+
 Method:: +PUT+
-URI:: +/jndi/v1/create-subcontext/\{jndiName}+
+URI:: +/naming/v1/create-subcontext/\{jndiName}+
 Additional Required Headers::
 +Accept: application/x-wf-jbmar-exception;version=1+
 Additional Optional Headers::
