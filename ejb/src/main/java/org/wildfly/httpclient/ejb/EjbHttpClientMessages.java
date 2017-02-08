@@ -28,4 +28,13 @@ interface EjbHttpClientMessages extends BasicLogger {
 
     @Message(id = 5, value = "Invalid affinity type %s, must be URIAffinity of NONE")
     IllegalArgumentException invalidAffinity(Affinity affinity);
+
+    @Message(id = 6, value = "EJB not stateful")
+    IllegalArgumentException notStateful();
+
+    @Message(id = 7, value = "Session was not active")
+    IllegalArgumentException sessionNotActive();
+
+    @Message(id = 8, value = "Session was not active")
+    IllegalArgumentException noSuchMethod();
 }

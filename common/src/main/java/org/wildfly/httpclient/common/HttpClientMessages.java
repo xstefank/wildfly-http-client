@@ -32,4 +32,8 @@ interface HttpClientMessages extends BasicLogger {
     @Message(id = 5, value = "Invalid response code %s (full response %s)")
     IOException invalidResponseCode(int responseCode, ClientResponse response);
 
+    @LogMessage(level = Logger.Level.ERROR)
+    @Message(id = 6, value = "Failed to write exception")
+    void failedToWriteException(@Cause Exception ex);
+
 }
