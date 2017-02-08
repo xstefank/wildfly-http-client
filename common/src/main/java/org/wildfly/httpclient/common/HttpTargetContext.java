@@ -6,10 +6,18 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.ObjectInput;
 import java.io.OutputStream;
+import java.nio.charset.StandardCharsets;
+import java.security.AccessController;
+import java.security.Principal;
+import java.security.PrivilegedAction;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicBoolean;
+
+import javax.security.auth.callback.Callback;
+import javax.security.auth.callback.PasswordCallback;
+import javax.security.auth.callback.UnsupportedCallbackException;
 
 import org.jboss.marshalling.ByteOutput;
 import org.jboss.marshalling.InputStreamByteInput;
@@ -19,6 +27,9 @@ import org.jboss.marshalling.Marshalling;
 import org.jboss.marshalling.MarshallingConfiguration;
 import org.jboss.marshalling.Unmarshaller;
 import org.jboss.marshalling.river.RiverMarshallerFactory;
+import org.wildfly.security.auth.client.AuthenticationConfiguration;
+import org.wildfly.security.auth.client.AuthenticationContext;
+import org.wildfly.security.auth.client.AuthenticationContextConfigurationClient;
 import org.xnio.channels.Channels;
 import org.xnio.streams.ChannelInputStream;
 import org.xnio.streams.ChannelOutputStream;
@@ -29,6 +40,7 @@ import io.undertow.client.ClientResponse;
 import io.undertow.server.handlers.Cookie;
 import io.undertow.util.AbstractAttachable;
 import io.undertow.util.Cookies;
+import io.undertow.util.FlexBase64;
 import io.undertow.util.HeaderValues;
 import io.undertow.util.Headers;
 import io.undertow.util.Methods;
@@ -50,6 +62,18 @@ public class HttpTargetContext extends AbstractAttachable {
     private volatile String sessionId;
 
     private final AtomicBoolean affinityRequestSent = new AtomicBoolean();
+
+    private static final AuthenticationContextConfigurationClient AUTH_CONTEXT_CLIENT;
+
+    static {
+        AUTH_CONTEXT_CLIENT = AccessController.doPrivileged(new PrivilegedAction<AuthenticationContextConfigurationClient>() {
+            @Override
+            public AuthenticationContextConfigurationClient run() {
+                return new AuthenticationContextConfigurationClient();
+            }
+        });
+    }
+
 
     HttpTargetContext(HttpConnectionPool connectionPool, boolean eagerlyAcquireAffinity) {
         this.connectionPool = connectionPool;
@@ -97,6 +121,23 @@ public class HttpTargetContext extends AbstractAttachable {
     public void sendRequest(final HttpConnectionPool.ConnectionHandle connection, ClientRequest request, HttpMarshaller httpMarshaller, HttpResultHandler httpResultHandler, HttpFailureHandler failureHandler, ContentType expectedResponse, Runnable completedTask) {
         if(sessionId != null) {
             request.getRequestHeaders().add(Headers.COOKIE, "JSESSIONID=" + sessionId);
+        }
+
+        //TODO: how do we configure this?
+        AuthenticationContext context = AuthenticationContext.captureCurrent();
+        AuthenticationConfiguration config = AUTH_CONTEXT_CLIENT.getAuthenticationConfiguration(connection.getUri(), context);
+        Principal principal = AUTH_CONTEXT_CLIENT.getPrincipal(config);
+        boolean ok = true;
+        PasswordCallback callback = new PasswordCallback("password", false);
+        try {
+            AUTH_CONTEXT_CLIENT.getCallbackHandler(config).handle(new Callback[]{callback});
+        } catch (IOException | UnsupportedCallbackException e) {
+            ok = false;
+        }
+        if(ok) {
+            char[] password = callback.getPassword();
+            String challenge = principal.getName() + ":" + new String(password);
+            request.getRequestHeaders().put(Headers.AUTHORIZATION, "basic " + FlexBase64.encodeString(challenge.getBytes(StandardCharsets.UTF_8), false));
         }
         request.getRequestHeaders().put(Headers.HOST, connection.getUri().getHost());
         connection.getConnection().sendRequest(request, new ClientCallback<ClientExchange>() {

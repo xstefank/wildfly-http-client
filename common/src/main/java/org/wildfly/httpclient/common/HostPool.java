@@ -4,10 +4,7 @@ import java.net.InetAddress;
 import java.net.URI;
 import java.net.UnknownHostException;
 import java.util.ArrayList;
-import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.Random;
 import java.util.concurrent.atomic.AtomicLong;
 
@@ -35,131 +32,80 @@ import java.util.concurrent.atomic.AtomicLong;
  */
 public class HostPool {
 
-    private final List<URI> uris;
-    private final Map<URI, Holder> ipAddresses;
-    private volatile int currentUri;
+    private final URI uri;
+    private volatile InetAddress[] addresses;
+    private volatile int currentAddress;
     private final AtomicLong failureCount = new AtomicLong();
 
-    public HostPool(List<URI> uris) {
-        this.uris = new ArrayList<>(uris);
-        Map<URI, Holder> map = new HashMap<>();
-        for (URI uri : uris) {
-            map.put(uri, new Holder(uri));
-        }
-        ipAddresses = Collections.unmodifiableMap(map);
+    public HostPool(URI uri) {
+        this.uri = uri;
     }
 
     public AddressResult getAddress() {
-        URI uri = uris.get(currentUri);
-        Holder holder = ipAddresses.get(uri);
-        try {
-            holder.getAddress();
-        } catch (UnknownHostException e) {
-            //if a initial lookup fails we try all URI's
-            synchronized (this) {
-                int current = this.currentUri;
-                do {
-                    reportFailure(new AddressResult(holder, failureCount.get()));
-                    uri = uris.get(currentUri);
-                    holder = ipAddresses.get(uri);
-                    try {
-                        holder.getAddress();
-                        break;
-                    } catch (UnknownHostException ignore) {
-
-                    }
-                } while (current != this.currentUri);
-            }
-        }
-        return new AddressResult(holder, failureCount.get());
+        return new AddressResult(failureCount.get());
     }
 
-    private synchronized void reportFailure(AddressResult addressResult) {
-        int oldCurrent = this.currentUri;
-        if(failureCount.get() != addressResult.failCount) {
-            //failure has already been accounted for
-            return;
-        }
-        if (oldCurrent + 1 == uris.size()) {
-            this.currentUri = 0;
-        } else {
-            this.currentUri = oldCurrent + 1;
-        }
-        failureCount.incrementAndGet();
-        addressResult.holder.markError();
-    }
-
-
-    private static final class Holder {
-        private final URI uri;
-        private volatile InetAddress[] addresses;
-        private volatile int currentAddress;
-
-        private Holder(URI uri) {
-            this.uri = uri;
-        }
-
-        InetAddress getAddress() throws UnknownHostException {
-            while (true) {
-                InetAddress[] addresses = this.addresses;
-                int currentAddress = this.currentAddress;
-                if (addresses == null) {
-                    synchronized (this) {
-                        if ((addresses = this.addresses) == null) {
-                            addresses = InetAddress.getAllByName(uri.getHost());
-                            InetAddress primary = InetAddress.getByName(uri.getHost());
-                            List<InetAddress> filered = new ArrayList<>();
-                            //TODO: how to we handle addresses of different classes?
-                            //at the moment we only take addresses of the same type that is returned from getByName
-                            for(InetAddress a : addresses) {
-                                if(primary.getClass().isAssignableFrom(a.getClass())) {
-                                    filered.add(a);
-                                }
+    private InetAddress getAddressImpl() throws UnknownHostException {
+        while (true) {
+            InetAddress[] addresses = this.addresses;
+            int currentAddress = this.currentAddress;
+            if (addresses == null) {
+                synchronized (this) {
+                    if ((addresses = this.addresses) == null) {
+                        addresses = InetAddress.getAllByName(uri.getHost());
+                        InetAddress primary = InetAddress.getByName(uri.getHost());
+                        List<InetAddress> filtered = new ArrayList<>();
+                        //TODO: how to we handle addresses of different classes?
+                        //at the moment we only take addresses of the same type that is returned from getByName
+                        for(InetAddress a : addresses) {
+                            if(primary.getClass().isAssignableFrom(a.getClass())) {
+                                filtered.add(a);
                             }
-                            addresses = this.addresses = filered.toArray(new InetAddress[filered.size()]);
                         }
-                        this.currentAddress = currentAddress = new Random().nextInt(this.addresses.length);
+                        addresses = this.addresses = filtered.toArray(new InetAddress[filtered.size()]);
                     }
+                    this.currentAddress = currentAddress = new Random().nextInt(this.addresses.length);
                 }
-                if (currentAddress >= addresses.length) {
-                    continue; //minor chance of a race, as the address list and current address are not invoked atomically just re-invoke
-                }
-                return addresses[currentAddress];
             }
-        }
-
-        void markError() {
-            synchronized (this) {
-                int current = this.currentAddress;
-                current++;
-                if (current == addresses.length) {
-                    current = 0;
-                }
-                this.currentAddress = current;
+            if (currentAddress >= addresses.length) {
+                continue; //minor chance of a race, as the address list and current address are not invoked atomically just re-invoke
             }
+            return addresses[currentAddress];
         }
     }
 
-    class AddressResult {
+    public URI getUri() {
+        return uri;
+    }
 
-        private final Holder holder;
+    private void markError() {
+        synchronized (this) {
+            int current = currentAddress;
+            current++;
+            if (current == addresses.length) {
+                current = 0;
+            }
+            this.currentAddress = current;
+        }
+    }
+    public class AddressResult {
+
         private final long failCount;
 
-        public AddressResult(Holder holder, long failCount) {
-            this.holder = holder;
+        public AddressResult(long failCount) {
             this.failCount = failCount;
         }
 
         public InetAddress getAddress() throws UnknownHostException {
-            return holder.getAddress();
+            return getAddressImpl();
         }
 
         public URI getURI() {
-            return holder.uri;
+            return uri;
         }
 
         public void failed() {
-            reportFailure(this);
+            markError();
         }
 
     }

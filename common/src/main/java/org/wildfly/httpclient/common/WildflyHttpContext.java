@@ -7,18 +7,17 @@ import java.net.InetSocketAddress;
 import java.net.URI;
 import java.security.PrivilegedAction;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
-import io.undertow.server.DefaultByteBufferPool;
 import org.wildfly.common.context.ContextManager;
 import org.wildfly.common.context.Contextual;
 import org.xnio.OptionMap;
 import org.xnio.Xnio;
 import org.xnio.XnioWorker;
 import io.undertow.connector.ByteBufferPool;
+import io.undertow.server.DefaultByteBufferPool;
 
 /**
  * Represents the current configured state of the HTTP contexts.
@@ -80,12 +79,10 @@ public class WildflyHttpContext implements Contextual<WildflyHttpContext> {
             return context;
         }
         for (ConfigSection target : targets) {
-            for (URI targetURI : target.getUris()) {
-                if (targetURI.equals(uri)) {
-                    target.getHttpTargetContext().init();
-                    uriConnectionPools.put(uri, target.getHttpTargetContext());
-                    return target.getHttpTargetContext();
-                }
+            if (target.getUri().equals(uri)) {
+                target.getHttpTargetContext().init();
+                uriConnectionPools.put(uri, target.getHttpTargetContext());
+                return target.getHttpTargetContext();
             }
         }
         synchronized (this) {
@@ -93,7 +90,7 @@ public class WildflyHttpContext implements Contextual<WildflyHttpContext> {
             if (context != null) {
                 return context;
             }
-            HttpConnectionPool pool = new HttpConnectionPool(maxConnections, maxStreamsPerConnection, worker, this.pool, null, OptionMap.EMPTY, new HostPool(Collections.singletonList(uri)), idleTimeout);
+            HttpConnectionPool pool = new HttpConnectionPool(maxConnections, maxStreamsPerConnection, worker, this.pool, OptionMap.EMPTY, new HostPool(uri), idleTimeout);
             uriConnectionPools.put(uri, context = new HttpTargetContext(pool, eagerlyAcquireAffinity));
             context.init();
             return context;
@@ -102,19 +99,19 @@ public class WildflyHttpContext implements Contextual<WildflyHttpContext> {
 
     static class ConfigSection {
         private final HttpTargetContext httpTargetContext;
-        private final List<URI> uris;
+        private final URI uri;
 
-        ConfigSection(HttpTargetContext httpTargetContext, List<URI> uris) {
+        ConfigSection(HttpTargetContext httpTargetContext, URI uri) {
             this.httpTargetContext = httpTargetContext;
-            this.uris = new ArrayList<>(uris);
+            this.uri = uri;
         }
 
         public HttpTargetContext getHttpTargetContext() {
             return httpTargetContext;
         }
 
-        public List<URI> getUris() {
-            return uris;
+        public URI getUri() {
+            return uri;
         }
     }
 
@@ -136,16 +133,16 @@ public class WildflyHttpContext implements Contextual<WildflyHttpContext> {
 
                 long idleTimout = this.idleTimeout > 0 ? this.idleTimeout : 60000;
                 int maxConnections = this.maxConnections > 0 ? this.maxConnections : 10;
-                int maxStreamsPerConnection = this.maxStreamsPerConnection > 0? this.maxStreamsPerConnection : 10;
+                int maxStreamsPerConnection = this.maxStreamsPerConnection > 0 ? this.maxStreamsPerConnection : 10;
 
                 for (int i = 0; i < this.targets.size(); ++i) {
                     HttpConfigBuilder sb = this.targets.get(i);
-                    HostPool hp = new HostPool(sb.getUris());
-                    boolean eager = this.eagerlyAcquireSession == null ? false: this.eagerlyAcquireSession;
-                    if(sb.getEagerlyAcquireSession() != null && sb.getEagerlyAcquireSession()) {
+                    HostPool hp = new HostPool(sb.getUri());
+                    boolean eager = this.eagerlyAcquireSession == null ? false : this.eagerlyAcquireSession;
+                    if (sb.getEagerlyAcquireSession() != null && sb.getEagerlyAcquireSession()) {
                         eager = true;
                     }
-                    WildflyHttpContext.ConfigSection connection = new WildflyHttpContext.ConfigSection(new HttpTargetContext(new HttpConnectionPool(sb.getMaxConnections() > 0 ? sb.getMaxConnections() : maxConnections, sb.getMaxStreamsPerConnection() > 0 ? sb.getMaxStreamsPerConnection() : maxStreamsPerConnection, worker, pool, null, OptionMap.EMPTY, hp, sb.getIdleTimeout() > 0 ? sb.getIdleTimeout() : idleTimout), eager), sb.getUris());
+                    WildflyHttpContext.ConfigSection connection = new WildflyHttpContext.ConfigSection(new HttpTargetContext(new HttpConnectionPool(sb.getMaxConnections() > 0 ? sb.getMaxConnections() : maxConnections, sb.getMaxStreamsPerConnection() > 0 ? sb.getMaxStreamsPerConnection() : maxStreamsPerConnection, worker, pool, OptionMap.EMPTY, hp, sb.getIdleTimeout() > 0 ? sb.getIdleTimeout() : idleTimout), eager), sb.getUri());
                     connections[i] = connection;
                 }
                 return new WildflyHttpContext(connections, maxConnections, maxStreamsPerConnection, idleTimeout, eagerlyAcquireSession == null ? false : eagerlyAcquireSession, worker, pool);
@@ -162,8 +159,8 @@ public class WildflyHttpContext implements Contextual<WildflyHttpContext> {
             return defaultBindAddress;
         }
 
-        HttpConfigBuilder addConfig() {
-            HttpConfigBuilder builder = new HttpConfigBuilder();
+        HttpConfigBuilder addConfig(URI uri) {
+            HttpConfigBuilder builder = new HttpConfigBuilder(uri);
             targets.add(builder);
             return builder;
         }
@@ -206,19 +203,19 @@ public class WildflyHttpContext implements Contextual<WildflyHttpContext> {
         }
 
         class HttpConfigBuilder {
-            final List<URI> uris = new ArrayList<>();
+            final URI uri;
             private InetSocketAddress bindAddress;
             private long idleTimeout;
             private int maxConnections;
             private int maxStreamsPerConnection;
             private Boolean eagerlyAcquireSession;
 
-            void addUri(URI uri) {
-                this.uris.add(uri);
+            HttpConfigBuilder(URI uri) {
+                this.uri = uri;
             }
 
-            List<URI> getUris() {
-                return uris;
+            public URI getUri() {
+                return uri;
             }
 
             void setBindAddress(InetSocketAddress bindAddress) {

@@ -22,9 +22,7 @@ public class EjbHttpService {
         this.executorService = executorService;
     }
 
-
     public HttpHandler createHttpHandler() {
-
         return new RoutingHandler()
                 .add(Methods.POST, HttpInvocationHandler.PATH, new HttpInvocationHandler(association, executorService))
                 .add(Methods.POST, HttpSessionOpenHandler.PATH, new HttpSessionOpenHandler(association, executorService));

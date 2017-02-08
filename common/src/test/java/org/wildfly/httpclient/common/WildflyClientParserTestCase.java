@@ -32,9 +32,7 @@ public class WildflyClientParserTestCase {
         Assert.assertEquals(20, context.getMaxStreamsPerConnection());
         Assert.assertEquals(true, context.getEagerlyAcquireSession());
 
-        Assert.assertEquals(1, context.getUris().size());
-        URI host = context.getUris().get(0);
-        Assert.assertEquals("http://localhost:8080", host.toString());
+        Assert.assertEquals(new URI("http://localhost:8080"), context.getUri());
 
     }
 

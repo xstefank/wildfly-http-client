@@ -301,10 +301,24 @@ final class HttpClientXmlParser {
     }
 
     private static void parseConfig(final ConfigurationXMLStreamReader reader, final WildflyHttpContext.Builder builder) throws ConfigXMLParseException {
-        if (reader.getAttributeCount() > 0) {
-            throw reader.unexpectedAttribute(0);
+
+        final int attributeCount = reader.getAttributeCount();
+        URI uri = null;
+        for (int i = 0; i < attributeCount; i++) {
+            switch (reader.getAttributeLocalName(i)) {
+                case "uri": {
+                    uri = reader.getURIAttributeValue(i);
+                    break;
+                }
+                default: {
+                    throw reader.unexpectedAttribute(i);
+                }
+            }
         }
-        final WildflyHttpContext.Builder.HttpConfigBuilder targetBuilder = builder.addConfig();
+        if (uri == null) {
+            throw reader.missingRequiredAttribute(null, "uri");
+        }
+        final WildflyHttpContext.Builder.HttpConfigBuilder targetBuilder = builder.addConfig(uri);
 
         while (reader.hasNext()) {
             switch (reader.nextTag()) {
@@ -336,10 +350,6 @@ final class HttpClientXmlParser {
                             targetBuilder.setBindAddress(parseBind(reader));
                             break;
                         }
-                        case "uris": {
-                            parseURIs(reader, targetBuilder);
-                            break;
-                        }
                         default:
                             throw reader.unexpectedElement();
                     }
@@ -352,57 +362,4 @@ final class HttpClientXmlParser {
         }
     }
 
-    private static void parseURIs(final ConfigurationXMLStreamReader reader, final WildflyHttpContext.Builder.HttpConfigBuilder builder) throws ConfigXMLParseException {
-        final int attributeCount = reader.getAttributeCount();
-        if (attributeCount > 0) {
-            throw reader.unexpectedAttribute(0);
-        }
-        while (reader.hasNext()) {
-            switch (reader.nextTag()) {
-                case START_ELEMENT: {
-                    switch (reader.getNamespaceURI()) {
-                        case NS_EJB_HTTP_CLIENT:
-                            break;
-                        default:
-                            throw reader.unexpectedElement();
-                    }
-                    switch (reader.getLocalName()) {
-                        case "uri": {
-                            parseURI(reader, builder);
-                            break;
-                        }
-                        default:
-                            throw reader.unexpectedElement();
-                    }
-                    break;
-                }
-                case END_ELEMENT: {
-                    return;
-                }
-            }
-        }
-    }
-
-    private static void parseURI(final ConfigurationXMLStreamReader reader, final WildflyHttpContext.Builder.HttpConfigBuilder HttpConfigBuilder) throws ConfigXMLParseException {
-        final int attributeCount = reader.getAttributeCount();
-        URI host = null;
-        for (int i = 0; i < attributeCount; i++) {
-            final String attributeNamespace = reader.getAttributeNamespace(i);
-            if (attributeNamespace != null && !attributeNamespace.isEmpty()) {
-                throw reader.unexpectedAttribute(i);
-            }
-            switch (reader.getAttributeLocalName(i)) {
-                case "value": {
-                    host = reader.getURIAttributeValue(i);
-                    break;
-                }
-                default: {
-                    throw reader.unexpectedAttribute(i);
-                }
-            }
-        }
-        if (!reader.hasNext()) throw reader.unexpectedDocumentEnd();
-        if (reader.nextTag() != END_ELEMENT) throw reader.unexpectedElement();
-        HttpConfigBuilder.addUri(host);
-    }
 }

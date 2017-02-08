@@ -25,10 +25,7 @@
 <http-client xmlns="urn:wildfly-http-client:1.0">
 
     <configs>
-        <config >
-            <uris>
-                <uri value="http://localhost:8080" />
-            </uris>
+        <config uri="http://localhost:8080">
             <idle-timeout value="30000"/>
             <max-connections value="20"/>
             <max-streams-per-connection value="20"/>
