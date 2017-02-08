@@ -131,7 +131,7 @@ public class HttpConnectionPool implements Closeable {
             if (existingConnection == null) {
                 break;
             }
-            if (existingConnection.tryAquire()) {
+            if (existingConnection.tryAcquire()) {
                 next.connectionListener.done(existingConnection);
                 return;
             }
@@ -146,7 +146,6 @@ public class HttpConnectionPool implements Closeable {
             return;
         }
 
-
         try {
 
             final SSLContext context = sslContext;
@@ -155,7 +154,7 @@ public class HttpConnectionPool implements Closeable {
                 public void completed(ClientConnection result) {
                     result.getCloseSetter().set((ChannelListener<ClientConnection>) connections::remove);
                     ClientConnectionHolder clientConnectionHolder = new ClientConnectionHolder(result, hostPoolAddress.getURI(), context);
-                    clientConnectionHolder.tryAquire(); //aways suceeds
+                    clientConnectionHolder.tryAcquire(); //aways suceeds
                     next.connectionListener.done(clientConnectionHolder);
                 }
 
@@ -196,6 +195,8 @@ public class HttpConnectionPool implements Closeable {
         void done(boolean close);
 
         URI getUri();
+
+        ConnectionAuthenticationContext getAuthenticationContext();
     }
 
 
@@ -224,6 +225,7 @@ public class HttpConnectionPool implements Closeable {
         private volatile XnioExecutor.Key timeoutKey;
         private long timeout;
         private final SSLContext sslContext;
+        private final ConnectionAuthenticationContext connectionAuthenticationContext = new ConnectionAuthenticationContext();
 
         private final Runnable timeoutTask = new Runnable() {
             @Override
@@ -258,7 +260,7 @@ public class HttpConnectionPool implements Closeable {
             return false;
         }
 
-        boolean tryAquire() {
+        boolean tryAcquire() {
             return state.compareAndSet(0, 1);
         }
 
@@ -287,6 +289,11 @@ public class HttpConnectionPool implements Closeable {
         @Override
         public URI getUri() {
             return uri;
+        }
+
+        @Override
+        public ConnectionAuthenticationContext getAuthenticationContext() {
+            return connectionAuthenticationContext;
         }
     }
 
