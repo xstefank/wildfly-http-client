@@ -14,7 +14,7 @@ import io.undertow.server.handlers.CookieImpl;
  * @author Stuart Douglas
  */
 @RunWith(HTTPTestServer.class)
-public class AquireAffinityTestCase {
+public class AcquireAffinityTestCase {
 
     @Test
     public void testAcquireAffinity() throws URISyntaxException {

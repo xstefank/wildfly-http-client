@@ -2,6 +2,8 @@ package org.wildfly.httpclient.common;
 
 import java.io.IOException;
 import java.net.URI;
+import java.nio.charset.StandardCharsets;
+import java.security.Principal;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -12,16 +14,24 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 
+import javax.security.auth.callback.Callback;
+import javax.security.auth.callback.PasswordCallback;
+import javax.security.auth.callback.UnsupportedCallbackException;
+
 import io.undertow.server.handlers.BlockingHandler;
 import org.junit.Assert;
 import org.junit.Test;
 import org.junit.runner.RunWith;
+import org.wildfly.security.auth.client.AuthenticationConfiguration;
+import org.wildfly.security.auth.client.AuthenticationContext;
+import org.wildfly.security.auth.client.AuthenticationContextConfigurationClient;
 import org.xnio.OptionMap;
 import org.xnio.channels.Channels;
 import io.undertow.client.ClientCallback;
 import io.undertow.client.ClientExchange;
 import io.undertow.client.ClientRequest;
 import io.undertow.server.ServerConnection;
+import io.undertow.util.FlexBase64;
 import io.undertow.util.Headers;
 import io.undertow.util.Methods;
 
@@ -109,6 +119,7 @@ public class ConnectionPoolTestCase {
 
         pool.getConnection((connectionHandle) -> {
             ClientRequest request = new ClientRequest().setMethod(Methods.GET).setPath(path);
+            setupBasicAuth(request, connectionHandle.getUri());
             request.getRequestHeaders().add(Headers.HOST, HTTPTestServer.getHostAddress());
             connectionHandle.getConnection().sendRequest(request, new ClientCallback<ClientExchange>() {
                 @Override
@@ -153,5 +164,20 @@ public class ConnectionPoolTestCase {
         if (failure != null) {
             throw new RuntimeException(failure);
         }
+    }
+
+    private void setupBasicAuth(ClientRequest request, URI uri) {
+        AuthenticationContext context = AuthenticationContext.captureCurrent();
+        AuthenticationConfiguration config = new AuthenticationContextConfigurationClient().getAuthenticationConfiguration(uri, context);
+        Principal principal = new AuthenticationContextConfigurationClient().getPrincipal(config);
+        PasswordCallback callback = new PasswordCallback("password", false);
+        try {
+            new AuthenticationContextConfigurationClient().getCallbackHandler(config).handle(new Callback[]{callback});
+        } catch (IOException | UnsupportedCallbackException e) {
+            return;
+        }
+        char[] password = callback.getPassword();
+        String challenge = principal.getName() + ":" + new String(password);
+        request.getRequestHeaders().put(Headers.AUTHORIZATION, "basic " + FlexBase64.encodeString(challenge.getBytes(StandardCharsets.UTF_8), false));
     }
 }

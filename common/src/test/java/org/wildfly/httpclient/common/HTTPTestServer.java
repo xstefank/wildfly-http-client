@@ -2,6 +2,9 @@ package org.wildfly.httpclient.common;
 
 import java.io.IOException;
 import java.io.OutputStream;
+import java.security.Principal;
+import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.Set;
 
@@ -24,6 +27,17 @@ import org.xnio.XnioWorker;
 import io.undertow.Undertow;
 import io.undertow.UndertowOptions;
 import io.undertow.connector.ByteBufferPool;
+import io.undertow.security.api.AuthenticationMechanism;
+import io.undertow.security.api.AuthenticationMode;
+import io.undertow.security.handlers.AuthenticationCallHandler;
+import io.undertow.security.handlers.AuthenticationConstraintHandler;
+import io.undertow.security.handlers.AuthenticationMechanismsHandler;
+import io.undertow.security.handlers.SecurityInitialHandler;
+import io.undertow.security.idm.Account;
+import io.undertow.security.idm.Credential;
+import io.undertow.security.idm.IdentityManager;
+import io.undertow.security.idm.PasswordCredential;
+import io.undertow.security.impl.BasicAuthenticationMechanism;
 import io.undertow.server.DefaultByteBufferPool;
 import io.undertow.server.HttpHandler;
 import io.undertow.server.HttpServerExchange;
@@ -116,12 +130,44 @@ public class HTTPTestServer extends BlockJUnit4ClassRunner {
             if (first) {
                 first = false;
                 Xnio xnio = Xnio.getInstance("nio");
+                PATH_HANDLER.addPrefixPath("/wildfly-services", SERVICES_HANDLER);
                 worker = xnio.createWorker(OptionMap.create(Options.WORKER_TASK_CORE_THREADS, 20, Options.WORKER_IO_THREADS, 10));
                 registerPaths(SERVICES_HANDLER);
                 undertow = Undertow.builder()
                         .addHttpListener(getHostPort(), getHostAddress())
                         .setServerOption(UndertowOptions.REQUIRE_HOST_HTTP11, true)
-                        .setHandler(PATH_HANDLER.addPrefixPath("/wildfly-services", SERVICES_HANDLER))
+                        .setHandler(new SecurityInitialHandler(AuthenticationMode.PRO_ACTIVE, new IdentityManager() {
+                            @Override
+                            public Account verify(Account account) {
+                                return null;
+                            }
+
+                            @Override
+                            public Account verify(String id, Credential credential) {
+                                if(credential instanceof PasswordCredential) {
+                                    if(id.equals("administrator") && Arrays.equals(((PasswordCredential) credential).getPassword(), "password1!".toCharArray())) {
+                                        return new Account() {
+                                            @Override
+                                            public Principal getPrincipal() {
+                                                return () -> "administrator";
+                                            }
+
+                                            @Override
+                                            public Set<String> getRoles() {
+                                                return Collections.emptySet();
+                                            }
+                                        };
+                                    }
+                                }
+                                return null;
+
+                            }
+
+                            @Override
+                            public Account verify(Credential credential) {
+                                return null;
+                            }
+                        }, new AuthenticationConstraintHandler(new AuthenticationMechanismsHandler(new AuthenticationCallHandler(PATH_HANDLER), Collections.singletonList(new BasicAuthenticationMechanism("test"))))))
                         .build();
                 undertow.start();
                 notifier.addListener(new RunListener() {

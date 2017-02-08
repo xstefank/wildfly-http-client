@@ -33,4 +33,21 @@
             </static>
         </discovery-provider>
     </discovery>
+    <authentication-client xmlns="urn:elytron:1.0">
+        <authentication-rules>
+            <rule use-configuration="administrator">
+                <match-host name="localhost" />
+            </rule>
+        </authentication-rules>
+        <authentication-configurations>
+            <configuration name="administrator">
+                <use-service-loader-providers />
+                <set-user-name name="administrator" />
+                <credentials>
+                    <clear-password password="password1!" />
+                </credentials>
+                <set-mechanism-realm name="ManagementRealm" />
+            </configuration>
+        </authentication-configurations>
+    </authentication-client>
 </configuration>
