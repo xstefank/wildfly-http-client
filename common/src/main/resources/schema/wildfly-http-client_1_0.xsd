@@ -50,6 +50,7 @@
             <xs:element name="max-connections" minOccurs="0" maxOccurs="1" type="max-connections-type" />
             <xs:element name="max-streams-per-connection" minOccurs="0" maxOccurs="1" type="max-streams-type"  />
             <xs:element name="eagerly-acquire-session" minOccurs="0" maxOccurs="1" type="eager-session-type" />
+            <xs:element name="enable-http2" minOccurs="0" maxOccurs="1" type="enable-http2-type" />
             <xs:element name="bind-address" type="bind-address-type" minOccurs="0"/>
         </xs:sequence>
         <xs:attribute name="uri" type="xs:string" use="required" />
@@ -61,6 +62,7 @@
             <xs:element name="max-connections" minOccurs="0" maxOccurs="1" type="max-connections-type" />
             <xs:element name="max-streams-per-connection" minOccurs="0" maxOccurs="1" type="max-streams-type"  />
             <xs:element name="eagerly-acquire-session" minOccurs="0" maxOccurs="1" type="eager-session-type" />
+            <xs:element name="enable-http2" minOccurs="0" maxOccurs="1" type="enable-http2-type" />
             <xs:element name="bind-address" type="bind-address-type" minOccurs="0" maxOccurs="1"/>
         </xs:all>
     </xs:complexType>
@@ -88,5 +90,8 @@
     </xs:complexType>
     <xs:complexType name="eager-session-type">
         <xs:attribute name="value" type="xs:boolean" use="required" default="false"/>
+    </xs:complexType>
+    <xs:complexType name="enable-http2-type">
+        <xs:attribute name="value" type="xs:boolean" use="required" default="true"/>
     </xs:complexType>
 </xs:schema>

@@ -149,7 +149,11 @@ class HttpInvocationHandler extends RemoteHTTPHandler {
             @Override
             public void writeSessionNotActive() {
                 HttpServerHelper.sendException(exchange, StatusCodes.INTERNAL_SERVER_ERROR, EjbHttpClientMessages.MESSAGES.sessionNotActive());
+            }
 
+            @Override
+            public void writeWrongViewType() {
+                HttpServerHelper.sendException(exchange, StatusCodes.NOT_FOUND, EjbHttpClientMessages.MESSAGES.wrongViewType());
             }
 
             @Override

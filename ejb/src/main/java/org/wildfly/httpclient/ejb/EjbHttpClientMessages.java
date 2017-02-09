@@ -7,6 +7,7 @@ import org.jboss.logging.Logger;
 import org.jboss.logging.annotations.Message;
 import org.jboss.logging.annotations.MessageLogger;
 
+import javax.ejb.EJBException;
 import java.io.IOException;
 
 @MessageLogger(projectCode = "WFHTTPEJB")
@@ -37,4 +38,7 @@ interface EjbHttpClientMessages extends BasicLogger {
 
     @Message(id = 8, value = "Session was not active")
     IllegalArgumentException noSuchMethod();
+
+    @Message(id = 9, value = "Wrong view type")
+    EJBException wrongViewType();
 }

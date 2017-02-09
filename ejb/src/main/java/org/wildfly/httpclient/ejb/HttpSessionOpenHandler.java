@@ -111,6 +111,11 @@ class HttpSessionOpenHandler extends RemoteHTTPHandler {
             }
 
             @Override
+            public void writeWrongViewType() {
+                HttpServerHelper.sendException(exchange, StatusCodes.NOT_FOUND, EjbHttpClientMessages.MESSAGES.wrongViewType());
+            }
+
+            @Override
             public void writeCancelResponse() {
                 throw new RuntimeException("nyi");
             }

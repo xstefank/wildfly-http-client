@@ -11,6 +11,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
+import io.undertow.UndertowOptions;
 import org.wildfly.common.context.ContextManager;
 import org.wildfly.common.context.Contextual;
 import org.xnio.OptionMap;
@@ -48,8 +49,9 @@ public class WildflyHttpContext implements Contextual<WildflyHttpContext> {
     private final boolean eagerlyAcquireAffinity;
     private final XnioWorker worker;
     private final ByteBufferPool pool;
+    private final boolean enableHttp2;
 
-    WildflyHttpContext(ConfigSection[] targets, int maxConnections, int maxStreamsPerConnection, long idleTimeout, boolean eagerlyAcquireAffinity, XnioWorker worker, ByteBufferPool pool) {
+    WildflyHttpContext(ConfigSection[] targets, int maxConnections, int maxStreamsPerConnection, long idleTimeout, boolean eagerlyAcquireAffinity, XnioWorker worker, ByteBufferPool pool, boolean enableHttp2) {
         this.targets = targets;
         this.maxConnections = maxConnections;
         this.maxStreamsPerConnection = maxStreamsPerConnection;
@@ -57,6 +59,7 @@ public class WildflyHttpContext implements Contextual<WildflyHttpContext> {
         this.eagerlyAcquireAffinity = eagerlyAcquireAffinity;
         this.worker = worker;
         this.pool = pool;
+        this.enableHttp2 = enableHttp2;
     }
 
     public static WildflyHttpContext getCurrent() {
@@ -90,7 +93,7 @@ public class WildflyHttpContext implements Contextual<WildflyHttpContext> {
             if (context != null) {
                 return context;
             }
-            HttpConnectionPool pool = new HttpConnectionPool(maxConnections, maxStreamsPerConnection, worker, this.pool, OptionMap.EMPTY, new HostPool(uri), idleTimeout);
+            HttpConnectionPool pool = new HttpConnectionPool(maxConnections, maxStreamsPerConnection, worker, this.pool, OptionMap.create(UndertowOptions.ENABLE_HTTP2, enableHttp2), new HostPool(uri), idleTimeout);
             uriConnectionPools.put(uri, context = new HttpTargetContext(pool, eagerlyAcquireAffinity));
             context.init();
             return context;
@@ -122,6 +125,7 @@ public class WildflyHttpContext implements Contextual<WildflyHttpContext> {
         private int maxStreamsPerConnection;
         private Boolean eagerlyAcquireSession;
         private final List<HttpConfigBuilder> targets = new ArrayList<>();
+        private Boolean enableHttp2;
 
         WildflyHttpContext build() {
             try {
@@ -135,6 +139,7 @@ public class WildflyHttpContext implements Contextual<WildflyHttpContext> {
                 int maxConnections = this.maxConnections > 0 ? this.maxConnections : 10;
                 int maxStreamsPerConnection = this.maxStreamsPerConnection > 0 ? this.maxStreamsPerConnection : 10;
 
+
                 for (int i = 0; i < this.targets.size(); ++i) {
                     HttpConfigBuilder sb = this.targets.get(i);
                     HostPool hp = new HostPool(sb.getUri());
@@ -142,10 +147,14 @@ public class WildflyHttpContext implements Contextual<WildflyHttpContext> {
                     if (sb.getEagerlyAcquireSession() != null && sb.getEagerlyAcquireSession()) {
                         eager = true;
                     }
-                    WildflyHttpContext.ConfigSection connection = new WildflyHttpContext.ConfigSection(new HttpTargetContext(new HttpConnectionPool(sb.getMaxConnections() > 0 ? sb.getMaxConnections() : maxConnections, sb.getMaxStreamsPerConnection() > 0 ? sb.getMaxStreamsPerConnection() : maxStreamsPerConnection, worker, pool, OptionMap.EMPTY, hp, sb.getIdleTimeout() > 0 ? sb.getIdleTimeout() : idleTimout), eager), sb.getUri());
+                    boolean http2 = this.enableHttp2 == null ? true : this.enableHttp2;
+                    if(sb.getEnableHttp2() != null) {
+                        http2 = sb.getEnableHttp2();
+                    }
+                    WildflyHttpContext.ConfigSection connection = new WildflyHttpContext.ConfigSection(new HttpTargetContext(new HttpConnectionPool(sb.getMaxConnections() > 0 ? sb.getMaxConnections() : maxConnections, sb.getMaxStreamsPerConnection() > 0 ? sb.getMaxStreamsPerConnection() : maxStreamsPerConnection, worker, pool, OptionMap.create(UndertowOptions.ENABLE_HTTP2, enableHttp2), hp, sb.getIdleTimeout() > 0 ? sb.getIdleTimeout() : idleTimout), eager), sb.getUri());
                     connections[i] = connection;
                 }
-                return new WildflyHttpContext(connections, maxConnections, maxStreamsPerConnection, idleTimeout, eagerlyAcquireSession == null ? false : eagerlyAcquireSession, worker, pool);
+                return new WildflyHttpContext(connections, maxConnections, maxStreamsPerConnection, idleTimeout, eagerlyAcquireSession == null ? false : eagerlyAcquireSession, worker, pool, enableHttp2 == null ? true : enableHttp2);
             } catch (IOException e) {
                 throw new RuntimeException(e);
             }
@@ -202,6 +211,14 @@ public class WildflyHttpContext implements Contextual<WildflyHttpContext> {
             this.eagerlyAcquireSession = eagerlyAcquireSession;
         }
 
+        public void setEnableHttp2(Boolean enableHttp2) {
+            this.enableHttp2 = enableHttp2;
+        }
+
+        public Boolean getEnableHttp2() {
+            return enableHttp2;
+        }
+
         class HttpConfigBuilder {
             final URI uri;
             private InetSocketAddress bindAddress;
@@ -209,6 +226,7 @@ public class WildflyHttpContext implements Contextual<WildflyHttpContext> {
             private int maxConnections;
             private int maxStreamsPerConnection;
             private Boolean eagerlyAcquireSession;
+            private Boolean enableHttp2;
 
             HttpConfigBuilder(URI uri) {
                 this.uri = uri;
@@ -256,6 +274,14 @@ public class WildflyHttpContext implements Contextual<WildflyHttpContext> {
 
             void setEagerlyAcquireSession(Boolean eagerlyAcquireSession) {
                 this.eagerlyAcquireSession = eagerlyAcquireSession;
+            }
+
+            public void setEnableHttp2(Boolean enableHttp2) {
+                this.enableHttp2 = enableHttp2;
+            }
+
+            public Boolean getEnableHttp2() {
+                return enableHttp2;
             }
         }
     }

@@ -288,6 +288,10 @@ final class HttpClientXmlParser {
                             builder.setEagerlyAcquireSession(parseBooleanElement(reader));
                             break;
                         }
+                        case "enable-http2": {
+                            builder.setEnableHttp2(parseBooleanElement(reader));
+                            break;
+                        }
                         default:
                             throw reader.unexpectedElement();
                     }
@@ -344,6 +348,10 @@ final class HttpClientXmlParser {
                         }
                         case "eagerly-acquire-session": {
                             targetBuilder.setEagerlyAcquireSession(parseBooleanElement(reader));
+                            break;
+                        }
+                        case "enable-http2": {
+                            targetBuilder.setEnableHttp2(parseBooleanElement(reader));
                             break;
                         }
                         case "bind-address": {

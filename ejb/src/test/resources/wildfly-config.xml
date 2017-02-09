@@ -22,13 +22,14 @@
     <http-client xmlns="urn:wildfly-http-client:1.0">
         <defaults>
             <eagerly-acquire-session value="true"/>
+            <enable-http2 value="true" />
         </defaults>
     </http-client>
     <discovery xmlns="urn:wildfly-discovery:1.0">
         <discovery-provider>
             <static>
-                <service uri="http://localhost:7788/wildfly-services" abstract-type="ejb" abstract-type-authority="jboss"  >
-                        <attribute name="ejb-module" value="&quot;wildfly-app/wildfly-ejb-remote-server-side&quot;" />
+                <service uri="http://localhost:7788/wildfly-services" abstract-type="ejb" abstract-type-authority="jboss" >
+                        <attribute name="ejb-module" value="wildfly-app/wildfly-ejb-remote-server-side" />
                 </service>
             </static>
         </discovery-provider>
