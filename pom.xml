@@ -56,12 +56,14 @@
         <version.org.wildfly.common>1.2.0.Beta5</version.org.wildfly.common>
         <version.org.wildfly.naming.client>1.0.0.Beta10</version.org.wildfly.naming.client>
         <version.org.wildfly.elytron>1.1.0.Beta23</version.org.wildfly.elytron>
+        <version.org.wildfly.transaction.client>1.0.0.Beta10</version.org.wildfly.transaction.client>
     </properties>
 
     <modules>
         <module>common</module>
         <module>ejb</module>
         <module>naming</module>
+        <module>transaction</module>
     </modules>
 
     <dependencyManagement>
@@ -110,6 +112,12 @@
                 <version>${project.version}</version>
                 <type>test-jar</type>
                 <scope>test</scope>
+            </dependency>
+
+            <dependency>
+                <groupId>org.wildfly.transaction</groupId>
+                <artifactId>wildfly-transaction-client</artifactId>
+                <version>${version.org.wildfly.transaction.client}</version>
             </dependency>
             <!-- Test dependencies -->
             <dependency>
