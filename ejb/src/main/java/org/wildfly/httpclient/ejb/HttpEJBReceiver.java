@@ -117,11 +117,9 @@ class HttpEJBReceiver extends EJBReceiver {
                     String sessionId = response.getResponseHeaders().getFirst(EjbHeaders.EJB_SESSION_ID);
                     if (sessionId == null) {
                         result.completeExceptionally(EjbHttpClientMessages.MESSAGES.noSessionIdInResponse());
-                        connection.done(true);
                     } else {
                         SessionID sessionID = SessionID.createSessionID(Base64.getDecoder().decode(sessionId));
                         result.complete(new StatefulEJBLocator<T>(locator, sessionID));
-                        connection.done(false);
                     }
                 })
                 , result::completeExceptionally, EjbHeaders.EJB_RESPONSE_NEW_SESSION, null);
@@ -177,7 +175,6 @@ class HttpEJBReceiver extends EJBReceiver {
                             exception = EjbHttpClientMessages.MESSAGES.unexpectedDataInResponse();
                         }
                         unmarshaller.finish();
-                        connection.done(false);
 
                         if (response.getResponseCode() >= 400) {
                             receiverContext.resultReady(new StaticResultProducer((Exception) returned, null));

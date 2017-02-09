@@ -1,29 +1,5 @@
 package org.wildfly.httpclient.naming;
 
-import io.undertow.client.ClientRequest;
-import io.undertow.client.ClientResponse;
-import io.undertow.util.Headers;
-import io.undertow.util.HttpString;
-import io.undertow.util.Methods;
-import io.undertow.util.StatusCodes;
-import org.jboss.marshalling.InputStreamByteInput;
-import org.jboss.marshalling.Marshaller;
-import org.jboss.marshalling.MarshallingConfiguration;
-import org.jboss.marshalling.Unmarshaller;
-import org.wildfly.httpclient.common.ContentType;
-import org.wildfly.httpclient.common.HttpTargetContext;
-import org.wildfly.httpclient.common.WildflyHttpContext;
-import org.wildfly.naming.client.AbstractFederatingContext;
-import org.wildfly.naming.client.CloseableNamingEnumeration;
-import org.wildfly.naming.client.util.FastHashtable;
-import org.xnio.IoUtils;
-
-import javax.naming.Binding;
-import javax.naming.Context;
-import javax.naming.Name;
-import javax.naming.NameClassPair;
-import javax.naming.NamingException;
-import java.io.InputStream;
 import java.io.UnsupportedEncodingException;
 import java.net.URI;
 import java.net.URLEncoder;
@@ -31,11 +7,33 @@ import java.nio.charset.StandardCharsets;
 import java.util.Collection;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
+import javax.naming.Binding;
+import javax.naming.Context;
+import javax.naming.Name;
+import javax.naming.NameClassPair;
+import javax.naming.NamingException;
+
+import org.jboss.marshalling.InputStreamByteInput;
+import org.jboss.marshalling.Marshaller;
+import org.jboss.marshalling.MarshallingConfiguration;
+import org.jboss.marshalling.Unmarshaller;
+import org.wildfly.httpclient.common.ContentType;
+import org.wildfly.httpclient.common.HttpTargetContext;
+import org.wildfly.httpclient.common.WildflyHttpContext;
+import org.wildfly.naming.client.AbstractContext;
+import org.wildfly.naming.client.CloseableNamingEnumeration;
+import org.wildfly.naming.client.util.FastHashtable;
+import org.xnio.IoUtils;
+import io.undertow.client.ClientRequest;
+import io.undertow.util.Headers;
+import io.undertow.util.HttpString;
+import io.undertow.util.Methods;
+import io.undertow.util.StatusCodes;
 
 /**
  * @author Stuart Douglas
  */
-public class HttpRootContext extends AbstractFederatingContext {
+public class HttpRootContext extends AbstractContext {
 
     private final String ACCEPT_VALUE = "application/x-wf-jndi-jbmar-value;version=1,application/x-wf-jbmar-exception;version=1";
     private final ContentType VALUE_TYPE = new ContentType("application/x-wf-jndi-jbmar-value", 1);
@@ -101,7 +99,7 @@ public class HttpRootContext extends AbstractFederatingContext {
         URI providerUri = httpNamingProvider.getProviderUri();
         StringBuilder sb = new StringBuilder(providerUri.getPath());
         sb.append("/naming/v1/rebind/");
-        processInvocation(name, Methods.PUT, providerUri, obj, sb);
+        processInvocation(name, Methods.PATCH, providerUri, obj, sb);
     }
 
     @Override
@@ -117,7 +115,7 @@ public class HttpRootContext extends AbstractFederatingContext {
         URI providerUri = httpNamingProvider.getProviderUri();
         StringBuilder sb = new StringBuilder(providerUri.getPath());
         sb.append("/naming/v1/rename/");
-        processInvocation(oldName, Methods.PUT, providerUri, sb, newName);
+        processInvocation(oldName, Methods.PATCH, providerUri, sb, newName);
     }
 
     @Override
@@ -168,41 +166,37 @@ public class HttpRootContext extends AbstractFederatingContext {
         final CompletableFuture<Object> result = new CompletableFuture<>();
 
         final HttpTargetContext targetContext = WildflyHttpContext.getCurrent().getTargetContext(providerUri);
-        targetContext.getConnectionPool().getConnection(connection -> targetContext.sendRequest(connection, clientRequest, null, new HttpTargetContext.HttpResultHandler() {
-            @Override
-            public void handleResult(InputStream input, ClientResponse response) {
-                if (response.getResponseCode() == StatusCodes.NO_CONTENT) {
-                    result.complete(new HttpRemoteContext(HttpRootContext.this, name.toString()));
-                    IoUtils.safeClose(input);
-                    return;
-                }
+        targetContext.getConnectionPool().getConnection(connection -> targetContext.sendRequest(connection, clientRequest, null, (input, response) -> {
+            if (response.getResponseCode() == StatusCodes.NO_CONTENT) {
+                result.complete(new HttpRemoteContext(HttpRootContext.this, name.toString()));
+                IoUtils.safeClose(input);
+                return;
+            }
 
-                Exception exception = null;
-                Object returned = null;
-                try {
+            Exception exception = null;
+            Object returned = null;
+            try {
 
-                    final MarshallingConfiguration marshallingConfiguration = createMarshallingConfig();
-                    final Unmarshaller unmarshaller = targetContext.createUnmarshaller(marshallingConfiguration);
-                    unmarshaller.start(new InputStreamByteInput(input));
-                    returned = unmarshaller.readObject();
-                    // finish unmarshalling
-                    if (unmarshaller.read() != -1) {
-                        exception = HttpNamingClientMessages.MESSAGES.unexpectedDataInResponse();
-                    }
-                    unmarshaller.finish();
-                    connection.done(false);
+                final MarshallingConfiguration marshallingConfiguration = createMarshallingConfig();
+                final Unmarshaller unmarshaller = targetContext.createUnmarshaller(marshallingConfiguration);
+                unmarshaller.start(new InputStreamByteInput(input));
+                returned = unmarshaller.readObject();
+                // finish unmarshalling
+                if (unmarshaller.read() != -1) {
+                    exception = HttpNamingClientMessages.MESSAGES.unexpectedDataInResponse();
+                }
+                unmarshaller.finish();
 
-                    if (response.getResponseCode() >= 400) {
-                        exception = (Exception) returned;
-                    }
-                } catch (Exception e) {
-                    exception = e;
+                if (response.getResponseCode() >= 400) {
+                    exception = (Exception) returned;
                 }
-                if (exception != null) {
-                    result.completeExceptionally(exception);
-                } else {
-                    result.complete(returned);
-                }
+            } catch (Exception e) {
+                exception = e;
+            }
+            if (exception != null) {
+                result.completeExceptionally(exception);
+            } else {
+                result.complete(returned);
             }
         }, result::completeExceptionally, VALUE_TYPE, null, true), result::completeExceptionally, false);
 
@@ -238,51 +232,23 @@ public class HttpRootContext extends AbstractFederatingContext {
                 .setPath(path)
                 .setMethod(method);
         clientRequest.getRequestHeaders().put(Headers.ACCEPT, ACCEPT_VALUE);
-        if(object != null) {
+        if (object != null) {
             clientRequest.getRequestHeaders().put(Headers.CONTENT_TYPE, VALUE_TYPE.toString());
         }
         final CompletableFuture<Object> result = new CompletableFuture<>();
 
         final HttpTargetContext targetContext = WildflyHttpContext.getCurrent().getTargetContext(providerUri);
         targetContext.getConnectionPool().getConnection(connection -> targetContext.sendRequest(connection, clientRequest, output -> {
-            if(object != null) {
+            if (object != null) {
                 Marshaller marshaller = targetContext.createMarshaller(createMarshallingConfig());
                 marshaller.start(output);
                 marshaller.writeObject(object);
                 marshaller.finish();
             }
             output.close();
-        }, new HttpTargetContext.HttpResultHandler() {
-            @Override
-            public void handleResult(InputStream input, ClientResponse response) {
-                Exception exception = null;
-                Object returned = null;
-                try {
-
-                    final MarshallingConfiguration marshallingConfiguration = createMarshallingConfig();
-                    final Unmarshaller unmarshaller = targetContext.createUnmarshaller(marshallingConfiguration);
-                    unmarshaller.start(new InputStreamByteInput(input));
-                    returned = unmarshaller.readObject();
-                    // finish unmarshalling
-                    if (unmarshaller.read() != -1) {
-                        exception = HttpNamingClientMessages.MESSAGES.unexpectedDataInResponse();
-                    }
-                    unmarshaller.finish();
-                    connection.done(false);
-
-                    if (response.getResponseCode() >= 400) {
-                        exception = (Exception) returned;
-                    }
-                } catch (Exception e) {
-                    exception = e;
-                }
-                if (exception != null) {
-                    result.completeExceptionally(exception);
-                } else {
-                    result.complete(returned);
-                }
-            }
-        }, result::completeExceptionally, VALUE_TYPE, null), result::completeExceptionally, false);
+        }, (input, response) -> {
+            result.complete(null);
+        }, result::completeExceptionally, null, null), result::completeExceptionally, false);
 
         try {
             result.get();

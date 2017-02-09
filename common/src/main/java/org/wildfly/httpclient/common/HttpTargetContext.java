@@ -113,6 +113,9 @@ public class HttpTargetContext extends AbstractAttachable {
 
         final boolean authAdded = retry || connection.getAuthenticationContext().prepareRequest(connection.getUri(), request);
         request.getRequestHeaders().put(Headers.HOST, connection.getUri().getHost());
+        if (request.getRequestHeaders().contains(Headers.CONTENT_TYPE)) {
+            request.getRequestHeaders().put(Headers.TRANSFER_ENCODING, Headers.CHUNKED.toString());
+        }
         connection.getConnection().sendRequest(request, new ClientCallback<ClientExchange>() {
             @Override
             public void completed(ClientExchange result) {
@@ -128,7 +131,7 @@ public class HttpTargetContext extends AbstractAttachable {
                                     } catch (IOException e) {
                                         failureHandler.handleFailure(e);
                                     }
-                                    if(connection.getAuthenticationContext().prepareRequest(connection.getUri(), request)) {
+                                    if (connection.getAuthenticationContext().prepareRequest(connection.getUri(), request)) {
                                         //retry the invocation
                                         sendRequestInternal(connection, request, httpMarshaller, httpResultHandler, failureHandler, expectedResponse, completedTask, allowNoContent, true);
                                         return;
@@ -180,17 +183,18 @@ public class HttpTargetContext extends AbstractAttachable {
                                 if (isException) {
                                     final MarshallingConfiguration marshallingConfiguration = createExceptionMarshallingConfig();
                                     final Unmarshaller unmarshaller = MARSHALLER_FACTORY.createUnmarshaller(marshallingConfiguration);
-                                    unmarshaller.start(new InputStreamByteInput(new BufferedInputStream(new ChannelInputStream(result.getResponseChannel()))));
-                                    Exception exception = (Exception) unmarshaller.readObject();
-                                    Map<String, Object> attachments = readAttachments(unmarshaller);
-                                    if (unmarshaller.read() != -1) {
-                                        HttpClientMessages.MESSAGES.debugf("Unexpected data when reading exception from %s", response);
-                                        connection.done(true);
-                                    } else {
-                                        connection.done(false);
+                                    try (ChannelInputStream inputStream = new ChannelInputStream(result.getResponseChannel())) {
+                                        unmarshaller.start(new InputStreamByteInput(new BufferedInputStream(inputStream)));
+                                        Exception exception = (Exception) unmarshaller.readObject();
+                                        Map<String, Object> attachments = readAttachments(unmarshaller);
+                                        if (unmarshaller.read() != -1) {
+                                            HttpClientMessages.MESSAGES.debugf("Unexpected data when reading exception from %s", response);
+                                            connection.done(true);
+                                        } else {
+                                            connection.done(false);
+                                        }
+                                        failureHandler.handleFailure(exception);
                                     }
-                                    failureHandler.handleFailure(exception);
-                                    return;
                                 } else if (response.getResponseCode() >= 400) {
                                     //unknown error
                                     failureHandler.handleFailure(HttpClientMessages.MESSAGES.invalidResponseCode(response.getResponseCode(), response));
@@ -203,12 +207,15 @@ public class HttpTargetContext extends AbstractAttachable {
                                             Channels.drain(result.getResponseChannel(), Long.MAX_VALUE);
                                             httpResultHandler.handleResult(null, response);
                                         } else {
-                                            httpResultHandler.handleResult(new BufferedInputStream(new ChannelInputStream(result.getResponseChannel())), response);
+                                            ChannelInputStream inputStream = new ChannelInputStream(result.getResponseChannel());
+                                            httpResultHandler.handleResult(new BufferedInputStream(inputStream), response);
                                         }
                                     }
+                                    Channels.drain(result.getResponseChannel(), Long.MAX_VALUE);
                                     if (completedTask != null) {
                                         completedTask.run();
                                     }
+                                    connection.done(false);
                                 }
 
                             } catch (Exception e) {

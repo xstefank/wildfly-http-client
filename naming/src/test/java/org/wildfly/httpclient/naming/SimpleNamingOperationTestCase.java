@@ -1,29 +1,24 @@
 package org.wildfly.httpclient.naming;
 
-import java.io.IOException;
-import java.net.URLDecoder;
-import java.nio.charset.StandardCharsets;
 import java.util.Hashtable;
-import java.util.Objects;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
+import javax.naming.Binding;
 import javax.naming.Context;
 import javax.naming.InitialContext;
+import javax.naming.Name;
+import javax.naming.NameClassPair;
 import javax.naming.NameNotFoundException;
+import javax.naming.NameParser;
+import javax.naming.NamingEnumeration;
 import javax.naming.NamingException;
 
-import io.undertow.util.StatusCodes;
-import org.jboss.marshalling.Marshaller;
-import org.jboss.marshalling.MarshallerFactory;
-import org.jboss.marshalling.MarshallingConfiguration;
-import org.jboss.marshalling.OutputStreamByteOutput;
-import org.jboss.marshalling.river.RiverMarshallerFactory;
 import org.junit.Assert;
+import org.junit.BeforeClass;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.wildfly.httpclient.common.HTTPTestServer;
-import io.undertow.server.HttpServerExchange;
-import io.undertow.server.handlers.BlockingHandler;
 import io.undertow.server.handlers.CookieImpl;
-import io.undertow.util.Headers;
 
 /**
  * @author Stuart Douglas
@@ -31,50 +26,212 @@ import io.undertow.util.Headers;
 @RunWith(HTTPTestServer.class)
 public class SimpleNamingOperationTestCase {
 
-    private final MarshallerFactory marshallerFactory = new RiverMarshallerFactory();
+    private static final Map<String, Object> bindings = new ConcurrentHashMap<>();
+
+    @BeforeClass
+    public static void setup() {
+        bindings.put("test", "test value");
+        bindings.put("comp/UserTransaction", "transaction");
+        HTTPTestServer.registerServicesHandler("common/v1/affinity", exchange -> exchange.getResponseCookies().put("JSESSIONID", new CookieImpl("JSESSIONID", "foo")));
+        HTTPTestServer.registerServicesHandler("naming", new HttpRemoteNamingService(new Context() {
+
+            @Override
+            public Object lookup(Name name) throws NamingException {
+                return lookup(name.toString());
+            }
+
+            @Override
+            public Object lookup(String name) throws NamingException {
+                Object res = bindings.get(name);
+                if (res == null) {
+                    throw new NameNotFoundException();
+                }
+                return res;
+            }
+
+            @Override
+            public void bind(Name name, Object obj) throws NamingException {
+                bind(name.toString(), obj);
+            }
+
+            @Override
+            public void bind(String name, Object obj) throws NamingException {
+                bindings.put(name, obj);
+            }
+
+            @Override
+            public void rebind(Name name, Object obj) throws NamingException {
+                rebind(name.toString(), obj);
+            }
+
+            @Override
+            public void rebind(String name, Object obj) throws NamingException {
+                bindings.put(name, obj);
+            }
+
+            @Override
+            public void unbind(Name name) throws NamingException {
+                unbind(name.toString());
+            }
+
+            @Override
+            public void unbind(String name) throws NamingException {
+                bindings.remove(name);
+            }
+
+            @Override
+            public void rename(Name oldName, Name newName) throws NamingException {
+
+            }
+
+            @Override
+            public void rename(String oldName, String newName) throws NamingException {
+                Object obj = bindings.remove(oldName);
+                if (obj == null) {
+                    throw new NameNotFoundException();
+                }
+                bindings.put(newName, obj);
+            }
+
+            @Override
+            public NamingEnumeration<NameClassPair> list(Name name) throws NamingException {
+                return list(name.toString());
+            }
+
+            @Override
+            public NamingEnumeration<NameClassPair> list(String name) throws NamingException {
+                return null;
+            }
+
+            @Override
+            public NamingEnumeration<Binding> listBindings(Name name) throws NamingException {
+                return listBindings(name.toString());
+            }
+
+            @Override
+            public NamingEnumeration<Binding> listBindings(String name) throws NamingException {
+                return null;
+            }
+
+            @Override
+            public void destroySubcontext(Name name) throws NamingException {
+                destroySubcontext(name.toString());
+            }
+
+            @Override
+            public void destroySubcontext(String name) throws NamingException {
+
+            }
+
+            @Override
+            public Context createSubcontext(Name name) throws NamingException {
+                return createSubcontext(name.toString());
+            }
+
+            @Override
+            public Context createSubcontext(String name) throws NamingException {
+                return null;
+            }
+
+            @Override
+            public Object lookupLink(Name name) throws NamingException {
+                return lookupLink(name.toString());
+            }
+
+            @Override
+            public Object lookupLink(String name) throws NamingException {
+                return null;
+            }
+
+            @Override
+            public NameParser getNameParser(Name name) throws NamingException {
+                return null;
+            }
+
+            @Override
+            public NameParser getNameParser(String name) throws NamingException {
+                return null;
+            }
+
+            @Override
+            public Name composeName(Name name, Name prefix) throws NamingException {
+                return null;
+            }
+
+            @Override
+            public String composeName(String name, String prefix) throws NamingException {
+                return null;
+            }
+
+            @Override
+            public Object addToEnvironment(String propName, Object propVal) throws NamingException {
+                return null;
+            }
+
+            @Override
+            public Object removeFromEnvironment(String propName) throws NamingException {
+                return null;
+            }
+
+            @Override
+            public Hashtable<?, ?> getEnvironment() throws NamingException {
+                return null;
+            }
+
+            @Override
+            public void close() throws NamingException {
+
+            }
+
+            @Override
+            public String getNameInNamespace() throws NamingException {
+                return null;
+            }
+        }).createHandler());
+
+
+    }
+
 
     @Test
     public void testJNDIlookup() throws NamingException {
-
-        HTTPTestServer.registerServicesHandler("common/v1/affinity", exchange -> exchange.getResponseCookies().put("JSESSIONID", new CookieImpl("JSESSIONID", "foo")));
-        HTTPTestServer.registerServicesHandler("naming/v1/lookup", new BlockingHandler(exchange -> {
-            String name = exchange.getRelativePath();
-            if (name.startsWith("/")) {
-                name = name.substring(1);
-            }
-            if (name.equals("missing")) {
-                HTTPTestServer.sendException(exchange, 500, new NameNotFoundException());
-            } else if (name.equals("comp")) {
-                exchange.setStatusCode(StatusCodes.NO_CONTENT);
-            } else {
-                String result = "JNDI:" + URLDecoder.decode(name, StandardCharsets.UTF_8.displayName());
-                doMarshall(exchange, result);
-            }
-        }));
-
-
-        Hashtable<String, String> env = new Hashtable<>();
-        env.put(Context.INITIAL_CONTEXT_FACTORY, "org.wildfly.naming.client.WildFlyInitialContextFactory");
-        env.put(Context.PROVIDER_URL, HTTPTestServer.getDefaultServerURL());
-        InitialContext ic = new InitialContext(env);
+        InitialContext ic = createContext();
         Object result = ic.lookup("test");
-        Assert.assertEquals("JNDI:test", result);
+        Assert.assertEquals("test value", result);
         result = ic.lookup("comp/UserTransaction");
-        Assert.assertEquals("JNDI:comp/UserTransaction", result);
+        Assert.assertEquals("transaction", result);
         try {
             ic.lookup("missing");
             Assert.fail();
-        } catch (NameNotFoundException expected) {}
-
+        } catch (NameNotFoundException expected) {
+        }
     }
 
-    private void doMarshall(HttpServerExchange exchange, String result) throws IOException {
-        exchange.getResponseHeaders().put(Headers.CONTENT_TYPE, "application/x-wf-jndi-jbmar-value;version=1");
-        final MarshallingConfiguration marshallingConfiguration = new MarshallingConfiguration();
-        marshallingConfiguration.setVersion(2);
-        Marshaller marshaller = marshallerFactory.createMarshaller(marshallingConfiguration);
-        marshaller.start(new OutputStreamByteOutput(exchange.getOutputStream()));
-        marshaller.writeObject(result);
-        marshaller.finish();
+    @Test
+    public void testJNDIBindings() throws NamingException {
+        InitialContext ic = createContext();
+        try {
+            ic.lookup("bound");
+            Assert.fail();
+        } catch (NameNotFoundException e) {}
+        ic.bind("bound", "test binding");
+        Assert.assertEquals("test binding", ic.lookup("bound"));
+        ic.rebind("bound", "test binding 2");
+        Assert.assertEquals("test binding 2", ic.lookup("bound"));
+
+//        ic.rename("bound", "bound2");
+//        try {
+//            ic.lookup("bound");
+//            Assert.fail();
+//        } catch (NameNotFoundException e) {}
+//        Assert.assertEquals("test binding 2", ic.lookup("bound2"));
+
     }
+    private InitialContext createContext() throws NamingException {
+        Hashtable<String, String> env = new Hashtable<>();
+        env.put(Context.INITIAL_CONTEXT_FACTORY, "org.wildfly.naming.client.WildFlyInitialContextFactory");
+        env.put(Context.PROVIDER_URL, HTTPTestServer.getDefaultServerURL());
+        return new InitialContext(env);
+    }
+
 }
