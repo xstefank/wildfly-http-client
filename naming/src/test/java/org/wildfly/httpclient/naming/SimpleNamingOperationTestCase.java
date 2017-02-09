@@ -1,6 +1,8 @@
 package org.wildfly.httpclient.naming;
 
 import java.io.IOException;
+import java.net.URLDecoder;
+import java.nio.charset.StandardCharsets;
 import java.util.Hashtable;
 import java.util.Objects;
 import javax.naming.Context;
@@ -8,6 +10,7 @@ import javax.naming.InitialContext;
 import javax.naming.NameNotFoundException;
 import javax.naming.NamingException;
 
+import io.undertow.util.StatusCodes;
 import org.jboss.marshalling.Marshaller;
 import org.jboss.marshalling.MarshallerFactory;
 import org.jboss.marshalling.MarshallingConfiguration;
@@ -39,11 +42,13 @@ public class SimpleNamingOperationTestCase {
             if (name.startsWith("/")) {
                 name = name.substring(1);
             }
-            if (!Objects.equals(name, "missing")) {
-                String result = "JNDI:" + name;
-                doMarshall(exchange, result);
-            } else {
+            if (name.equals("missing")) {
                 HTTPTestServer.sendException(exchange, 500, new NameNotFoundException());
+            } else if (name.equals("comp")) {
+                exchange.setStatusCode(StatusCodes.NO_CONTENT);
+            } else {
+                String result = "JNDI:" + URLDecoder.decode(name, StandardCharsets.UTF_8.displayName());
+                doMarshall(exchange, result);
             }
         }));
 
@@ -54,6 +59,8 @@ public class SimpleNamingOperationTestCase {
         InitialContext ic = new InitialContext(env);
         Object result = ic.lookup("test");
         Assert.assertEquals("JNDI:test", result);
+        result = ic.lookup("comp/UserTransaction");
+        Assert.assertEquals("JNDI:comp/UserTransaction", result);
         try {
             ic.lookup("missing");
             Assert.fail();

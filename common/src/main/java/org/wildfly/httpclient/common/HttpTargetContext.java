@@ -99,10 +99,17 @@ public class HttpTargetContext extends AbstractAttachable {
         if (sessionId != null) {
             request.getRequestHeaders().add(Headers.COOKIE, "JSESSIONID=" + sessionId);
         }
-        sendRequestInternal(connection, request, httpMarshaller, httpResultHandler, failureHandler, expectedResponse, completedTask, false);
+        sendRequestInternal(connection, request, httpMarshaller, httpResultHandler, failureHandler, expectedResponse, completedTask, false, false);
     }
 
-    public void sendRequestInternal(final HttpConnectionPool.ConnectionHandle connection, ClientRequest request, HttpMarshaller httpMarshaller, HttpResultHandler httpResultHandler, HttpFailureHandler failureHandler, ContentType expectedResponse, Runnable completedTask, boolean retry) {
+    public void sendRequest(final HttpConnectionPool.ConnectionHandle connection, ClientRequest request, HttpMarshaller httpMarshaller, HttpResultHandler httpResultHandler, HttpFailureHandler failureHandler, ContentType expectedResponse, Runnable completedTask, boolean allowNoContent) {
+        if (sessionId != null) {
+            request.getRequestHeaders().add(Headers.COOKIE, "JSESSIONID=" + sessionId);
+        }
+        sendRequestInternal(connection, request, httpMarshaller, httpResultHandler, failureHandler, expectedResponse, completedTask, allowNoContent, false);
+    }
+
+    public void sendRequestInternal(final HttpConnectionPool.ConnectionHandle connection, ClientRequest request, HttpMarshaller httpMarshaller, HttpResultHandler httpResultHandler, HttpFailureHandler failureHandler, ContentType expectedResponse, Runnable completedTask, boolean allowNoContent, boolean retry) {
 
         final boolean authAdded = retry || connection.getAuthenticationContext().prepareRequest(connection.getUri(), request);
         request.getRequestHeaders().put(Headers.HOST, connection.getUri().getHost());
@@ -123,7 +130,7 @@ public class HttpTargetContext extends AbstractAttachable {
                                     }
                                     if(connection.getAuthenticationContext().prepareRequest(connection.getUri(), request)) {
                                         //retry the invocation
-                                        sendRequestInternal(connection, request, httpMarshaller, httpResultHandler, failureHandler, expectedResponse, completedTask, true);
+                                        sendRequestInternal(connection, request, httpMarshaller, httpResultHandler, failureHandler, expectedResponse, completedTask, allowNoContent, true);
                                         return;
                                     }
                                 }
@@ -133,7 +140,7 @@ public class HttpTargetContext extends AbstractAttachable {
                             final boolean ok;
                             final boolean isException;
                             if (type == null) {
-                                ok = expectedResponse == null;
+                                ok = expectedResponse == null || (allowNoContent && response.getResponseCode() == StatusCodes.NO_CONTENT);
                                 isException = false;
                             } else {
                                 if (type.getType().equals(EXCEPTION_TYPE)) {

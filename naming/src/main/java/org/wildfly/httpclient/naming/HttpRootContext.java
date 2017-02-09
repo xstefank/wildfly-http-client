@@ -1,20 +1,13 @@
 package org.wildfly.httpclient.naming;
 
-import java.io.InputStream;
-import java.io.UnsupportedEncodingException;
-import java.net.URI;
-import java.net.URLEncoder;
-import java.nio.charset.StandardCharsets;
-import java.util.Collection;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ExecutionException;
-import javax.naming.Binding;
-import javax.naming.Context;
-import javax.naming.Name;
-import javax.naming.NameClassPair;
-import javax.naming.NamingException;
-
+import io.undertow.client.ClientRequest;
+import io.undertow.client.ClientResponse;
+import io.undertow.util.Headers;
+import io.undertow.util.HttpString;
+import io.undertow.util.Methods;
+import io.undertow.util.StatusCodes;
 import org.jboss.marshalling.InputStreamByteInput;
+import org.jboss.marshalling.Marshaller;
 import org.jboss.marshalling.MarshallingConfiguration;
 import org.jboss.marshalling.Unmarshaller;
 import org.wildfly.httpclient.common.ContentType;
@@ -23,11 +16,21 @@ import org.wildfly.httpclient.common.WildflyHttpContext;
 import org.wildfly.naming.client.AbstractFederatingContext;
 import org.wildfly.naming.client.CloseableNamingEnumeration;
 import org.wildfly.naming.client.util.FastHashtable;
-import io.undertow.client.ClientRequest;
-import io.undertow.client.ClientResponse;
-import io.undertow.util.Headers;
-import io.undertow.util.HttpString;
-import io.undertow.util.Methods;
+import org.xnio.IoUtils;
+
+import javax.naming.Binding;
+import javax.naming.Context;
+import javax.naming.Name;
+import javax.naming.NameClassPair;
+import javax.naming.NamingException;
+import java.io.InputStream;
+import java.io.UnsupportedEncodingException;
+import java.net.URI;
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
+import java.util.Collection;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutionException;
 
 /**
  * @author Stuart Douglas
@@ -127,7 +130,11 @@ public class HttpRootContext extends AbstractFederatingContext {
 
     @Override
     protected Context createSubcontextNative(Name name) throws NamingException {
-        return super.createSubcontextNative(name);
+        URI providerUri = httpNamingProvider.getProviderUri();
+        StringBuilder sb = new StringBuilder(providerUri.getPath());
+        sb.append("/naming/v1/create-subcontext/");
+        processInvocation(name, Methods.PUT, providerUri, null, sb);
+        return new HttpRemoteContext(this, name.toString());
     }
 
     private MarshallingConfiguration createMarshallingConfig() {
@@ -137,7 +144,7 @@ public class HttpRootContext extends AbstractFederatingContext {
     }
 
     private Object processInvocation(Name name, HttpString method, URI providerUri, StringBuilder sb) throws NamingException {
-        return processInvocation(name, method, providerUri, sb, (Name)null);
+        return processInvocation(name, method, providerUri, sb, (Name) null);
     }
 
     private Object processInvocation(Name name, HttpString method, URI providerUri, StringBuilder sb, Name newName) throws NamingException {
@@ -164,6 +171,12 @@ public class HttpRootContext extends AbstractFederatingContext {
         targetContext.getConnectionPool().getConnection(connection -> targetContext.sendRequest(connection, clientRequest, null, new HttpTargetContext.HttpResultHandler() {
             @Override
             public void handleResult(InputStream input, ClientResponse response) {
+                if (response.getResponseCode() == StatusCodes.NO_CONTENT) {
+                    result.complete(new HttpRemoteContext(HttpRootContext.this, name.toString()));
+                    IoUtils.safeClose(input);
+                    return;
+                }
+
                 Exception exception = null;
                 Object returned = null;
                 try {
@@ -191,7 +204,7 @@ public class HttpRootContext extends AbstractFederatingContext {
                     result.complete(returned);
                 }
             }
-        }, result::completeExceptionally, VALUE_TYPE, null), result::completeExceptionally, false);
+        }, result::completeExceptionally, VALUE_TYPE, null, true), result::completeExceptionally, false);
 
         try {
             return result.get();
@@ -201,8 +214,8 @@ public class HttpRootContext extends AbstractFederatingContext {
             throw namingException;
         } catch (ExecutionException e) {
             Throwable cause = e.getCause();
-            if(cause instanceof NamingException) {
-                throw (NamingException)cause;
+            if (cause instanceof NamingException) {
+                throw (NamingException) cause;
             } else {
                 NamingException namingException = new NamingException();
                 namingException.initCause(cause);
@@ -225,11 +238,21 @@ public class HttpRootContext extends AbstractFederatingContext {
                 .setPath(path)
                 .setMethod(method);
         clientRequest.getRequestHeaders().put(Headers.ACCEPT, ACCEPT_VALUE);
-
+        if(object != null) {
+            clientRequest.getRequestHeaders().put(Headers.CONTENT_TYPE, VALUE_TYPE.toString());
+        }
         final CompletableFuture<Object> result = new CompletableFuture<>();
 
         final HttpTargetContext targetContext = WildflyHttpContext.getCurrent().getTargetContext(providerUri);
-        targetContext.getConnectionPool().getConnection(connection -> targetContext.sendRequest(connection, clientRequest, null, new HttpTargetContext.HttpResultHandler() {
+        targetContext.getConnectionPool().getConnection(connection -> targetContext.sendRequest(connection, clientRequest, output -> {
+            if(object != null) {
+                Marshaller marshaller = targetContext.createMarshaller(createMarshallingConfig());
+                marshaller.start(output);
+                marshaller.writeObject(object);
+                marshaller.finish();
+            }
+            output.close();
+        }, new HttpTargetContext.HttpResultHandler() {
             @Override
             public void handleResult(InputStream input, ClientResponse response) {
                 Exception exception = null;
@@ -269,8 +292,8 @@ public class HttpRootContext extends AbstractFederatingContext {
             throw namingException;
         } catch (ExecutionException e) {
             Throwable cause = e.getCause();
-            if(cause instanceof NamingException) {
-                throw (NamingException)cause;
+            if (cause instanceof NamingException) {
+                throw (NamingException) cause;
             } else {
                 NamingException namingException = new NamingException();
                 namingException.initCause(cause);

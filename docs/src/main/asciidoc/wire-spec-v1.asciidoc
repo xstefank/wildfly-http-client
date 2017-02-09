@@ -204,7 +204,7 @@ Note that because JNDI lookups are not idempotent this method is a +POST+, rathe
 
 ==== JNDI Lookup Link
 
-Method:: POST
+Method:: GET
 URI:: +/naming/v1/lookuplink/\{jndiName}+
 Additional Required Headers::
 +Accept: application/x-wf-jndi-jbmar-value;version=1,application/x-wf-jbmar-exception;version=1+
@@ -212,11 +212,9 @@ Additional Optional Headers:: Cookie: JSESSIONID=\{sessionAffinityKey}
 Request Body:: The request body is empty
 Notes:: This message sends a JNDI Lookup Link request to the server. If the request completes successfully the server will respond with an +x-wf-jndi-jbmar-value response+. If an error occurred the server will respond with an +x-wf-jbmar-exception+ response.
 
-Note that because JNDI lookups are not idempotent this method is a post, rather than a +GET+ (namely lookups can cause the creation of SFSB’s).
-
 ==== JNDI Bind
 
-Message Type:: +application/x-wf-jndi-jbmar-bind+
+Message Type:: +application/x-wf-jndi-jbmar-value+
 Method:: PUT
 URI:: +/naming/v1/bind/\{jndiName}+
 Additional Required Headers:: 
@@ -227,7 +225,7 @@ Request Body::
 Serialized representation of the object to bind
 
 ==== JNDI Rebind
-Message Type:: +application/x-wf-jndi-jbmar-rebind+
+Message Type:: +application/x-wf-jndi-jbmar-value+
 Method:: +PATCH+
 URI:: +/naming/v1/rebind/\{jndiName}+
 Additional Required Headers:: 
@@ -239,7 +237,6 @@ Serialized representation of the object to rebind
 
 ==== JNDI Unbind
 
-Message Type:: +application/x-wf-jndi-jbmar-unbind+
 Method:: ++DELETE++
 URI:: +/naming/v1/unbind/\{jndiName}+
 Additional Required Headers:: 
@@ -251,7 +248,6 @@ None
 
 ==== JNDI Destroy Subcontext
 
-Message Type:: +application/x-wf-jndi-jbmar-destroy+
 Method:: +DELETE+
 URI:: +/naming/v1/dest-subctx\{jndiName}+
 Additional Required Headers::
@@ -263,7 +259,6 @@ None
 
 ==== JNDI List
 
-Message Type:: +application/x-wf-jndi-jbmar-list+
 Method:: +GET+
 URI:: +/naming/v1/list/\{jndiName}+
 Additional Required Headers::
@@ -277,8 +272,7 @@ The response messages are the same as for a normal lookup, but contains a serial
 
 ==== JNDI List Bindings
 
-Message Type:: +application/x-wf-jndi-jbmar-list-bindings+
-Method:: +POST+
+Method:: +GET+
 URI:: +/naming/v1/list-bindings/\{jndiName}+
 Additional Required Headers::
 +Accept: application/x-wf-jndi-jbmar-value;version=1,application/x-wf-jbmar-exception;version=1+
@@ -290,7 +284,6 @@ Notes::
 The response messages are the same as for a normal lookup, but contains a serialized NamingEnumeration
 
 ==== JNDI Rename
-Message Type:: +application/x-wf-jndi-jbmar-rename+
 Method:: +PATCH+
 URI:: +/naming/v1/rename/\{jndiName}&new=\{newName}+
 Additional Required Headers::
@@ -302,7 +295,6 @@ None
 
 ==== JNDI Create Subcontext
 
-Message Type:: +application/x-wf-jndi-jbmar-create-subcontext+
 Method:: +PUT+
 URI:: +/naming/v1/create-subcontext/\{jndiName}+
 Additional Required Headers::
@@ -324,6 +316,14 @@ The serialized lookup result
 Response Codes::
  * +200+ Returned for a successful invocation
 
+
+==== JNDI Context
+Response Body::
+Empty
+Response Codes::
+ * +204+ No Content
+Notes::
+This response is used to indicate that the result of the lookup was a Context object.
 
 ==== JNDI Result
 Response Body::
