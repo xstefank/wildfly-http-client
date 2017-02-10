@@ -25,7 +25,7 @@ import io.undertow.util.StatusCodes;
  *
  * @author Stuart Douglas
  */
-class ConnectionAuthenticationContext {
+class PoolAuthenticationContext {
 
     private static final AuthenticationContextConfigurationClient AUTH_CONTEXT_CLIENT;
 
@@ -33,7 +33,7 @@ class ConnectionAuthenticationContext {
         AUTH_CONTEXT_CLIENT = AccessController.doPrivileged((PrivilegedAction<AuthenticationContextConfigurationClient>) AuthenticationContextConfigurationClient::new);
     }
 
-    private Type current;
+    private volatile Type current;
 
     boolean handleResponse(ClientResponse response) {
         if (response.getResponseCode() != StatusCodes.UNAUTHORIZED) {

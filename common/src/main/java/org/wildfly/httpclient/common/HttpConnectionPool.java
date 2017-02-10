@@ -42,12 +42,7 @@ public class HttpConnectionPool implements Closeable {
     private static final AuthenticationContextConfigurationClient AUTH_CONTEXT_CLIENT;
 
     static {
-        AUTH_CONTEXT_CLIENT = AccessController.doPrivileged(new PrivilegedAction<AuthenticationContextConfigurationClient>() {
-            @Override
-            public AuthenticationContextConfigurationClient run() {
-                return new AuthenticationContextConfigurationClient();
-            }
-        });
+        AUTH_CONTEXT_CLIENT = AccessController.doPrivileged((PrivilegedAction<AuthenticationContextConfigurationClient>) () -> new AuthenticationContextConfigurationClient());
     }
 
 
@@ -65,6 +60,7 @@ public class HttpConnectionPool implements Closeable {
     private final Map<SSLContext, UndertowXnioSsl> sslInstances = new ConcurrentHashMap<>();
 
     private final Object NULL_SSL_CONTEXT = new Object();
+    private final PoolAuthenticationContext poolAuthenticationContext = new PoolAuthenticationContext();
 
     public HttpConnectionPool(int maxConnections, int maxStreamsPerConnection, XnioWorker worker, ByteBufferPool byteBufferPool,  OptionMap options, HostPool hostPool, long connectionIdleTimeout) {
         this.maxConnections = maxConnections;
@@ -196,7 +192,7 @@ public class HttpConnectionPool implements Closeable {
 
         URI getUri();
 
-        ConnectionAuthenticationContext getAuthenticationContext();
+        PoolAuthenticationContext getAuthenticationContext();
     }
 
 
@@ -225,7 +221,6 @@ public class HttpConnectionPool implements Closeable {
         private volatile XnioExecutor.Key timeoutKey;
         private long timeout;
         private final SSLContext sslContext;
-        private final ConnectionAuthenticationContext connectionAuthenticationContext = new ConnectionAuthenticationContext();
 
         private final Runnable timeoutTask = new Runnable() {
             @Override
@@ -292,8 +287,8 @@ public class HttpConnectionPool implements Closeable {
         }
 
         @Override
-        public ConnectionAuthenticationContext getAuthenticationContext() {
-            return connectionAuthenticationContext;
+        public PoolAuthenticationContext getAuthenticationContext() {
+            return poolAuthenticationContext;
         }
     }
 

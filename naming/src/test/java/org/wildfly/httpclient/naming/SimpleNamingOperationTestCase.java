@@ -14,7 +14,7 @@ import javax.naming.NamingEnumeration;
 import javax.naming.NamingException;
 
 import org.junit.Assert;
-import org.junit.BeforeClass;
+import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.wildfly.httpclient.common.HTTPTestServer;
@@ -28,8 +28,9 @@ public class SimpleNamingOperationTestCase {
 
     private static final Map<String, Object> bindings = new ConcurrentHashMap<>();
 
-    @BeforeClass
-    public static void setup() {
+
+    @Before
+    public void setup() {
         bindings.put("test", "test value");
         bindings.put("comp/UserTransaction", "transaction");
         HTTPTestServer.registerServicesHandler("common/v1/affinity", exchange -> exchange.getResponseCookies().put("JSESSIONID", new CookieImpl("JSESSIONID", "foo")));
@@ -213,7 +214,8 @@ public class SimpleNamingOperationTestCase {
         try {
             ic.lookup("bound");
             Assert.fail();
-        } catch (NameNotFoundException e) {}
+        } catch (NameNotFoundException e) {
+        }
         ic.bind("bound", "test binding");
         Assert.assertEquals("test binding", ic.lookup("bound"));
         ic.rebind("bound", "test binding 2");
@@ -227,6 +229,7 @@ public class SimpleNamingOperationTestCase {
 //        Assert.assertEquals("test binding 2", ic.lookup("bound2"));
 
     }
+
     private InitialContext createContext() throws NamingException {
         Hashtable<String, String> env = new Hashtable<>();
         env.put(Context.INITIAL_CONTEXT_FACTORY, "org.wildfly.naming.client.WildFlyInitialContextFactory");
