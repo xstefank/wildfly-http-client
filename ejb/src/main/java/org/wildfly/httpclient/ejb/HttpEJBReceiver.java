@@ -31,6 +31,8 @@ import org.jboss.marshalling.Unmarshaller;
 import org.wildfly.httpclient.common.HttpConnectionPool;
 import org.wildfly.httpclient.common.HttpTargetContext;
 import org.wildfly.httpclient.common.WildflyHttpContext;
+import org.wildfly.httpclient.naming.HttpNamingProvider;
+import org.wildfly.naming.client.NamingProvider;
 import io.undertow.client.ClientRequest;
 import io.undertow.util.AttachmentKey;
 import io.undertow.util.Headers;
@@ -46,12 +48,15 @@ class HttpEJBReceiver extends EJBReceiver {
     @Override
     protected void processInvocation(EJBReceiverInvocationContext receiverContext) throws Exception {
 
+        final NamingProvider namingProvider = receiverContext.getNamingProvider();
         EJBClientInvocationContext clientInvocationContext = receiverContext.getClientInvocationContext();
         EJBLocator locator = clientInvocationContext.getLocator();
 
         Affinity affinity = locator.getAffinity();
         URI uri;
-        if (affinity instanceof URIAffinity) {
+        if(namingProvider instanceof  HttpNamingProvider) {
+            uri = namingProvider.getProviderUri();
+        } else if (affinity instanceof URIAffinity) {
             uri = affinity.getUri();
         } else {
             throw EjbHttpClientMessages.MESSAGES.invalidAffinity(affinity);
