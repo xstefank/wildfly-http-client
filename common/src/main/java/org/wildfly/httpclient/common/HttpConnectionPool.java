@@ -266,14 +266,14 @@ public class HttpConnectionPool implements Closeable {
 
         @Override
         public void done(boolean close) {
+            if (!state.compareAndSet(1, 0)) {
+                return;
+            }
             if (close) {
                 IoUtils.safeClose(connection);
             }
             timeout = System.currentTimeMillis() + connectionIdleTimeout;
 
-            if (!state.compareAndSet(1, 0)) {
-                throw HttpClientMessages.MESSAGES.connectionInWrongState();
-            }
 
             if (timeoutKey == null && connectionIdleTimeout > 0 && !close) {
                 timeoutKey = connection.getIoThread().executeAfter(timeoutTask, connectionIdleTimeout, TimeUnit.MILLISECONDS);

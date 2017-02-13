@@ -64,7 +64,7 @@ class PoolAuthenticationContext {
             }
             char[] password = callback.getPassword();
             String challenge = principal.getName() + ":" + new String(password);
-            request.getRequestHeaders().put(Headers.AUTHORIZATION, "basic " + FlexBase64.encodeString(challenge.getBytes(StandardCharsets.UTF_8), false));
+            request.getRequestHeaders().put(Headers.AUTHORIZATION, "Basic " + FlexBase64.encodeString(challenge.getBytes(StandardCharsets.UTF_8), false));
             return true;
         }
         return false;

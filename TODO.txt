@@ -2,4 +2,5 @@
 - Buffer Config
 - Request Timeouts
 - Compression
-- Authentication
+- Digest Auth
+- Cancellation
