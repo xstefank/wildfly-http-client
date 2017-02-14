@@ -1,5 +1,6 @@
 package org.wildfly.httpclient.ejb;
 
+import java.io.DataOutput;
 import java.io.IOException;
 import java.io.ObjectInput;
 import java.lang.reflect.Method;
@@ -13,6 +14,10 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Future;
 import javax.ejb.Asynchronous;
+import javax.transaction.RollbackException;
+import javax.transaction.SystemException;
+import javax.transaction.Transaction;
+import javax.transaction.xa.Xid;
 
 import org.jboss.ejb.client.Affinity;
 import org.jboss.ejb.client.EJBClientInvocationContext;
@@ -32,7 +37,13 @@ import org.wildfly.httpclient.common.HttpConnectionPool;
 import org.wildfly.httpclient.common.HttpTargetContext;
 import org.wildfly.httpclient.common.WildflyHttpContext;
 import org.wildfly.httpclient.naming.HttpNamingProvider;
+import org.wildfly.httpclient.transaction.XidProvider;
 import org.wildfly.naming.client.NamingProvider;
+import org.wildfly.transaction.client.ContextTransactionManager;
+import org.wildfly.transaction.client.LocalTransaction;
+import org.wildfly.transaction.client.RemoteTransaction;
+import org.wildfly.transaction.client.RemoteTransactionContext;
+import org.wildfly.transaction.client.XAOutflowHandle;
 import io.undertow.client.ClientRequest;
 import io.undertow.util.AttachmentKey;
 import io.undertow.util.Headers;
@@ -45,6 +56,12 @@ class HttpEJBReceiver extends EJBReceiver {
 
     private final AttachmentKey<EjbContextData> EJB_CONTEXT_DATA = AttachmentKey.create(EjbContextData.class);
 
+    private final RemoteTransactionContext transactionContext;
+
+    HttpEJBReceiver() {
+        transactionContext = RemoteTransactionContext.getInstance();
+    }
+
     @Override
     protected void processInvocation(EJBReceiverInvocationContext receiverContext) throws Exception {
 
@@ -54,7 +71,7 @@ class HttpEJBReceiver extends EJBReceiver {
 
         Affinity affinity = locator.getAffinity();
         URI uri;
-        if(namingProvider instanceof  HttpNamingProvider) {
+        if (namingProvider instanceof HttpNamingProvider) {
             uri = namingProvider.getProviderUri();
         } else if (affinity instanceof URIAffinity) {
             uri = affinity.getUri();
@@ -117,7 +134,13 @@ class HttpEJBReceiver extends EJBReceiver {
                 .setView(locator.getViewType().getName())
                 .setBeanName(locator.getBeanName());
         ClientRequest request = builder.createRequest(connection.getUri().getPath());
-        targetContext.sendRequest(connection, request, null,
+        targetContext.sendRequest(connection, request, output -> {
+                    MarshallingConfiguration config = createMarshallingConfig();
+                    Marshaller marshaller = targetContext.createMarshaller(config);
+                    marshaller.start(output);
+                    writeTransaction(ContextTransactionManager.getInstance().getTransaction(), marshaller, connection.getUri());
+                    marshaller.finish();
+                },
                 ((unmarshaller, response) -> {
                     String sessionId = response.getResponseHeaders().getFirst(EjbHeaders.EJB_SESSION_ID);
                     if (sessionId == null) {
@@ -204,11 +227,12 @@ class HttpEJBReceiver extends EJBReceiver {
         return marshallingConfiguration;
     }
 
-    private void marshalEJBRequest(ByteOutput byteOutput, EJBClientInvocationContext clientInvocationContext, HttpTargetContext targetContext) throws IOException {
+    private void marshalEJBRequest(ByteOutput byteOutput, EJBClientInvocationContext clientInvocationContext, HttpTargetContext targetContext) throws IOException, RollbackException, SystemException {
 
         MarshallingConfiguration config = createMarshallingConfig();
         Marshaller marshaller = targetContext.createMarshaller(config);
         marshaller.start(byteOutput);
+        writeTransaction(clientInvocationContext.getTransaction(), marshaller, targetContext.getUri());
 
 
         Object[] methodParams = clientInvocationContext.getParameters();
@@ -247,6 +271,45 @@ class HttpEJBReceiver extends EJBReceiver {
         }
         // finish marshalling
         marshaller.finish();
+    }
+
+
+    private XAOutflowHandle writeTransaction(final Transaction transaction, final DataOutput dataOutput, URI uri) throws IOException, RollbackException, SystemException {
+
+        if (transaction == null) {
+            dataOutput.writeByte(0);
+            return null;
+        } else if (transaction instanceof RemoteTransaction) {
+            dataOutput.writeByte(1);
+            final XidProvider ir = ((RemoteTransaction) transaction).getProviderInterface(XidProvider.class);
+            if (ir == null) throw EjbHttpClientMessages.MESSAGES.cannotEnlistTx();
+            Xid xid = ir.getXid();
+            dataOutput.writeByte(1);
+            dataOutput.writeInt(xid.getFormatId());
+            final byte[] gtid = xid.getGlobalTransactionId();
+            dataOutput.writeByte(gtid.length);
+            dataOutput.write(gtid);
+            final byte[] bq = xid.getBranchQualifier();
+            dataOutput.writeByte(bq.length);
+            dataOutput.write(bq);
+            return null;
+        } else if (transaction instanceof LocalTransaction) {
+            final LocalTransaction localTransaction = (LocalTransaction) transaction;
+            final XAOutflowHandle outflowHandle = transactionContext.outflowTransaction(uri, localTransaction);
+            final Xid xid = outflowHandle.getXid();
+            dataOutput.writeByte(2);
+            dataOutput.writeInt(xid.getFormatId());
+            final byte[] gtid = xid.getGlobalTransactionId();
+            dataOutput.writeByte(gtid.length);
+            dataOutput.write(gtid);
+            final byte[] bq = xid.getBranchQualifier();
+            dataOutput.writeByte(bq.length);
+            dataOutput.write(bq);
+            dataOutput.writeInt(outflowHandle.getRemainingTime());
+            return outflowHandle;
+        } else {
+            throw EjbHttpClientMessages.MESSAGES.cannotEnlistTx();
+        }
     }
 
     private static Map<String, Object> readAttachments(final ObjectInput input) throws IOException, ClassNotFoundException {

@@ -94,7 +94,7 @@ public class WildflyHttpContext implements Contextual<WildflyHttpContext> {
                 return context;
             }
             HttpConnectionPool pool = new HttpConnectionPool(maxConnections, maxStreamsPerConnection, worker, this.pool, OptionMap.create(UndertowOptions.ENABLE_HTTP2, enableHttp2), new HostPool(uri), idleTimeout);
-            uriConnectionPools.put(uri, context = new HttpTargetContext(pool, eagerlyAcquireAffinity));
+            uriConnectionPools.put(uri, context = new HttpTargetContext(pool, eagerlyAcquireAffinity, uri));
             context.init();
             return context;
         }
@@ -139,7 +139,6 @@ public class WildflyHttpContext implements Contextual<WildflyHttpContext> {
                 int maxConnections = this.maxConnections > 0 ? this.maxConnections : 10;
                 int maxStreamsPerConnection = this.maxStreamsPerConnection > 0 ? this.maxStreamsPerConnection : 10;
 
-
                 for (int i = 0; i < this.targets.size(); ++i) {
                     HttpConfigBuilder sb = this.targets.get(i);
                     HostPool hp = new HostPool(sb.getUri());
@@ -151,7 +150,7 @@ public class WildflyHttpContext implements Contextual<WildflyHttpContext> {
                     if(sb.getEnableHttp2() != null) {
                         http2 = sb.getEnableHttp2();
                     }
-                    WildflyHttpContext.ConfigSection connection = new WildflyHttpContext.ConfigSection(new HttpTargetContext(new HttpConnectionPool(sb.getMaxConnections() > 0 ? sb.getMaxConnections() : maxConnections, sb.getMaxStreamsPerConnection() > 0 ? sb.getMaxStreamsPerConnection() : maxStreamsPerConnection, worker, pool, OptionMap.create(UndertowOptions.ENABLE_HTTP2, enableHttp2), hp, sb.getIdleTimeout() > 0 ? sb.getIdleTimeout() : idleTimout), eager), sb.getUri());
+                    WildflyHttpContext.ConfigSection connection = new WildflyHttpContext.ConfigSection(new HttpTargetContext(new HttpConnectionPool(sb.getMaxConnections() > 0 ? sb.getMaxConnections() : maxConnections, sb.getMaxStreamsPerConnection() > 0 ? sb.getMaxStreamsPerConnection() : maxStreamsPerConnection, worker, pool, OptionMap.create(UndertowOptions.ENABLE_HTTP2, http2), hp, sb.getIdleTimeout() > 0 ? sb.getIdleTimeout() : idleTimout), eager, sb.getUri()), sb.getUri());
                     connections[i] = connection;
                 }
                 return new WildflyHttpContext(connections, maxConnections, maxStreamsPerConnection, idleTimeout, eagerlyAcquireSession == null ? false : eagerlyAcquireSession, worker, pool, enableHttp2 == null ? true : enableHttp2);

@@ -166,7 +166,7 @@ public class HttpRootContext extends AbstractContext {
         final CompletableFuture<Object> result = new CompletableFuture<>();
 
         final HttpTargetContext targetContext = WildflyHttpContext.getCurrent().getTargetContext(providerUri);
-        targetContext.getConnectionPool().getConnection(connection -> targetContext.sendRequest(connection, clientRequest, null, (input, response) -> {
+        targetContext.sendRequest(clientRequest, null, (input, response) -> {
             if (response.getResponseCode() == StatusCodes.NO_CONTENT) {
                 result.complete(new HttpRemoteContext(HttpRootContext.this, name.toString()));
                 IoUtils.safeClose(input);
@@ -198,7 +198,7 @@ public class HttpRootContext extends AbstractContext {
             } else {
                 result.complete(returned);
             }
-        }, result::completeExceptionally, VALUE_TYPE, null, true), result::completeExceptionally, false);
+        }, result::completeExceptionally, VALUE_TYPE, null, true);
 
         try {
             return result.get();
@@ -238,7 +238,7 @@ public class HttpRootContext extends AbstractContext {
         final CompletableFuture<Object> result = new CompletableFuture<>();
 
         final HttpTargetContext targetContext = WildflyHttpContext.getCurrent().getTargetContext(providerUri);
-        targetContext.getConnectionPool().getConnection(connection -> targetContext.sendRequest(connection, clientRequest, output -> {
+        targetContext.sendRequest(clientRequest, output -> {
             if (object != null) {
                 Marshaller marshaller = targetContext.createMarshaller(createMarshallingConfig());
                 marshaller.start(output);
@@ -248,7 +248,7 @@ public class HttpRootContext extends AbstractContext {
             output.close();
         }, (input, response) -> {
             result.complete(null);
-        }, result::completeExceptionally, null, null), result::completeExceptionally, false);
+        }, result::completeExceptionally, null, null);
 
         try {
             result.get();

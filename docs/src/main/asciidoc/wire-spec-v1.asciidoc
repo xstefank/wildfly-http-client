@@ -117,6 +117,9 @@ Additional Optional Headers::
 +Cookie: JSESSIONID=\{sessionAffinityKey}+
 X-wf-invocation-id: {invocationId}
 Request Body::
+The request body is serialized with JBoss Marshalling. The first item is a serialized transaction, which consists of a byte to indicate if a transaction is present (0 for not present, 1 for remote, 2 for locally outflowed).
+If the transaction byte is 1 or 2 then it will be followed by an integer and two byte arrays, which represent the format, global and branch parts of an Xid.
+
 The method body consists of n parameter values, serialized using JBoss Marshalling, followed by a serialized attachments map of the form +Map<String, Object>+.
 Notes::
 This message sends a request to the server. If the request completes successfully (or is submitted successfully in the case of a void returning async EJB methods) the server will respond with an +x-wf-ejb-jbmar-response response+. If an error occurred the server will respond with an +x-wf-jbmar-exception+ response.
@@ -128,15 +131,14 @@ The sfsbSessionId parameter is a base64 encoded representation of the SFSB EJB s
 ==== EJB Session Open
 
 Method::: +POST+
+Message Type:: +application/x-wf-jbmar-sess-open+
 URI:: +/ejb/v1/open/\{applicationName}/\{moduleName}/\{distinctName}/\{beanName}+
 Additional Required Headers::
 +Accept: application/x-wf-jbmar-exception;version=1+
 Additional Optional Headers::
 +Cookie: JSESSIONID=\{sessionAffinityKey}+
 Request Body::
-The request body is empty.
-
-This message sends a request to the server. Full details on how it is handled can be found in the specification for the various returned messages.
+The request body contains a serialized transaction (see the invocation message for details).
 
 ==== EJB Cancel
 
@@ -337,80 +339,94 @@ This response is only used to indicate success for void returning methods.
 
 === Request Messages
 
+==== Transaction Begin
+
+Method:: +POST+
+URI:: +/txn/v1/ut/begin+
+Additional Required Headers::
++Accept: application/x-wf-jbmar-exception;version=1,application/x-wf-jbmar-new-txn;version=1+
+Additional Optional Headers::
++Cookie: JSESSIONID=\{sessionAffinityKey}+
+Request Body::
+The request body is empty.
+
 ==== Transaction Commit
 
 Method:: +POST+
-URI:: +/txn/v1/\{type}/commit\{transactionId}+
+Message Type:: +application/x-wf-jbmar-xid;version=1+
+URI:: +/txn/v1/\{type}/commit+
 Additional Required Headers::
 +Accept: application/x-wf-jbmar-exception;version=1+
-Additional Optional Headers::
 +Cookie: JSESSIONID=\{sessionAffinityKey}+
 Request Body::
-The request body is empty.
+JBoss marshalling representation of formatId, global ID and branch ID (the components of an XID).
+
 
 ==== Transaction Rollback
 
-Method:: +DELETE+
-URI:: +/txn/v1/\{type}/rollback/\{transactionId}+
+Method:: +POST+
+Message Type:: +application/x-wf-jbmar-xid;version=1+
+URI:: +/txn/v1/\{type}/rollback+
 Additional Required Headers::
 +Accept: application/x-wf-jbmar-exception;version=1+
-Additional Optional Headers::
 +Cookie: JSESSIONID=\{sessionAffinityKey}+
 Request Body::
-The request body is empty.
+JBoss marshalling representation of formatId, global ID and branch ID (the components of an XID).
 
 ==== Transaction before completion
 
 Method:: +POST+
-URI:: +/txn/v1/xa/bc/\{transactionId}+
+Message Type:: +application/x-wf-jbmar-xid;version=1+
+URI:: +/txn/v1/xa/bc+
 Additional Required Headers::
 +Accept: application/x-wf-jbmar-exception;version=1+
-Additional Optional Headers::
 +Cookie: JSESSIONID=\{sessionAffinityKey}+
 Request Body::
-The request body is empty.
+JBoss marshalling representation of formatId, global ID and branch ID (the components of an XID).
 
 ==== Distributed Transaction Prepare
 
 Method:: +POST+
-URI:: +/txn/v1/xa/prep/\{transactionId}+
+Message Type:: +application/x-wf-jbmar-xid;version=1+
+URI:: +/txn/v1/xa/prep+
 Additional Required Headers::
 +Accept: application/x-wf-jbmar-exception;version=1+
-Additional Optional Headers::
 +Cookie: JSESSIONID=\{sessionAffinityKey}+
 Request Body::
-The request body is empty.
+JBoss marshalling representation of formatId, global ID and branch ID (the components of an XID).
 
 ==== Distributed Transaction Commit
 
 Method:: +POST+
-URI:: +/txn/v1/xa/commit/\{transactionId}(?opc)?+
+Message Type:: +application/x-wf-jbmar-xid;version=1+
+URI:: +/txn/v1/xa/commit(?opc)?+
 Additional Required Headers::
 +Accept: application/x-wf-jbmar-exception;version=1+
-Additional Optional Headers::
 +Cookie: JSESSIONID=\{sessionAffinityKey}+
 Request Body::
 The request body is empty.
 Notes::
+JBoss marshalling representation of formatId, global ID and branch ID (the components of an XID).
 If the opc request parameter is present then a one phase commit is done.
 
 ==== Distributed Transaction Forget
 
 Method:: +POST+
-URI:: +/txn/v1/xa/forget/\{transactionId}+
+Message Type:: +application/x-wf-jbmar-xid;version=1+
+URI:: +/txn/v1/xa/forget+
 Additional Required Headers::
 +Accept: application/x-wf-jbmar-exception;version=1+
 Additional Optional Headers::
 +Cookie: JSESSIONID=\{sessionAffinityKey}+
 Request Body::
-The request body is empty.
+JBoss marshalling representation of formatId, global ID and branch ID (the components of an XID).
 
 ==== Distributed Transaction Recovery
 
 Method:: +GET+
 URI:: +/txn/v1/xa/recover+
 Additional Required Headers::
-+Accept: text/x-wf-txn-jbmar-xids;version=1,application/x-wf-jbmar-exception;version=1+
++Accept: text/x-wf-txn-jbmar-xid-list;version=1,application/x-wf-jbmar-exception;version=1+
 x-wf-txn-jbmar-parent-node-name: The parent node name
 x-wf-txn-jbmar-recovery-flags: The recovery flags as a base 10 integer
 Additional Optional Headers::
@@ -419,6 +435,21 @@ Request Body::
 The request body is empty.
 
 === Transaction Responses
+
+
+==== Begin Transaction
+
+Message Type:: +application/x-wf-jbmar-new-txn;version=1+
+Required Headers::
++x-wf-txn-jbmar-id: \{transactionId}+
+Optional Headers::
++Set-Cookie: JSESSIONID=\{sessionAffinityKey}+
+Response Body::
+
+Jboss marshalling representation of formatId, global ID and branch ID (the components of an XID).
+
+Response Codes::
+ * +200+ Returned for a successful invocation
 
 ==== New Transaction
 
@@ -445,7 +476,7 @@ This response is used to indicate operation success
 
 ==== Transaction XIDS
 
-Message Type:: +text/x-wf-txn-jbmar-xids+
+Message Type:: +text/x-wf-txn-jbmar-xid-list+
 Optional Headers::
 +Set-Cookie: JSESSIONID=\{sessionAffinityKey}+
 Response Body::

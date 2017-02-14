@@ -15,7 +15,6 @@ import org.wildfly.common.annotation.NotNull;
 import org.wildfly.httpclient.common.HTTPTestServer;
 import io.undertow.server.handlers.CookieImpl;
 import io.undertow.server.handlers.PathHandler;
-import io.undertow.util.Headers;
 
 /**
  * @author Stuart Douglas
@@ -72,7 +71,7 @@ public class EJBTestServer extends HTTPTestServer {
             public ListenerHandle registerModuleAvailabilityListener(@NotNull ModuleAvailabilityListener moduleAvailabilityListener) {
                 return null;
             }
-        }, null).createHttpHandler());
+        }, null, null).createHttpHandler());
 
     }
 }

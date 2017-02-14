@@ -6,6 +6,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.ObjectInput;
 import java.io.OutputStream;
+import java.net.URI;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
@@ -48,13 +49,15 @@ public class HttpTargetContext extends AbstractAttachable {
     private final boolean eagerlyAcquireAffinity;
     private volatile CountDownLatch sessionAffinityLatch = new CountDownLatch(1);
     private volatile String sessionId;
+    private final URI uri;
 
     private final AtomicBoolean affinityRequestSent = new AtomicBoolean();
 
 
-    HttpTargetContext(HttpConnectionPool connectionPool, boolean eagerlyAcquireAffinity) {
+    HttpTargetContext(HttpConnectionPool connectionPool, boolean eagerlyAcquireAffinity, URI uri) {
         this.connectionPool = connectionPool;
         this.eagerlyAcquireAffinity = eagerlyAcquireAffinity;
+        this.uri = uri;
     }
 
     void init() {
@@ -65,23 +68,17 @@ public class HttpTargetContext extends AbstractAttachable {
 
     private void acquireAffinitiy() {
         if (affinityRequestSent.compareAndSet(false, true)) {
-            connectionPool.getConnection(connection -> {
-                        acquireSessionAffinity(connection, sessionAffinityLatch);
-                    },
-                    (t) -> {
-                        sessionAffinityLatch.countDown();
-                        HttpClientMessages.MESSAGES.failedToAcquireSession(t);
-                    }, false);
+            acquireSessionAffinity(sessionAffinityLatch);
         }
     }
 
 
-    private void acquireSessionAffinity(HttpConnectionPool.ConnectionHandle connection, CountDownLatch latch) {
+    private void acquireSessionAffinity(CountDownLatch latch) {
         ClientRequest clientRequest = new ClientRequest();
         clientRequest.setMethod(Methods.GET);
-        clientRequest.setPath(connection.getUri().getPath() + "/common/v1/affinity");
+        clientRequest.setPath(uri.getPath() + "/common/v1/affinity");
 
-        sendRequest(connection, clientRequest, null, null, (e) -> {
+        sendRequest(clientRequest, null, null, (e) -> {
             latch.countDown();
             HttpClientMessages.MESSAGES.failedToAcquireSession(e);
         }, null, latch::countDown);
@@ -93,6 +90,20 @@ public class HttpTargetContext extends AbstractAttachable {
 
     public Marshaller createMarshaller(MarshallingConfiguration marshallingConfiguration) throws IOException {
         return MARSHALLER_FACTORY.createMarshaller(marshallingConfiguration);
+    }
+
+    public void sendRequest( ClientRequest request, HttpMarshaller httpMarshaller, HttpResultHandler httpResultHandler, HttpFailureHandler failureHandler, ContentType expectedResponse, Runnable completedTask) {
+        if (sessionId != null) {
+            request.getRequestHeaders().add(Headers.COOKIE, "JSESSIONID=" + sessionId);
+        }
+        connectionPool.getConnection(connection -> sendRequestInternal(connection, request, httpMarshaller, httpResultHandler, failureHandler, expectedResponse, completedTask, false, false), failureHandler::handleFailure, false);
+    }
+
+    public void sendRequest(ClientRequest request, HttpMarshaller httpMarshaller, HttpResultHandler httpResultHandler, HttpFailureHandler failureHandler, ContentType expectedResponse, Runnable completedTask, boolean allowNoContent) {
+        if (sessionId != null) {
+            request.getRequestHeaders().add(Headers.COOKIE, "JSESSIONID=" + sessionId);
+        }
+        connectionPool.getConnection(connection -> sendRequestInternal(connection, request, httpMarshaller, httpResultHandler, failureHandler, expectedResponse, completedTask, allowNoContent, false), failureHandler::handleFailure, false);
     }
 
     public void sendRequest(final HttpConnectionPool.ConnectionHandle connection, ClientRequest request, HttpMarshaller httpMarshaller, HttpResultHandler httpResultHandler, HttpFailureHandler failureHandler, ContentType expectedResponse, Runnable completedTask) {
@@ -242,7 +253,7 @@ public class HttpTargetContext extends AbstractAttachable {
                             // start the marshaller
                             httpMarshaller.marshall(byteOutput);
 
-                        } catch (IOException e) {
+                        } catch (Exception e) {
                             connection.done(true);
                             failureHandler.handleFailure(e);
                         }
@@ -297,6 +308,9 @@ public class HttpTargetContext extends AbstractAttachable {
         this.sessionId = sessionId;
     }
 
+    public URI getUri() {
+        return uri;
+    }
 
     public void clearSessionId() {
         synchronized (this) {
@@ -323,7 +337,7 @@ public class HttpTargetContext extends AbstractAttachable {
     }
 
     public interface HttpMarshaller {
-        void marshall(ByteOutput output) throws IOException;
+        void marshall(ByteOutput output) throws Exception;
     }
 
     public interface HttpResultHandler {

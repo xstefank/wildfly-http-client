@@ -41,4 +41,10 @@ interface EjbHttpClientMessages extends BasicLogger {
 
     @Message(id = 9, value = "Wrong view type")
     EJBException wrongViewType();
+
+    @Message(id = 10, value = "Cannot enlist in transaction")
+    IllegalStateException cannotEnlistTx();
+
+    @Message(id = 11, value = "Invalid transaction type %s")
+    IOException invalidTransactionType(int type);
 }

@@ -213,6 +213,7 @@ class EJBInvocationBuilder {
             clientRequest.getRequestHeaders().put(Headers.CONTENT_TYPE, EjbHeaders.INVOCATION_VERSION_ONE);
         } else if (invocationType == InvocationType.STATEFUL_CREATE) {
             clientRequest.setMethod(Methods.POST);
+            clientRequest.getRequestHeaders().put(Headers.CONTENT_TYPE, EjbHeaders.SESSION_OPEN_VERSION_ONE);
             clientRequest.setPath(buildPath(mountPoint,"open", appName, moduleName, distinctName, beanName));
             clientRequest.getRequestHeaders().add(Headers.ACCEPT, STATEFUL_CREATE_ACCEPT);
         }

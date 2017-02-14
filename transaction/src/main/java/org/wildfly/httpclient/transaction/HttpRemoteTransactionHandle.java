@@ -18,15 +18,22 @@
 
 package org.wildfly.httpclient.transaction;
 
-import org.wildfly.httpclient.common.HttpTargetContext;
-import org.wildfly.transaction.client.spi.SimpleTransactionControl;
-
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.atomic.AtomicInteger;
 import javax.transaction.HeuristicMixedException;
 import javax.transaction.HeuristicRollbackException;
 import javax.transaction.RollbackException;
 import javax.transaction.Status;
 import javax.transaction.SystemException;
-import java.util.concurrent.atomic.AtomicInteger;
+import javax.transaction.xa.Xid;
+
+import org.jboss.marshalling.Marshaller;
+import org.wildfly.httpclient.common.HttpTargetContext;
+import org.wildfly.transaction.client.spi.SimpleTransactionControl;
+import io.undertow.client.ClientRequest;
+import io.undertow.util.Headers;
+import io.undertow.util.Methods;
 
 /**
  * @author <a href="mailto:david.lloyd@redhat.com">David M. Lloyd</a>
@@ -35,39 +42,173 @@ class HttpRemoteTransactionHandle implements SimpleTransactionControl {
 
     private final HttpTargetContext targetContext;
     private final AtomicInteger statusRef = new AtomicInteger(Status.STATUS_ACTIVE);
-    private final int id;
+    private final Xid id;
 
-    HttpRemoteTransactionHandle(final int id, final HttpTargetContext targetContext) {
+    HttpRemoteTransactionHandle(final Xid id, final HttpTargetContext targetContext) {
         this.id = id;
         this.targetContext = targetContext;
     }
 
-    public int getId() {
+    Xid getId() {
         return id;
     }
 
-    @Override
     public void commit() throws RollbackException, HeuristicMixedException, HeuristicRollbackException, SecurityException, SystemException {
+        final AtomicInteger statusRef = this.statusRef;
+        int oldVal = statusRef.get();
+        if (oldVal != Status.STATUS_ACTIVE && oldVal != Status.STATUS_MARKED_ROLLBACK) {
+            throw HttpRemoteTransactionMessages.MESSAGES.invalidTxnState();
+        }
+        synchronized (statusRef) {
+            oldVal = statusRef.get();
+            if (oldVal == Status.STATUS_MARKED_ROLLBACK) {
+                rollback();
+                throw HttpRemoteTransactionMessages.MESSAGES.rollbackOnlyRollback();
+            }
+            if (oldVal != Status.STATUS_ACTIVE) {
+                throw HttpRemoteTransactionMessages.MESSAGES.invalidTxnState();
+            }
+            final CompletableFuture<Void> result = new CompletableFuture<>();
+            statusRef.set(Status.STATUS_COMMITTING);
+            ClientRequest cr = new ClientRequest()
+                    .setMethod(Methods.POST)
+                    .setPath(targetContext.getUri().getPath() + "/txn/v1/ut/commit");
+            cr.getRequestHeaders().put(Headers.ACCEPT, TransactionHeaders.EXCEPTION);
+            cr.getRequestHeaders().put(Headers.CONTENT_TYPE, TransactionHeaders.XID);
+            targetContext.sendRequest(cr, output -> {
+                Marshaller marshaller = targetContext.createMarshaller(HttpRemoteTransactionPeer.createMarshallingConf());
+                marshaller.start(output);
+                marshaller.writeInt(id.getFormatId());
+                final byte[] gtid = id.getGlobalTransactionId();
+                marshaller.writeByte(gtid.length);
+                marshaller.write(gtid);
+                final byte[] bq = id.getBranchQualifier();
+                marshaller.writeByte(bq.length);
+                marshaller.write(bq);
+                marshaller.finish();
+                output.close();
+            }, (input, response) -> result.complete(null), result::completeExceptionally, null, null);
 
+            try {
+                result.get();
+                statusRef.set(Status.STATUS_COMMITTED);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                statusRef.set(Status.STATUS_UNKNOWN);
+                throw HttpRemoteTransactionMessages.MESSAGES.operationInterrupted();
+            } catch (ExecutionException e) {
+                try {
+                    throw e.getCause();
+                } catch (RollbackException ex) {
+                    statusRef.set(Status.STATUS_ROLLEDBACK);
+                    throw ex;
+                } catch (SecurityException ex) {
+                    statusRef.set(oldVal);
+                    throw ex;
+                } catch (HeuristicMixedException | HeuristicRollbackException | SystemException ex) {
+                    statusRef.set(Status.STATUS_UNKNOWN);
+                    throw ex;
+                } catch (Throwable throwable) {
+                    SystemException ex = new SystemException(throwable.getMessage());
+                    statusRef.set(Status.STATUS_UNKNOWN);
+                    ex.initCause(throwable);
+                    throw ex;
+                }
+            }
+        }
     }
 
-    @Override
     public void rollback() throws SecurityException, SystemException {
+        final AtomicInteger statusRef = this.statusRef;
+        int oldVal = statusRef.get();
+        if (oldVal != Status.STATUS_ACTIVE && oldVal != Status.STATUS_MARKED_ROLLBACK) {
+            throw HttpRemoteTransactionMessages.MESSAGES.invalidTxnState();
+        }
+        synchronized (statusRef) {
+            oldVal = statusRef.get();
+            if (oldVal != Status.STATUS_ACTIVE && oldVal != Status.STATUS_MARKED_ROLLBACK) {
+                throw HttpRemoteTransactionMessages.MESSAGES.invalidTxnState();
+            }
+            statusRef.set(Status.STATUS_ROLLING_BACK);
 
+            final CompletableFuture<Void> result = new CompletableFuture<>();
+            statusRef.set(Status.STATUS_COMMITTING);
+            ClientRequest cr = new ClientRequest()
+                    .setMethod(Methods.POST)
+                    .setPath(targetContext.getUri().getPath() + "/txn/v1/ut/rollback");
+            cr.getRequestHeaders().put(Headers.ACCEPT, TransactionHeaders.EXCEPTION);
+            cr.getRequestHeaders().put(Headers.CONTENT_TYPE, TransactionHeaders.XID);
+            targetContext.sendRequest(cr, output -> {
+                Marshaller marshaller = targetContext.createMarshaller(HttpRemoteTransactionPeer.createMarshallingConf());
+                marshaller.start(output);
+                marshaller.writeInt(id.getFormatId());
+                final byte[] gtid = id.getGlobalTransactionId();
+                marshaller.writeByte(gtid.length);
+                marshaller.write(gtid);
+                final byte[] bq = id.getBranchQualifier();
+                marshaller.writeByte(bq.length);
+                marshaller.write(bq);
+                marshaller.finish();
+                output.close();
+            }, (input, response) -> result.complete(null), result::completeExceptionally, null, null);
+
+            try {
+                result.get();
+                statusRef.set(Status.STATUS_ROLLEDBACK);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                statusRef.set(Status.STATUS_UNKNOWN);
+                throw HttpRemoteTransactionMessages.MESSAGES.operationInterrupted();
+            } catch (ExecutionException e) {
+                try {
+                    throw e.getCause();
+                } catch (SecurityException ex) {
+                    statusRef.set(oldVal);
+                    throw ex;
+                } catch (SystemException ex) {
+                    statusRef.set(Status.STATUS_UNKNOWN);
+                    throw ex;
+                } catch (Throwable throwable) {
+                    SystemException ex = new SystemException(throwable.getMessage());
+                    statusRef.set(Status.STATUS_UNKNOWN);
+                    ex.initCause(throwable);
+                    throw ex;
+                }
+            }
+        }
     }
 
-    @Override
     public void setRollbackOnly() throws SystemException {
-
+        final AtomicInteger statusRef = this.statusRef;
+        int oldVal = statusRef.get();
+        if (oldVal == Status.STATUS_MARKED_ROLLBACK) {
+            return;
+        } else if (oldVal != Status.STATUS_ACTIVE) {
+            throw HttpRemoteTransactionMessages.MESSAGES.invalidTxnState();
+        }
+        synchronized (statusRef) {
+            // re-check under lock
+            oldVal = statusRef.get();
+            if (oldVal == Status.STATUS_MARKED_ROLLBACK) {
+                return;
+            } else if (oldVal != Status.STATUS_ACTIVE) {
+                throw HttpRemoteTransactionMessages.MESSAGES.invalidTxnState();
+            }
+            statusRef.set(Status.STATUS_MARKED_ROLLBACK);
+        }
     }
 
     @Override
-    public void safeRollback() {
+    public <T> T getProviderInterface(Class<T> providerInterfaceType) {
+        if(providerInterfaceType == XidProvider.class) {
+            return (T) new XidProvider() {
 
-    }
-
-    @Override
-    public <T> T getProviderInterface(Class<T> aClass) {
+                @Override
+                public Xid getXid() {
+                    return getXid();
+                }
+            };
+        }
         return null;
     }
 }
