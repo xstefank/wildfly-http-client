@@ -113,13 +113,6 @@ public class HttpTargetContext extends AbstractAttachable {
         sendRequestInternal(connection, request, httpMarshaller, httpResultHandler, failureHandler, expectedResponse, completedTask, false, false);
     }
 
-    public void sendRequest(final HttpConnectionPool.ConnectionHandle connection, ClientRequest request, HttpMarshaller httpMarshaller, HttpResultHandler httpResultHandler, HttpFailureHandler failureHandler, ContentType expectedResponse, Runnable completedTask, boolean allowNoContent) {
-        if (sessionId != null) {
-            request.getRequestHeaders().add(Headers.COOKIE, "JSESSIONID=" + sessionId);
-        }
-        sendRequestInternal(connection, request, httpMarshaller, httpResultHandler, failureHandler, expectedResponse, completedTask, allowNoContent, false);
-    }
-
     public void sendRequestInternal(final HttpConnectionPool.ConnectionHandle connection, ClientRequest request, HttpMarshaller httpMarshaller, HttpResultHandler httpResultHandler, HttpFailureHandler failureHandler, ContentType expectedResponse, Runnable completedTask, boolean allowNoContent, boolean retry) {
 
         final boolean authAdded = retry || connection.getAuthenticationContext().prepareRequest(connection.getUri(), request);

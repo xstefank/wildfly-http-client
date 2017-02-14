@@ -126,8 +126,8 @@ class HttpEJBReceiver extends EJBReceiver {
 
     private <T> void openSessionConnectionReady(HttpConnectionPool.ConnectionHandle connection, CompletableFuture<StatefulEJBLocator<T>> result, StatelessEJBLocator<T> locator, HttpTargetContext targetContext) throws IllegalArgumentException {
 
-        EJBInvocationBuilder builder = new EJBInvocationBuilder()
-                .setInvocationType(EJBInvocationBuilder.InvocationType.STATEFUL_CREATE)
+        HttpEJBInvocationBuilder builder = new HttpEJBInvocationBuilder()
+                .setInvocationType(HttpEJBInvocationBuilder.InvocationType.STATEFUL_CREATE)
                 .setAppName(locator.getAppName())
                 .setModuleName(locator.getModuleName())
                 .setDistinctName(locator.getDistinctName())
@@ -157,8 +157,8 @@ class HttpEJBReceiver extends EJBReceiver {
     private void invocationConnectionReady(EJBClientInvocationContext clientInvocationContext, EJBReceiverInvocationContext receiverContext, HttpConnectionPool.ConnectionHandle connection, HttpTargetContext targetContext) {
         EjbContextData ejbData = targetContext.getAttachment(EJB_CONTEXT_DATA);
         EJBLocator<?> locator = clientInvocationContext.getLocator();
-        EJBInvocationBuilder builder = new EJBInvocationBuilder()
-                .setInvocationType(EJBInvocationBuilder.InvocationType.METHOD_INVOCATION)
+        HttpEJBInvocationBuilder builder = new HttpEJBInvocationBuilder()
+                .setInvocationType(HttpEJBInvocationBuilder.InvocationType.METHOD_INVOCATION)
                 .setMethod(clientInvocationContext.getInvokedMethod())
                 .setAppName(locator.getAppName())
                 .setModuleName(locator.getModuleName())

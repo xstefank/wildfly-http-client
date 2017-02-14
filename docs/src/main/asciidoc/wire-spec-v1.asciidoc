@@ -345,16 +345,17 @@ Method:: +POST+
 URI:: +/txn/v1/ut/begin+
 Additional Required Headers::
 +Accept: application/x-wf-jbmar-exception;version=1,application/x-wf-jbmar-new-txn;version=1+
+x-wf-txn-timeout: {timeout}
 Additional Optional Headers::
 +Cookie: JSESSIONID=\{sessionAffinityKey}+
 Request Body::
 The request body is empty.
 
-==== Transaction Commit
+==== User Transaction Commit
 
 Method:: +POST+
 Message Type:: +application/x-wf-jbmar-xid;version=1+
-URI:: +/txn/v1/\{type}/commit+
+URI:: +/txn/v1/ut/commit+
 Additional Required Headers::
 +Accept: application/x-wf-jbmar-exception;version=1+
 +Cookie: JSESSIONID=\{sessionAffinityKey}+
@@ -395,11 +396,14 @@ Additional Required Headers::
 Request Body::
 JBoss marshalling representation of formatId, global ID and branch ID (the components of an XID).
 
+The response to this message can contain the x-wf-txn-read-only header, which is used to indicate the
+read only status of the result. If it is missing it is assumed to not be read only.
+
 ==== Distributed Transaction Commit
 
 Method:: +POST+
 Message Type:: +application/x-wf-jbmar-xid;version=1+
-URI:: +/txn/v1/xa/commit(?opc)?+
+URI:: +/txn/v1/xa/commit(?opc=true)?+
 Additional Required Headers::
 +Accept: application/x-wf-jbmar-exception;version=1+
 +Cookie: JSESSIONID=\{sessionAffinityKey}+

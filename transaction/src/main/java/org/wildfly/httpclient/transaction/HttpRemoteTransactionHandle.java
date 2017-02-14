@@ -72,9 +72,9 @@ class HttpRemoteTransactionHandle implements SimpleTransactionControl {
             statusRef.set(Status.STATUS_COMMITTING);
             ClientRequest cr = new ClientRequest()
                     .setMethod(Methods.POST)
-                    .setPath(targetContext.getUri().getPath() + "/txn/v1/ut/commit");
-            cr.getRequestHeaders().put(Headers.ACCEPT, TransactionHeaders.EXCEPTION);
-            cr.getRequestHeaders().put(Headers.CONTENT_TYPE, TransactionHeaders.XID);
+                    .setPath(targetContext.getUri().getPath() + TransactionConstants.TXN_V1_UT_COMMIT);
+            cr.getRequestHeaders().put(Headers.ACCEPT, TransactionConstants.EXCEPTION);
+            cr.getRequestHeaders().put(Headers.CONTENT_TYPE, TransactionConstants.XID_VERSION_1);
             targetContext.sendRequest(cr, output -> {
                 Marshaller marshaller = targetContext.createMarshaller(HttpRemoteTransactionPeer.createMarshallingConf());
                 marshaller.start(output);
@@ -135,9 +135,9 @@ class HttpRemoteTransactionHandle implements SimpleTransactionControl {
             statusRef.set(Status.STATUS_COMMITTING);
             ClientRequest cr = new ClientRequest()
                     .setMethod(Methods.POST)
-                    .setPath(targetContext.getUri().getPath() + "/txn/v1/ut/rollback");
-            cr.getRequestHeaders().put(Headers.ACCEPT, TransactionHeaders.EXCEPTION);
-            cr.getRequestHeaders().put(Headers.CONTENT_TYPE, TransactionHeaders.XID);
+                    .setPath(targetContext.getUri().getPath() + TransactionConstants.TXN_V1_UT_ROLLBACK);
+            cr.getRequestHeaders().put(Headers.ACCEPT, TransactionConstants.EXCEPTION);
+            cr.getRequestHeaders().put(Headers.CONTENT_TYPE, TransactionConstants.XID_VERSION_1);
             targetContext.sendRequest(cr, output -> {
                 Marshaller marshaller = targetContext.createMarshaller(HttpRemoteTransactionPeer.createMarshallingConf());
                 marshaller.start(output);

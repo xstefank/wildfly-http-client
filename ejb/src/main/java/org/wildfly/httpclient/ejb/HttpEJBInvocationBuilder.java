@@ -13,7 +13,7 @@ import java.lang.reflect.Method;
  *
  * @author Stuart Douglas
  */
-class EJBInvocationBuilder {
+class HttpEJBInvocationBuilder {
 
     private static final HttpString INVOCATION_ID = new HttpString("X-wf-invocation-id");
     private static final String INVOCATION_ACCEPT = "application/x-wf-ejb-response;version=1,application/x-wf-jbmar-exception;version=1";
@@ -34,7 +34,7 @@ class EJBInvocationBuilder {
         return appName;
     }
 
-    public EJBInvocationBuilder setAppName(String appName) {
+    public HttpEJBInvocationBuilder setAppName(String appName) {
         this.appName = appName;
         return this;
     }
@@ -43,7 +43,7 @@ class EJBInvocationBuilder {
         return moduleName;
     }
 
-    public EJBInvocationBuilder setModuleName(String moduleName) {
+    public HttpEJBInvocationBuilder setModuleName(String moduleName) {
         this.moduleName = moduleName;
         return this;
     }
@@ -52,7 +52,7 @@ class EJBInvocationBuilder {
         return distinctName;
     }
 
-    public EJBInvocationBuilder setDistinctName(String distinctName) {
+    public HttpEJBInvocationBuilder setDistinctName(String distinctName) {
         this.distinctName = distinctName;
         return this;
     }
@@ -61,7 +61,7 @@ class EJBInvocationBuilder {
         return beanName;
     }
 
-    public EJBInvocationBuilder setBeanName(String beanName) {
+    public HttpEJBInvocationBuilder setBeanName(String beanName) {
         this.beanName = beanName;
         return this;
     }
@@ -70,7 +70,7 @@ class EJBInvocationBuilder {
         return beanId;
     }
 
-    public EJBInvocationBuilder setBeanId(String beanId) {
+    public HttpEJBInvocationBuilder setBeanId(String beanId) {
         this.beanId = beanId;
         return this;
     }
@@ -79,7 +79,7 @@ class EJBInvocationBuilder {
         return method;
     }
 
-    public EJBInvocationBuilder setMethod(Method method) {
+    public HttpEJBInvocationBuilder setMethod(Method method) {
         this.method = method;
         return this;
     }
@@ -88,7 +88,7 @@ class EJBInvocationBuilder {
         return view;
     }
 
-    public EJBInvocationBuilder setView(String view) {
+    public HttpEJBInvocationBuilder setView(String view) {
         this.view = view;
         return this;
     }
@@ -97,7 +97,7 @@ class EJBInvocationBuilder {
         return invocationType;
     }
 
-    public EJBInvocationBuilder setInvocationType(InvocationType invocationType) {
+    public HttpEJBInvocationBuilder setInvocationType(InvocationType invocationType) {
         this.invocationType = invocationType;
         return this;
     }
@@ -106,7 +106,7 @@ class EJBInvocationBuilder {
         return invocationId;
     }
 
-    public EJBInvocationBuilder setInvocationId(Long invocationId) {
+    public HttpEJBInvocationBuilder setInvocationId(Long invocationId) {
         this.invocationId = invocationId;
         return this;
     }
@@ -115,7 +115,7 @@ class EJBInvocationBuilder {
         return version;
     }
 
-    public EJBInvocationBuilder setVersion(int version) {
+    public HttpEJBInvocationBuilder setVersion(int version) {
         this.version = version;
         return this;
     }

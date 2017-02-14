@@ -6,6 +6,7 @@ import javax.transaction.SystemException;
 import javax.transaction.xa.XAException;
 import javax.transaction.xa.Xid;
 
+import org.jboss.marshalling.InputStreamByteInput;
 import org.jboss.marshalling.MarshallingConfiguration;
 import org.jboss.marshalling.Unmarshaller;
 import org.wildfly.httpclient.common.HttpTargetContext;
@@ -28,8 +29,8 @@ public class HttpRemoteTransactionPeer implements RemoteTransactionPeer {
     }
 
     @Override
-    public SubordinateTransactionControl lookupXid(Xid xid, int remainingTimeout) throws XAException {
-        return null;
+    public SubordinateTransactionControl lookupXid(Xid xid) throws XAException {
+        return new HttpSubordinateTransactionHandle(xid, targetContext);
     }
 
     @Override
@@ -38,34 +39,34 @@ public class HttpRemoteTransactionPeer implements RemoteTransactionPeer {
     }
 
     @Override
-    public SimpleTransactionControl begin(int timeout) throws SystemException {
+    public SimpleTransactionControl begin() throws SystemException {
         final CompletableFuture<Xid> beginXid = new CompletableFuture<>();
 
+        ClientRequest cr = new ClientRequest()
+                .setPath(targetContext.getUri().getPath() + TransactionConstants.TXN_V1_UT_BEGIN)
+                .setMethod(Methods.POST);
+        cr.getRequestHeaders().put(Headers.ACCEPT, TransactionConstants.NEW_TRANSACTION_ACCEPT);
+        cr.getRequestHeaders().put(TransactionConstants.TIMEOUT, Integer.toString(1000 * 60 * 5)); //TODO: fix timeout
 
-        targetContext.getConnectionPool().getConnection(connection -> {
 
-            ClientRequest cr = new ClientRequest()
-                    .setPath(connection.getUri().getPath() + "/txn/v1/ut/begin")
-                    .setMethod(Methods.POST);
-            cr.getRequestHeaders().put(Headers.ACCEPT, TransactionHeaders.NEW_TRANSACTION_ACCEPT);
-
-            targetContext.sendRequest(connection, cr, null, (result, response) -> {
-                try {
-                    Unmarshaller unmarshaller = targetContext.createUnmarshaller(createMarshallingConf());
-                    int formatId = unmarshaller.readInt();
-                    int len = unmarshaller.readInt();
-                    byte[] globalId = new byte[len];
-                    unmarshaller.readFully(globalId);
-                    len = unmarshaller.readInt();
-                    byte[] branchId = new byte[len];
-                    unmarshaller.readFully(branchId);
-                    SimpleXid simpleXid = new SimpleXid(formatId, globalId, branchId);
-                    beginXid.complete(simpleXid);
-                } catch (Exception e) {
-                    beginXid.completeExceptionally(e);
-                }
-            }, beginXid::completeExceptionally, TransactionHeaders.NEW_TRANSACTION, null);
-        }, beginXid::completeExceptionally, false);
+        targetContext.sendRequest(cr, null, (result, response) -> {
+            try {
+                Unmarshaller unmarshaller = targetContext.createUnmarshaller(createMarshallingConf());
+                unmarshaller.start(new InputStreamByteInput(result));
+                int formatId = unmarshaller.readInt();
+                int len = unmarshaller.readInt();
+                byte[] globalId = new byte[len];
+                unmarshaller.readFully(globalId);
+                len = unmarshaller.readInt();
+                byte[] branchId = new byte[len];
+                unmarshaller.readFully(branchId);
+                SimpleXid simpleXid = new SimpleXid(formatId, globalId, branchId);
+                beginXid.complete(simpleXid);
+                unmarshaller.finish();
+            } catch (Exception e) {
+                beginXid.completeExceptionally(e);
+            }
+        }, beginXid::completeExceptionally, TransactionConstants.NEW_TRANSACTION, null);
         try {
             Xid xid = beginXid.get();
             return new HttpRemoteTransactionHandle(xid, targetContext);
