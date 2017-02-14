@@ -35,7 +35,51 @@ public class HttpRemoteTransactionPeer implements RemoteTransactionPeer {
 
     @Override
     public Xid[] recover(int flag, String parentName) throws XAException {
-        return new Xid[0];
+        final CompletableFuture<Xid[]> xidList = new CompletableFuture<>();
+
+        ClientRequest cr = new ClientRequest()
+                .setPath(targetContext.getUri().getPath() + TransactionConstants.TXN_V1_XA_RECOVER + "/" + parentName)
+                .setMethod(Methods.GET);
+        cr.getRequestHeaders().put(Headers.ACCEPT, TransactionConstants.RECOVER_ACCEPT);
+        cr.getRequestHeaders().put(TransactionConstants.RECOVERY_PARENT_NAME, parentName);
+        cr.getRequestHeaders().put(TransactionConstants.RECOVERY_FLAGS, Integer.toString(flag));
+
+        targetContext.sendRequest(cr, null, (result, response) -> {
+            try {
+                Unmarshaller unmarshaller = targetContext.createUnmarshaller(createMarshallingConf());
+                unmarshaller.start(new InputStreamByteInput(result));
+                int length = unmarshaller.readInt();
+                Xid[] ret = new Xid[length];
+                for(int i = 0; i < length; ++ i) {
+                    int formatId = unmarshaller.readInt();
+                    int len = unmarshaller.readInt();
+                    byte[] globalId = new byte[len];
+                    unmarshaller.readFully(globalId);
+                    len = unmarshaller.readInt();
+                    byte[] branchId = new byte[len];
+                    unmarshaller.readFully(branchId);
+                    ret[i] = new SimpleXid(formatId, globalId, branchId);
+                }
+                xidList.complete(ret);
+                unmarshaller.finish();
+            } catch (Exception e) {
+                xidList.completeExceptionally(e);
+            }
+        }, xidList::completeExceptionally, TransactionConstants.NEW_TRANSACTION, null);
+        try {
+            return xidList.get();
+        } catch (InterruptedException e) {
+            throw new RuntimeException(e);
+        } catch (ExecutionException e) {
+
+            Throwable cause = e.getCause();
+            if(cause instanceof XAException) {
+                throw (XAException)cause;
+            }
+            XAException xaException = new XAException(cause.getMessage());
+            xaException.initCause(cause);
+            throw xaException;
+        }
     }
 
     @Override

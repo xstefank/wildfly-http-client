@@ -1,5 +1,3 @@
-- Worker Config
-- Buffer Config
 - Request Timeouts
 - Compression
 - Digest Auth

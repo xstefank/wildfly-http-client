@@ -12,9 +12,13 @@ interface TransactionConstants {
     String XID_VERSION_1 = "application/x-wf-jbmar-xid;version=1";
     String XID = "application/x-wf-jbmar-xid";
     String NEW_TRANSACTION_ACCEPT = "application/x-wf-jbmar-exception;version=1,application/x-wf-jbmar-new-txn;version=1";
+    String RECOVER_ACCEPT = "application/x-wf-txn-jbmar-xid-list;version=1,application/x-wf-jbmar-new-txn;version=1";
 
     HttpString READ_ONLY = new HttpString("x-wf-txn-read-only");
     HttpString TIMEOUT = new HttpString("x-wf-txn-timeout");
+    HttpString RECOVERY_PARENT_NAME = new HttpString("x-wf-txn-parent-name");
+    HttpString RECOVERY_FLAGS = new HttpString("x-wf-txn-recovery-flags");
+
 
     ContentType NEW_TRANSACTION = new ContentType("application/x-wf-jbmar-new-txn", 1);
 
@@ -26,4 +30,5 @@ interface TransactionConstants {
     String TXN_V1_XA_PREP = "/txn/v1/xa/prep";
     String TXN_V1_XA_FORGET = "/txn/v1/xa/forget";
     String TXN_V1_XA_BC = "/txn/v1/xa/bc";
+    String TXN_V1_XA_RECOVER = "/txn/v1/xa/recover";
 }

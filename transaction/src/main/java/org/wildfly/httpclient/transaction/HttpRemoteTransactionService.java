@@ -54,6 +54,7 @@ public class HttpRemoteTransactionService {
         routingHandler.add(Methods.POST, TransactionConstants.TXN_V1_XA_FORGET, new XAForgetHandler());
         routingHandler.add(Methods.POST, TransactionConstants.TXN_V1_XA_PREP, new XAPrepHandler());
         routingHandler.add(Methods.POST, TransactionConstants.TXN_V1_XA_ROLLBACK, new XARollbackHandler());
+        routingHandler.add(Methods.GET, TransactionConstants.TXN_V1_XA_RECOVER, new XARecoveryHandler());
         return routingHandler;
     }
 
@@ -93,7 +94,6 @@ public class HttpRemoteTransactionService {
         protected abstract void handleImpl(HttpServerExchange exchange, ImportResult<LocalTransaction> localTransactionImportResult) throws Exception;
     }
 
-
     class BeginHandler implements HttpHandler {
 
         @Override
@@ -117,6 +117,45 @@ public class HttpRemoteTransactionService {
                 marshaller.write(xid.getGlobalTransactionId());
                 marshaller.writeInt(xid.getBranchQualifier().length);
                 marshaller.write(xid.getBranchQualifier());
+                marshaller.finish();
+                exchange.getResponseSender().send(ByteBuffer.wrap(out.toByteArray()));
+            } catch (Exception e) {
+                sendException(exchange, StatusCodes.INTERNAL_SERVER_ERROR, e);
+            }
+        }
+    }
+    class XARecoveryHandler implements HttpHandler {
+
+        @Override
+        public void handleRequest(HttpServerExchange exchange) throws Exception {
+            try {
+                String flagsStringString = exchange.getRequestHeaders().getFirst(TransactionConstants.RECOVERY_FLAGS);
+                if (flagsStringString == null) {
+                    exchange.setStatusCode(StatusCodes.BAD_REQUEST);
+                    HttpRemoteTransactionMessages.MESSAGES.debugf("Exchange %s is missing %s header", exchange, TransactionConstants.RECOVERY_FLAGS);
+                    return;
+                }
+                final int flags = Integer.parseInt(flagsStringString);
+                String parentName = exchange.getRequestHeaders().getFirst(TransactionConstants.RECOVERY_PARENT_NAME);
+                if (parentName == null) {
+                    exchange.setStatusCode(StatusCodes.BAD_REQUEST);
+                    HttpRemoteTransactionMessages.MESSAGES.debugf("Exchange %s is missing %s header", exchange, TransactionConstants.RECOVERY_PARENT_NAME);
+                    return;
+                }
+
+                final Xid[] recoveryList = transactionContext.getRecoveryInterface().recover(flags, parentName);
+                final ByteArrayOutputStream out = new ByteArrayOutputStream();
+                Marshaller marshaller = MARSHALLER_FACTORY.createMarshaller(createMarshallingConf());
+                marshaller.start(new OutputStreamByteOutput(out));
+                marshaller.writeInt(recoveryList.length);
+                for(int i = 0; i < recoveryList.length; ++i) {
+                    Xid xid = recoveryList[i];
+                    marshaller.writeInt(xid.getFormatId());
+                    marshaller.writeInt(xid.getGlobalTransactionId().length);
+                    marshaller.write(xid.getGlobalTransactionId());
+                    marshaller.writeInt(xid.getBranchQualifier().length);
+                    marshaller.write(xid.getBranchQualifier());
+                }
                 marshaller.finish();
                 exchange.getResponseSender().send(ByteBuffer.wrap(out.toByteArray()));
             } catch (Exception e) {

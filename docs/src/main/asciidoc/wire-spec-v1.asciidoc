@@ -431,8 +431,8 @@ Method:: +GET+
 URI:: +/txn/v1/xa/recover+
 Additional Required Headers::
 +Accept: text/x-wf-txn-jbmar-xid-list;version=1,application/x-wf-jbmar-exception;version=1+
-x-wf-txn-jbmar-parent-node-name: The parent node name
-x-wf-txn-jbmar-recovery-flags: The recovery flags as a base 10 integer
+x-wf-txn-parent-name: The parent node name
+x-wf-txn-recovery-flags: The recovery flags as a base 10 integer
 Additional Optional Headers::
 +Cookie: JSESSIONID=\{sessionAffinityKey}+
 Request Body::
