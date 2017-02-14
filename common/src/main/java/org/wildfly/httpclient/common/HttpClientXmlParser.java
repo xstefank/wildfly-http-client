@@ -292,6 +292,10 @@ final class HttpClientXmlParser {
                             builder.setEnableHttp2(parseBooleanElement(reader));
                             break;
                         }
+                        case "buffer-pool": {
+                            builder.setBufferConfig(parseBufferConfig(reader));
+                            break;
+                        }
                         default:
                             throw reader.unexpectedElement();
                     }
@@ -304,6 +308,58 @@ final class HttpClientXmlParser {
         }
     }
 
+    private static WildflyHttpContext.BufferBuilder parseBufferConfig(final ConfigurationXMLStreamReader reader) throws ConfigXMLParseException {
+        final int attributeCount = reader.getAttributeCount();
+        Integer bufferSize = null;
+        Integer maxSize = null;
+        Integer threadLocalSize = null;
+        Boolean direct = null;
+        for (int i = 0; i < attributeCount; i++) {
+            switch (reader.getAttributeLocalName(i)) {
+                case "buffer-size": {
+                    bufferSize = reader.getIntAttributeValue(i);
+                    break;
+                }
+                case "max-size": {
+                    maxSize = reader.getIntAttributeValue(i);
+                    break;
+                }
+                case "thread-local-size": {
+                    threadLocalSize = reader.getIntAttributeValue(i);
+                    break;
+                }
+                case "direct": {
+                    direct = reader.getBooleanAttributeValue(i);
+                    break;
+                }
+                default: {
+                    throw reader.unexpectedAttribute(i);
+                }
+            }
+        }
+        if (bufferSize == null) {
+            throw reader.missingRequiredAttribute(null, "value");
+        }
+        WildflyHttpContext.BufferBuilder value = new WildflyHttpContext.BufferBuilder();
+        value.setBufferSize(bufferSize);
+        if(maxSize != null) {
+            value.setMaxSize(maxSize);
+        }
+        if(threadLocalSize != null) {
+            value.setThreadLocalSize(threadLocalSize);
+        }
+        if(direct != null) {
+            value.setDirect( direct);
+        }
+        switch (reader.nextTag()) {
+            case END_ELEMENT: {
+                return value;
+            }
+            default: {
+                throw reader.unexpectedElement();
+            }
+        }
+    }
     private static void parseConfig(final ConfigurationXMLStreamReader reader, final WildflyHttpContext.Builder builder) throws ConfigXMLParseException {
 
         final int attributeCount = reader.getAttributeCount();

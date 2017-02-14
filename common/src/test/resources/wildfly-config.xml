@@ -22,6 +22,7 @@
     <http-client xmlns="urn:wildfly-http-client:1.0">
         <defaults>
             <eagerly-acquire-session value="true" />
+            <buffer-pool buffer-size="2000" max-size="10" direct="true" thread-local-size="1" />
         </defaults>
     </http-client>
     <discovery xmlns="urn:wildfly-discovery:1.0">

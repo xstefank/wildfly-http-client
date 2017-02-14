@@ -64,7 +64,15 @@
             <xs:element name="eagerly-acquire-session" minOccurs="0" maxOccurs="1" type="eager-session-type" />
             <xs:element name="enable-http2" minOccurs="0" maxOccurs="1" type="enable-http2-type" />
             <xs:element name="bind-address" type="bind-address-type" minOccurs="0" maxOccurs="1"/>
+            <xs:element name="buffer-pool" type="buffer-pool-type" minOccurs="0" maxOccurs="1"/>
         </xs:all>
+    </xs:complexType>
+
+    <xs:complexType name="buffer-pool-type">
+        <xs:attribute name="buffer-size" type="xs:int" use="required" />
+        <xs:attribute name="direct" type="xs:boolean" use="optional" />
+        <xs:attribute name="max-size" type="xs:int" use="optional" />
+        <xs:attribute name="thread-local-size" type="xs:int" use="optional" />
     </xs:complexType>
 
     <xs:complexType name="bind-address-type">
