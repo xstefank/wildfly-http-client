@@ -22,13 +22,24 @@ interface TransactionConstants {
 
     ContentType NEW_TRANSACTION = new ContentType("application/x-wf-jbmar-new-txn", 1);
 
-    String TXN_V1_UT_BEGIN = "/txn/v1/ut/begin";
-    String TXN_V1_UT_COMMIT = "/txn/v1/ut/commit";
-    String TXN_V1_UT_ROLLBACK = "/txn/v1/ut/rollback";
-    String TXN_V1_XA_COMMIT = "/txn/v1/xa/commit";
-    String TXN_V1_XA_ROLLBACK = "/txn/v1/xa/rollback";
-    String TXN_V1_XA_PREP = "/txn/v1/xa/prep";
-    String TXN_V1_XA_FORGET = "/txn/v1/xa/forget";
-    String TXN_V1_XA_BC = "/txn/v1/xa/bc";
-    String TXN_V1_XA_RECOVER = "/txn/v1/xa/recover";
+    String V1_UT_BEGIN = "/v1/ut/begin";
+    String V1_UT_COMMIT = "/v1/ut/commit";
+    String V1_UT_ROLLBACK = "/v1/ut/rollback";
+    String V1_XA_COMMIT = "/v1/xa/commit";
+    String V1_XA_ROLLBACK = "/v1/xa/rollback";
+    String V1_XA_PREP = "/v1/xa/prep";
+    String V1_XA_FORGET = "/v1/xa/forget";
+    String V1_XA_BC = "/v1/xa/bc";
+    String V1_XA_RECOVER = "/v1/xa/recover";
+
+    String TXN_V1_UT_BEGIN = "/txn" + V1_UT_BEGIN;
+    String TXN_V1_UT_COMMIT = "/txn" + V1_UT_COMMIT;
+    String TXN_V1_UT_ROLLBACK = "/txn" + V1_UT_ROLLBACK;
+    String TXN_V1_XA_COMMIT = "/txn" + V1_XA_COMMIT;
+    String TXN_V1_XA_ROLLBACK = "/txn" + V1_XA_ROLLBACK;
+    String TXN_V1_XA_PREP = "/txn" + V1_XA_PREP;
+    String TXN_V1_XA_FORGET = "/txn" + V1_XA_FORGET;
+    String TXN_V1_XA_BC = "/txn" + V1_XA_BC;
+    String TXN_V1_XA_RECOVER = "/txn" + V1_XA_RECOVER;
+
 }

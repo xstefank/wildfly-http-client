@@ -2,7 +2,6 @@ package org.wildfly.httpclient.transaction;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
-import java.io.OutputStream;
 import java.nio.ByteBuffer;
 import java.util.Deque;
 import java.util.function.Function;
@@ -46,15 +45,15 @@ public class HttpRemoteTransactionService {
 
     public HttpHandler createHandler() {
         RoutingHandler routingHandler = new RoutingHandler();
-        routingHandler.add(Methods.POST, TransactionConstants.TXN_V1_UT_BEGIN, new BeginHandler());
-        routingHandler.add(Methods.POST, TransactionConstants.TXN_V1_UT_ROLLBACK, new UTRollbackHandler());
-        routingHandler.add(Methods.POST, TransactionConstants.TXN_V1_UT_COMMIT, new UTCommitHandler());
-        routingHandler.add(Methods.POST, TransactionConstants.TXN_V1_XA_BC, new XABeforeCompletionHandler());
-        routingHandler.add(Methods.POST, TransactionConstants.TXN_V1_XA_COMMIT, new XACommitHandler());
-        routingHandler.add(Methods.POST, TransactionConstants.TXN_V1_XA_FORGET, new XAForgetHandler());
-        routingHandler.add(Methods.POST, TransactionConstants.TXN_V1_XA_PREP, new XAPrepHandler());
-        routingHandler.add(Methods.POST, TransactionConstants.TXN_V1_XA_ROLLBACK, new XARollbackHandler());
-        routingHandler.add(Methods.GET, TransactionConstants.TXN_V1_XA_RECOVER, new XARecoveryHandler());
+        routingHandler.add(Methods.POST, TransactionConstants.V1_UT_BEGIN, new BeginHandler());
+        routingHandler.add(Methods.POST, TransactionConstants.V1_UT_ROLLBACK, new UTRollbackHandler());
+        routingHandler.add(Methods.POST, TransactionConstants.V1_UT_COMMIT, new UTCommitHandler());
+        routingHandler.add(Methods.POST, TransactionConstants.V1_XA_BC, new XABeforeCompletionHandler());
+        routingHandler.add(Methods.POST, TransactionConstants.V1_XA_COMMIT, new XACommitHandler());
+        routingHandler.add(Methods.POST, TransactionConstants.V1_XA_FORGET, new XAForgetHandler());
+        routingHandler.add(Methods.POST, TransactionConstants.V1_XA_PREP, new XAPrepHandler());
+        routingHandler.add(Methods.POST, TransactionConstants.V1_XA_ROLLBACK, new XARollbackHandler());
+        routingHandler.add(Methods.GET, TransactionConstants.V1_XA_RECOVER, new XARecoveryHandler());
         return routingHandler;
     }
 
@@ -62,7 +61,7 @@ public class HttpRemoteTransactionService {
 
         @Override
         public final void handleRequest(HttpServerExchange exchange) throws Exception {
-            ContentType contentType = ContentType.parse(exchange.getRequestHeaders().getFirst(TransactionConstants.XID_VERSION_1));
+            ContentType contentType = ContentType.parse(exchange.getRequestHeaders().getFirst(Headers.CONTENT_TYPE));
             if (contentType == null || contentType.getVersion() != 1 || !contentType.getType().equals(TransactionConstants.XID)) {
                 exchange.setStatusCode(StatusCodes.BAD_REQUEST);
                 HttpRemoteTransactionMessages.MESSAGES.debugf("Exchange %s has incorrect or missing content type", exchange);
@@ -106,7 +105,7 @@ public class HttpRemoteTransactionService {
                     return;
                 }
                 final Integer timeout = Integer.parseInt(timeoutString);
-
+                exchange.getResponseHeaders().put(Headers.CONTENT_TYPE, TransactionConstants.NEW_TRANSACTION.toString());
                 final LocalTransaction transaction = transactionContext.beginTransaction(timeout);
                 final Xid xid = xidResolver.apply(transaction);
                 final ByteArrayOutputStream out = new ByteArrayOutputStream();
@@ -239,7 +238,7 @@ public class HttpRemoteTransactionService {
             final MarshallingConfiguration marshallingConfiguration = new MarshallingConfiguration();
             marshallingConfiguration.setVersion(2);
             final Marshaller marshaller = MARSHALLER_FACTORY.createMarshaller(marshallingConfiguration);
-            OutputStream outputStream = exchange.getOutputStream();
+            ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
             final ByteOutput byteOutput = Marshalling.createByteOutput(outputStream);
             // start the marshaller
             marshaller.start(byteOutput);
@@ -247,7 +246,7 @@ public class HttpRemoteTransactionService {
             marshaller.write(0);
             marshaller.finish();
             marshaller.flush();
-
+            exchange.getResponseSender().send(ByteBuffer.wrap(outputStream.toByteArray()));
         } catch (IOException e1) {
             HttpRemoteTransactionMessages.MESSAGES.debugf(e, "Failed to write exception");
         }
