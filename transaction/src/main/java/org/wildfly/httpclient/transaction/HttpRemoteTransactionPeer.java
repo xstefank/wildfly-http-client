@@ -83,14 +83,14 @@ public class HttpRemoteTransactionPeer implements RemoteTransactionPeer {
     }
 
     @Override
-    public SimpleTransactionControl begin() throws SystemException {
+    public SimpleTransactionControl begin(int timeout) throws SystemException {
         final CompletableFuture<Xid> beginXid = new CompletableFuture<>();
 
         ClientRequest cr = new ClientRequest()
                 .setPath(targetContext.getUri().getPath() + TransactionConstants.TXN_V1_UT_BEGIN)
                 .setMethod(Methods.POST);
         cr.getRequestHeaders().put(Headers.ACCEPT, TransactionConstants.NEW_TRANSACTION_ACCEPT);
-        cr.getRequestHeaders().put(TransactionConstants.TIMEOUT, Integer.toString(1000 * 60 * 5)); //TODO: fix timeout
+        cr.getRequestHeaders().put(TransactionConstants.TIMEOUT, timeout);
 
 
         targetContext.sendRequest(cr, null, (result, response) -> {

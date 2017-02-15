@@ -65,7 +65,7 @@ public class SimpleTransactionOperationsTestCase {
             @Override
             public XAImporter getXAImporter() {
                 return new XAImporter() {
-                    @Override
+
                     public ImportResult<?> findOrImportTransaction(Xid xid, int timeout) throws XAException {
                         TestTransaction existing = transactions.get(xid);
 
@@ -104,6 +104,14 @@ public class SimpleTransactionOperationsTestCase {
 
                             }
                         }, false);
+                    }
+
+                    @Override
+                    public ImportResult<?> findOrImportTransaction(Xid xid, int i, boolean b) throws XAException {
+                        if(b && !transactions.containsKey(xid)) {
+                            return null;
+                        }
+                        return findOrImportTransaction(xid, i);
                     }
 
                     @Override
