@@ -22,7 +22,6 @@ import org.wildfly.transaction.client.LocalTransaction;
 import org.wildfly.transaction.client.LocalTransactionContext;
 import org.wildfly.transaction.client.SimpleXid;
 
-import javax.transaction.Status;
 import javax.transaction.xa.Xid;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -89,16 +88,7 @@ public class HttpRemoteTransactionService {
                     try {
                         handleImpl(exchange1, transaction);
                     } finally {
-                        int status = transaction.getTransaction().getStatus();
-                        switch (status) {
-                            case Status.STATUS_ACTIVE:
-                            case Status.STATUS_COMMITTING:
-                            case Status.STATUS_PREPARED:
-                            case Status.STATUS_PREPARING:
-                            case Status.STATUS_MARKED_ROLLBACK:
-                            case Status.STATUS_ROLLING_BACK:
-                                transactionManager.suspend();
-                        }
+                        transactionManager.suspend();
                     }
 
                 } catch (Exception e) {

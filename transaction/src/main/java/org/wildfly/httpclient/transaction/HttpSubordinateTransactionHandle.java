@@ -105,10 +105,10 @@ class HttpSubordinateTransactionHandle implements SubordinateTransactionControl 
             marshaller.start(output);
             marshaller.writeInt(id.getFormatId());
             final byte[] gtid = id.getGlobalTransactionId();
-            marshaller.writeByte(gtid.length);
+            marshaller.writeInt(gtid.length);
             marshaller.write(gtid);
             final byte[] bq = id.getBranchQualifier();
-            marshaller.writeByte(bq.length);
+            marshaller.writeInt(bq.length);
             marshaller.write(bq);
             marshaller.finish();
             output.close();
