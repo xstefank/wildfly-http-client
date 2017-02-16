@@ -15,8 +15,8 @@ import org.jboss.marshalling.MarshallingConfiguration;
 import org.jboss.marshalling.OutputStreamByteOutput;
 import org.jboss.marshalling.Unmarshaller;
 import org.jboss.marshalling.river.RiverMarshallerFactory;
+import org.wildfly.common.function.ExceptionBiFunction;
 import org.wildfly.httpclient.common.ContentType;
-import org.wildfly.transaction.client.ContextTransactionManager;
 import org.wildfly.transaction.client.ImportResult;
 import org.wildfly.transaction.client.LocalTransaction;
 import org.wildfly.transaction.client.LocalTransactionContext;
@@ -36,7 +36,6 @@ public class HttpRemoteTransactionService {
 
     private final LocalTransactionContext transactionContext;
     private final Function<LocalTransaction, Xid> xidResolver;
-    private final ContextTransactionManager transactionManager = ContextTransactionManager.getInstance();
 
     private static final MarshallerFactory MARSHALLER_FACTORY = new RiverMarshallerFactory();
 
@@ -84,13 +83,10 @@ public class HttpRemoteTransactionService {
                     unmarshaller.finish();
 
                     ImportResult<LocalTransaction> transaction = transactionContext.findOrImportTransaction(simpleXid, 0);
-                    transactionManager.resume(transaction.getTransaction());
-                    try {
-                        handleImpl(exchange1, transaction);
-                    } finally {
-                        transactionManager.suspend();
-                    }
-
+                    transaction.getTransaction().performFunction((ExceptionBiFunction<ImportResult<LocalTransaction>, HttpServerExchange, Void, Exception>) (o, exchange2) -> {
+                        handleImpl(exchange2, o);
+                        return null;
+                    }, transaction, exchange);
                 } catch (Exception e) {
                     sendException(exchange1, StatusCodes.INTERNAL_SERVER_ERROR, e);
                 }
@@ -175,7 +171,7 @@ public class HttpRemoteTransactionService {
 
         @Override
         protected void handleImpl(HttpServerExchange exchange, ImportResult<LocalTransaction> transaction) throws Exception {
-            transactionManager.rollback();
+            transaction.getTransaction().rollback();
         }
     }
 
@@ -183,7 +179,7 @@ public class HttpRemoteTransactionService {
 
         @Override
         protected void handleImpl(HttpServerExchange exchange, ImportResult<LocalTransaction> transaction) throws Exception {
-            transactionManager.commit();
+            transaction.getTransaction().commit();
         }
     }
 
