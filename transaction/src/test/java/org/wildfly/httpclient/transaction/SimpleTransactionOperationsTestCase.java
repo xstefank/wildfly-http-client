@@ -45,6 +45,8 @@ public class SimpleTransactionOperationsTestCase {
     static volatile Xid lastXid;
     static final Map<Xid, TestTransaction> transactions = new ConcurrentHashMap<>();
 
+    private volatile Transaction current;
+
     @Before
     public void setup() {
         HTTPTestServer.registerServicesHandler("common/v1/affinity", exchange -> exchange.getResponseCookies().put("JSESSIONID", new CookieImpl("JSESSIONID", "foo")));
@@ -52,6 +54,8 @@ public class SimpleTransactionOperationsTestCase {
             @Override
             public TransactionManager getTransactionManager() {
                 return new TransactionManager() {
+
+
                     @Override
                     public void begin() throws NotSupportedException, SystemException {
 
@@ -79,7 +83,7 @@ public class SimpleTransactionOperationsTestCase {
 
                     @Override
                     public Transaction getTransaction() throws SystemException {
-                        return null;
+                        return current;
                     }
 
                     @Override
@@ -89,12 +93,14 @@ public class SimpleTransactionOperationsTestCase {
 
                     @Override
                     public Transaction suspend() throws SystemException {
-                        return null;
+                        Transaction old = current;
+                        current = null;
+                        return old;
                     }
 
                     @Override
                     public void resume(Transaction tobj) throws InvalidTransactionException, IllegalStateException, SystemException {
-
+                        current = tobj;
                     }
                 };
             }

@@ -280,17 +280,16 @@ class HttpEJBReceiver extends EJBReceiver {
             dataOutput.writeByte(0);
             return null;
         } else if (transaction instanceof RemoteTransaction) {
-            dataOutput.writeByte(1);
             final XidProvider ir = ((RemoteTransaction) transaction).getProviderInterface(XidProvider.class);
             if (ir == null) throw EjbHttpClientMessages.MESSAGES.cannotEnlistTx();
             Xid xid = ir.getXid();
             dataOutput.writeByte(1);
             dataOutput.writeInt(xid.getFormatId());
             final byte[] gtid = xid.getGlobalTransactionId();
-            dataOutput.writeByte(gtid.length);
+            dataOutput.writeInt(gtid.length);
             dataOutput.write(gtid);
             final byte[] bq = xid.getBranchQualifier();
-            dataOutput.writeByte(bq.length);
+            dataOutput.writeInt(bq.length);
             dataOutput.write(bq);
             return null;
         } else if (transaction instanceof LocalTransaction) {
@@ -300,10 +299,10 @@ class HttpEJBReceiver extends EJBReceiver {
             dataOutput.writeByte(2);
             dataOutput.writeInt(xid.getFormatId());
             final byte[] gtid = xid.getGlobalTransactionId();
-            dataOutput.writeByte(gtid.length);
+            dataOutput.writeInt(gtid.length);
             dataOutput.write(gtid);
             final byte[] bq = xid.getBranchQualifier();
-            dataOutput.writeByte(bq.length);
+            dataOutput.writeInt(bq.length);
             dataOutput.write(bq);
             dataOutput.writeInt(outflowHandle.getRemainingTime());
             return outflowHandle;

@@ -22,7 +22,7 @@ public class HttpServerHelper {
 
     }
 
-    public static void sendException(HttpServerExchange exchange, int status, Exception e) {
+    public static void sendException(HttpServerExchange exchange, int status, Throwable e) {
         try {
             exchange.setStatusCode(status);
             exchange.getResponseHeaders().put(Headers.CONTENT_TYPE, "application/x-wf-jbmar-exception;version=1");

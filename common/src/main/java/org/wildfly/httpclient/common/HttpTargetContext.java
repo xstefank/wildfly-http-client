@@ -189,7 +189,7 @@ public class HttpTargetContext extends AbstractAttachable {
                                     final Unmarshaller unmarshaller = MARSHALLER_FACTORY.createUnmarshaller(marshallingConfiguration);
                                     try (ChannelInputStream inputStream = new ChannelInputStream(result.getResponseChannel())) {
                                         unmarshaller.start(new InputStreamByteInput(new BufferedInputStream(inputStream)));
-                                        Exception exception = (Exception) unmarshaller.readObject();
+                                        Throwable exception = (Throwable) unmarshaller.readObject();
                                         Map<String, Object> attachments = readAttachments(unmarshaller);
                                         if (unmarshaller.read() != -1) {
                                             HttpClientMessages.MESSAGES.debugf("Unexpected data when reading exception from %s", response);

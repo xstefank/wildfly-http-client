@@ -201,13 +201,7 @@ class HttpRemoteTransactionHandle implements SimpleTransactionControl {
     @Override
     public <T> T getProviderInterface(Class<T> providerInterfaceType) {
         if(providerInterfaceType == XidProvider.class) {
-            return (T) new XidProvider() {
-
-                @Override
-                public Xid getXid() {
-                    return getXid();
-                }
-            };
+            return (T) (XidProvider) () -> id;
         }
         return null;
     }

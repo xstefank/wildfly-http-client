@@ -84,7 +84,7 @@ public abstract class RemoteHTTPHandler implements HttpHandler {
             if (type == 2) {
                 return new ReceivedTransaction(simpleXid, unmarshaller.readInt(), true);
             }
-            return new ReceivedTransaction(simpleXid, -1, false);
+            return new ReceivedTransaction(simpleXid, 0, false);
         } else {
             throw EjbHttpClientMessages.MESSAGES.invalidTransactionType(type);
         }

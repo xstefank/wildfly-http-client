@@ -16,11 +16,13 @@ import org.jboss.marshalling.OutputStreamByteOutput;
 import org.jboss.marshalling.Unmarshaller;
 import org.jboss.marshalling.river.RiverMarshallerFactory;
 import org.wildfly.httpclient.common.ContentType;
+import org.wildfly.transaction.client.ContextTransactionManager;
 import org.wildfly.transaction.client.ImportResult;
 import org.wildfly.transaction.client.LocalTransaction;
 import org.wildfly.transaction.client.LocalTransactionContext;
 import org.wildfly.transaction.client.SimpleXid;
 
+import javax.transaction.Status;
 import javax.transaction.xa.Xid;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -35,6 +37,7 @@ public class HttpRemoteTransactionService {
 
     private final LocalTransactionContext transactionContext;
     private final Function<LocalTransaction, Xid> xidResolver;
+    private final ContextTransactionManager transactionManager = ContextTransactionManager.getInstance();
 
     private static final MarshallerFactory MARSHALLER_FACTORY = new RiverMarshallerFactory();
 
@@ -82,7 +85,21 @@ public class HttpRemoteTransactionService {
                     unmarshaller.finish();
 
                     ImportResult<LocalTransaction> transaction = transactionContext.findOrImportTransaction(simpleXid, 0);
-                    handleImpl(exchange1, transaction);
+                    transactionManager.resume(transaction.getTransaction());
+                    try {
+                        handleImpl(exchange1, transaction);
+                    } finally {
+                        int status = transaction.getTransaction().getStatus();
+                        switch (status) {
+                            case Status.STATUS_ACTIVE:
+                            case Status.STATUS_COMMITTING:
+                            case Status.STATUS_PREPARED:
+                            case Status.STATUS_PREPARING:
+                            case Status.STATUS_MARKED_ROLLBACK:
+                            case Status.STATUS_ROLLING_BACK:
+                                transactionManager.suspend();
+                        }
+                    }
 
                 } catch (Exception e) {
                     sendException(exchange1, StatusCodes.INTERNAL_SERVER_ERROR, e);
@@ -123,6 +140,7 @@ public class HttpRemoteTransactionService {
             }
         }
     }
+
     class XARecoveryHandler implements HttpHandler {
 
         @Override
@@ -147,7 +165,7 @@ public class HttpRemoteTransactionService {
                 Marshaller marshaller = MARSHALLER_FACTORY.createMarshaller(createMarshallingConf());
                 marshaller.start(new OutputStreamByteOutput(out));
                 marshaller.writeInt(recoveryList.length);
-                for(int i = 0; i < recoveryList.length; ++i) {
+                for (int i = 0; i < recoveryList.length; ++i) {
                     Xid xid = recoveryList[i];
                     marshaller.writeInt(xid.getFormatId());
                     marshaller.writeInt(xid.getGlobalTransactionId().length);
@@ -167,7 +185,7 @@ public class HttpRemoteTransactionService {
 
         @Override
         protected void handleImpl(HttpServerExchange exchange, ImportResult<LocalTransaction> transaction) throws Exception {
-            transaction.getTransaction().rollback();
+            transactionManager.rollback();
         }
     }
 
@@ -175,7 +193,7 @@ public class HttpRemoteTransactionService {
 
         @Override
         protected void handleImpl(HttpServerExchange exchange, ImportResult<LocalTransaction> transaction) throws Exception {
-            transaction.getTransaction().commit();
+            transactionManager.commit();
         }
     }
 
@@ -217,12 +235,13 @@ public class HttpRemoteTransactionService {
         protected void handleImpl(HttpServerExchange exchange, ImportResult<LocalTransaction> transaction) throws Exception {
             Deque<String> opc = exchange.getQueryParameters().get("opc");
             boolean onePhase = false;
-            if(opc != null && !opc.isEmpty()) {
+            if (opc != null && !opc.isEmpty()) {
                 onePhase = Boolean.parseBoolean(opc.poll());
             }
             transaction.getControl().commit(onePhase);
         }
     }
+
     static MarshallingConfiguration createMarshallingConf() {
         MarshallingConfiguration marshallingConfiguration = new MarshallingConfiguration();
         marshallingConfiguration.setVersion(2);

@@ -163,9 +163,10 @@ class HttpInvocationHandler extends RemoteHTTPHandler {
                     }
 
                     return new ResolvedInvocation(privateAttachments, methodParams, locator, exchange, marshallingConfiguration, sessionAffinity, transaction);
-                } catch (Exception e) {
-                    HttpServerHelper.sendException(exchange, StatusCodes.INTERNAL_SERVER_ERROR, e);
-                    return null;
+                } catch (IOException|ClassNotFoundException e) {
+                    throw e;
+                } catch (Throwable e) {
+                    throw new IOException(e);
                 }
             }
 
@@ -191,7 +192,7 @@ class HttpInvocationHandler extends RemoteHTTPHandler {
 
             @Override
             public Executor getRequestExecutor() {
-                return executorService;
+                return executorService == null ? exchange.getIoThread().getWorker() : executorService;
             }
 
             @Override
