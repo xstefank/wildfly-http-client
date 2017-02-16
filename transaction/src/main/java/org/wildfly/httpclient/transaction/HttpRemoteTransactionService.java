@@ -167,7 +167,7 @@ public class HttpRemoteTransactionService {
 
         @Override
         protected void handleImpl(HttpServerExchange exchange, ImportResult<LocalTransaction> transaction) throws Exception {
-            transaction.getControl().rollback();
+            transaction.getTransaction().rollback();
         }
     }
 
@@ -175,7 +175,7 @@ public class HttpRemoteTransactionService {
 
         @Override
         protected void handleImpl(HttpServerExchange exchange, ImportResult<LocalTransaction> transaction) throws Exception {
-            transaction.getControl().commit(false);
+            transaction.getTransaction().commit();
         }
     }
 

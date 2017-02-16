@@ -16,6 +16,8 @@ import javax.naming.NamingEnumeration;
 import javax.naming.NamingException;
 import javax.transaction.HeuristicMixedException;
 import javax.transaction.HeuristicRollbackException;
+import javax.transaction.InvalidTransactionException;
+import javax.transaction.NotSupportedException;
 import javax.transaction.RollbackException;
 import javax.transaction.Synchronization;
 import javax.transaction.SystemException;
@@ -59,7 +61,52 @@ public class SimpleTransactionOperationsTestCase {
         HTTPTestServer.registerServicesHandler("txn", new HttpRemoteTransactionService(new LocalTransactionContext(new LocalTransactionProvider() {
             @Override
             public TransactionManager getTransactionManager() {
-                return null;
+                return new TransactionManager() {
+                    @Override
+                    public void begin() throws NotSupportedException, SystemException {
+                        
+                    }
+
+                    @Override
+                    public void commit() throws RollbackException, HeuristicMixedException, HeuristicRollbackException, SecurityException, IllegalStateException, SystemException {
+
+                    }
+
+                    @Override
+                    public void rollback() throws IllegalStateException, SecurityException, SystemException {
+
+                    }
+
+                    @Override
+                    public void setRollbackOnly() throws IllegalStateException, SystemException {
+
+                    }
+
+                    @Override
+                    public int getStatus() throws SystemException {
+                        return 0;
+                    }
+
+                    @Override
+                    public Transaction getTransaction() throws SystemException {
+                        return null;
+                    }
+
+                    @Override
+                    public void setTransactionTimeout(int seconds) throws SystemException {
+
+                    }
+
+                    @Override
+                    public Transaction suspend() throws SystemException {
+                        return null;
+                    }
+
+                    @Override
+                    public void resume(Transaction tobj) throws InvalidTransactionException, IllegalStateException, SystemException {
+
+                    }
+                };
             }
 
             @Override
