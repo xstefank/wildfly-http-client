@@ -1,21 +1,9 @@
 package org.wildfly.httpclient.ejb;
 
-import java.io.IOException;
-import java.io.InputStream;
-import java.io.OutputStream;
-import java.net.SocketAddress;
-import java.nio.charset.StandardCharsets;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.Map;
-import java.util.concurrent.Executor;
-import java.util.concurrent.ExecutorService;
-import javax.ejb.EJBHome;
-import javax.ejb.NoSuchEJBException;
-import javax.transaction.SystemException;
-import javax.transaction.Transaction;
-import javax.transaction.xa.XAException;
-
+import io.undertow.server.HttpServerExchange;
+import io.undertow.server.handlers.Cookie;
+import io.undertow.util.Headers;
+import io.undertow.util.StatusCodes;
 import org.jboss.ejb.client.Affinity;
 import org.jboss.ejb.client.EJBHomeLocator;
 import org.jboss.ejb.client.EJBIdentifier;
@@ -38,19 +26,28 @@ import org.wildfly.httpclient.common.HttpServerHelper;
 import org.wildfly.transaction.client.ImportResult;
 import org.wildfly.transaction.client.LocalTransaction;
 import org.wildfly.transaction.client.LocalTransactionContext;
-import io.undertow.server.HttpServerExchange;
-import io.undertow.server.handlers.Cookie;
-import io.undertow.util.Headers;
-import io.undertow.util.PathTemplateMatch;
-import io.undertow.util.StatusCodes;
+
+import javax.ejb.EJBHome;
+import javax.ejb.NoSuchEJBException;
+import javax.transaction.SystemException;
+import javax.transaction.Transaction;
+import javax.transaction.xa.XAException;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
+import java.net.SocketAddress;
+import java.nio.charset.StandardCharsets;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.concurrent.Executor;
+import java.util.concurrent.ExecutorService;
 
 /**
  * @author Stuart Douglas
  */
 class HttpInvocationHandler extends RemoteHTTPHandler {
 
-
-    static String PATH = "/v1/invoke/{app}/{module}/{distinct}/{beanName}/{sfsbSessionId}/{viewClass}/{methodName}/*";
     private final Association association;
     private final ExecutorService executorService;
     private final LocalTransactionContext localTransactionContext;
@@ -72,18 +69,26 @@ class HttpInvocationHandler extends RemoteHTTPHandler {
             return;
         }
 
-        PathTemplateMatch match = exchange.getAttachment(PathTemplateMatch.ATTACHMENT_KEY);
-        Map<String, String> params = match.getParameters();
-        final String app = handleDash(params.get("app"));
-        final String module = handleDash(params.get("module"));
-        final String distinct = handleDash(params.get("distinct"));
-        final String bean = params.get("beanName");
+        String relativePath = exchange.getRelativePath();
+        if(relativePath.startsWith("/")) {
+            relativePath = relativePath.substring(1);
+        }
+        String[] parts = relativePath.split("/");
+        if(parts.length < 7) {
+            exchange.setStatusCode(StatusCodes.NOT_FOUND);
+            return;
+        }
+        final String app = handleDash(parts[0]);
+        final String module = handleDash(parts[1]);
+        final String distinct = handleDash(parts[2]);
+        final String bean = parts[3];
 
 
-        String sessionID = handleDash(params.get("sfsbSessionId"));
-        String viewName = params.get("viewClass");
-        String method = params.get("methodName");
-        String[] parameterTypeNames = params.get("*").split("/");
+        String sessionID = handleDash(parts[4]);
+        String viewName = parts[5];
+        String method = parts[6];
+        String[] parameterTypeNames = new String[parts.length - 7];
+        System.arraycopy(parts, 7, parameterTypeNames, 0, parameterTypeNames.length);
         Cookie cookie = exchange.getRequestCookies().get(EjbHttpService.JSESSIONID);
         final String sessionAffinity = cookie != null ? cookie.getValue() : null;
         final EJBIdentifier ejbIdentifier = new EJBIdentifier(app, module, bean, distinct);

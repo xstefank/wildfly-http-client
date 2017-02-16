@@ -1,17 +1,17 @@
 package org.wildfly.httpclient.common;
 
-import static javax.xml.stream.XMLStreamConstants.END_ELEMENT;
-import static javax.xml.stream.XMLStreamConstants.START_ELEMENT;
+import org.wildfly.client.config.ClientConfiguration;
+import org.wildfly.client.config.ConfigXMLParseException;
+import org.wildfly.client.config.ConfigurationXMLStreamReader;
 
+import javax.xml.stream.XMLInputFactory;
 import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.net.URI;
 import java.util.Collections;
-import javax.xml.stream.XMLInputFactory;
 
-import org.wildfly.client.config.ClientConfiguration;
-import org.wildfly.client.config.ConfigXMLParseException;
-import org.wildfly.client.config.ConfigurationXMLStreamReader;
+import static javax.xml.stream.XMLStreamConstants.END_ELEMENT;
+import static javax.xml.stream.XMLStreamConstants.START_ELEMENT;
 
 /**
  * @author Stuart Douglas

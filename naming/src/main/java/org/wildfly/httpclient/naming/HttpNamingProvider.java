@@ -1,12 +1,12 @@
 package org.wildfly.httpclient.naming;
 
-import java.net.URI;
-import javax.naming.NamingException;
-
 import org.wildfly.naming.client.NamingProvider;
 import org.wildfly.naming.client.util.FastHashtable;
 import org.wildfly.security.auth.client.AuthenticationContext;
 import org.wildfly.security.auth.client.PeerIdentity;
+
+import javax.naming.NamingException;
+import java.net.URI;
 
 /**
  * @author Stuart Douglas

@@ -28,4 +28,6 @@ package org.wildfly.httpclient.ejb;
 public interface EchoRemote {
 
     String echo(String msg) throws Exception;
+
+    String message() throws Exception;
 }

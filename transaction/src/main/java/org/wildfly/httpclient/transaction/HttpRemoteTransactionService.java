@@ -1,12 +1,11 @@
 package org.wildfly.httpclient.transaction;
 
-import java.io.ByteArrayOutputStream;
-import java.io.IOException;
-import java.nio.ByteBuffer;
-import java.util.Deque;
-import java.util.function.Function;
-import javax.transaction.xa.Xid;
-
+import io.undertow.server.HttpHandler;
+import io.undertow.server.HttpServerExchange;
+import io.undertow.server.RoutingHandler;
+import io.undertow.util.Headers;
+import io.undertow.util.Methods;
+import io.undertow.util.StatusCodes;
 import org.jboss.marshalling.ByteBufferInput;
 import org.jboss.marshalling.ByteOutput;
 import org.jboss.marshalling.Marshaller;
@@ -21,12 +20,13 @@ import org.wildfly.transaction.client.ImportResult;
 import org.wildfly.transaction.client.LocalTransaction;
 import org.wildfly.transaction.client.LocalTransactionContext;
 import org.wildfly.transaction.client.SimpleXid;
-import io.undertow.server.HttpHandler;
-import io.undertow.server.HttpServerExchange;
-import io.undertow.server.RoutingHandler;
-import io.undertow.util.Headers;
-import io.undertow.util.Methods;
-import io.undertow.util.StatusCodes;
+
+import javax.transaction.xa.Xid;
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
+import java.nio.ByteBuffer;
+import java.util.Deque;
+import java.util.function.Function;
 
 /**
  * @author Stuart Douglas

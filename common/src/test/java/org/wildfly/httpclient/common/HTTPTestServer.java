@@ -1,33 +1,8 @@
 package org.wildfly.httpclient.common;
 
-import java.io.IOException;
-import java.io.OutputStream;
-import java.security.Principal;
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.HashSet;
-import java.util.Set;
-
-import org.jboss.marshalling.ByteOutput;
-import org.jboss.marshalling.Marshaller;
-import org.jboss.marshalling.MarshallerFactory;
-import org.jboss.marshalling.Marshalling;
-import org.jboss.marshalling.MarshallingConfiguration;
-import org.jboss.marshalling.river.RiverMarshallerFactory;
-import org.junit.runner.Description;
-import org.junit.runner.Result;
-import org.junit.runner.notification.RunListener;
-import org.junit.runner.notification.RunNotifier;
-import org.junit.runners.BlockJUnit4ClassRunner;
-import org.junit.runners.model.InitializationError;
-import org.xnio.OptionMap;
-import org.xnio.Options;
-import org.xnio.Xnio;
-import org.xnio.XnioWorker;
 import io.undertow.Undertow;
 import io.undertow.UndertowOptions;
 import io.undertow.connector.ByteBufferPool;
-import io.undertow.security.api.AuthenticationMechanism;
 import io.undertow.security.api.AuthenticationMode;
 import io.undertow.security.handlers.AuthenticationCallHandler;
 import io.undertow.security.handlers.AuthenticationConstraintHandler;
@@ -40,10 +15,26 @@ import io.undertow.security.idm.PasswordCredential;
 import io.undertow.security.impl.BasicAuthenticationMechanism;
 import io.undertow.server.DefaultByteBufferPool;
 import io.undertow.server.HttpHandler;
-import io.undertow.server.HttpServerExchange;
 import io.undertow.server.handlers.PathHandler;
-import io.undertow.util.Headers;
 import io.undertow.util.NetworkUtils;
+import org.jboss.marshalling.MarshallerFactory;
+import org.jboss.marshalling.river.RiverMarshallerFactory;
+import org.junit.runner.Description;
+import org.junit.runner.Result;
+import org.junit.runner.notification.RunListener;
+import org.junit.runner.notification.RunNotifier;
+import org.junit.runners.BlockJUnit4ClassRunner;
+import org.junit.runners.model.InitializationError;
+import org.xnio.OptionMap;
+import org.xnio.Options;
+import org.xnio.Xnio;
+import org.xnio.XnioWorker;
+
+import java.security.Principal;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.HashSet;
+import java.util.Set;
 
 /**
  * @author Stuart Douglas

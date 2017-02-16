@@ -1,6 +1,12 @@
 package org.wildfly.httpclient.common;
 
-import static java.security.AccessController.doPrivileged;
+import io.undertow.UndertowOptions;
+import io.undertow.connector.ByteBufferPool;
+import io.undertow.server.DefaultByteBufferPool;
+import org.wildfly.common.context.ContextManager;
+import org.wildfly.common.context.Contextual;
+import org.xnio.OptionMap;
+import org.xnio.XnioWorker;
 
 import java.net.InetSocketAddress;
 import java.net.URI;
@@ -10,13 +16,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
-import io.undertow.UndertowOptions;
-import org.wildfly.common.context.ContextManager;
-import org.wildfly.common.context.Contextual;
-import org.xnio.OptionMap;
-import org.xnio.XnioWorker;
-import io.undertow.connector.ByteBufferPool;
-import io.undertow.server.DefaultByteBufferPool;
+import static java.security.AccessController.doPrivileged;
 
 /**
  * Represents the current configured state of the HTTP contexts.

@@ -1,18 +1,21 @@
 package org.wildfly.httpclient.transaction;
 
-import java.util.Hashtable;
-import java.util.Map;
-import java.util.Random;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.function.Function;
-import javax.naming.Binding;
+import io.undertow.server.handlers.CookieImpl;
+import org.junit.Before;
+import org.junit.Test;
+import org.junit.runner.RunWith;
+import org.wildfly.common.annotation.NotNull;
+import org.wildfly.httpclient.common.HTTPTestServer;
+import org.wildfly.transaction.client.ImportResult;
+import org.wildfly.transaction.client.LocalTransactionContext;
+import org.wildfly.transaction.client.RemoteUserTransaction;
+import org.wildfly.transaction.client.SimpleXid;
+import org.wildfly.transaction.client.XAImporter;
+import org.wildfly.transaction.client.spi.LocalTransactionProvider;
+import org.wildfly.transaction.client.spi.SubordinateTransactionControl;
+
 import javax.naming.Context;
 import javax.naming.InitialContext;
-import javax.naming.Name;
-import javax.naming.NameClassPair;
-import javax.naming.NameNotFoundException;
-import javax.naming.NameParser;
-import javax.naming.NamingEnumeration;
 import javax.naming.NamingException;
 import javax.transaction.HeuristicMixedException;
 import javax.transaction.HeuristicRollbackException;
@@ -23,26 +26,13 @@ import javax.transaction.Synchronization;
 import javax.transaction.SystemException;
 import javax.transaction.Transaction;
 import javax.transaction.TransactionManager;
-import javax.transaction.UserTransaction;
 import javax.transaction.xa.XAException;
 import javax.transaction.xa.XAResource;
 import javax.transaction.xa.Xid;
-
-import org.junit.Assert;
-import org.junit.Before;
-import org.junit.Test;
-import org.junit.runner.RunWith;
-import org.wildfly.common.annotation.NotNull;
-import org.wildfly.httpclient.common.HTTPTestServer;
-import org.wildfly.transaction.client.ImportResult;
-import org.wildfly.transaction.client.LocalTransaction;
-import org.wildfly.transaction.client.LocalTransactionContext;
-import org.wildfly.transaction.client.RemoteUserTransaction;
-import org.wildfly.transaction.client.SimpleXid;
-import org.wildfly.transaction.client.XAImporter;
-import org.wildfly.transaction.client.spi.LocalTransactionProvider;
-import org.wildfly.transaction.client.spi.SubordinateTransactionControl;
-import io.undertow.server.handlers.CookieImpl;
+import java.util.Hashtable;
+import java.util.Map;
+import java.util.Random;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * TODO: this test needs a lot of work. It does not really test much at the moment.
@@ -64,7 +54,7 @@ public class SimpleTransactionOperationsTestCase {
                 return new TransactionManager() {
                     @Override
                     public void begin() throws NotSupportedException, SystemException {
-                        
+
                     }
 
                     @Override
@@ -155,7 +145,7 @@ public class SimpleTransactionOperationsTestCase {
 
                     @Override
                     public ImportResult<?> findOrImportTransaction(Xid xid, int i, boolean b) throws XAException {
-                        if(b && !transactions.containsKey(xid)) {
+                        if (b && !transactions.containsKey(xid)) {
                             return null;
                         }
                         return findOrImportTransaction(xid, i);

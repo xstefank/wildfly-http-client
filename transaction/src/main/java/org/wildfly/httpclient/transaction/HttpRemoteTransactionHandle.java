@@ -18,22 +18,22 @@
 
 package org.wildfly.httpclient.transaction;
 
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.atomic.AtomicInteger;
+import io.undertow.client.ClientRequest;
+import io.undertow.util.Headers;
+import io.undertow.util.Methods;
+import org.jboss.marshalling.Marshaller;
+import org.wildfly.httpclient.common.HttpTargetContext;
+import org.wildfly.transaction.client.spi.SimpleTransactionControl;
+
 import javax.transaction.HeuristicMixedException;
 import javax.transaction.HeuristicRollbackException;
 import javax.transaction.RollbackException;
 import javax.transaction.Status;
 import javax.transaction.SystemException;
 import javax.transaction.xa.Xid;
-
-import org.jboss.marshalling.Marshaller;
-import org.wildfly.httpclient.common.HttpTargetContext;
-import org.wildfly.transaction.client.spi.SimpleTransactionControl;
-import io.undertow.client.ClientRequest;
-import io.undertow.util.Headers;
-import io.undertow.util.Methods;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * @author <a href="mailto:david.lloyd@redhat.com">David M. Lloyd</a>

@@ -1,8 +1,8 @@
 package org.wildfly.httpclient.naming;
 
-import java.security.Principal;
-
 import org.wildfly.security.auth.client.PeerIdentity;
+
+import java.security.Principal;
 
 /**
  * @author Stuart Douglas

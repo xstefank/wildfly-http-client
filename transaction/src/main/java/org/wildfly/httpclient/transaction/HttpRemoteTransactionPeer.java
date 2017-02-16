@@ -1,11 +1,8 @@
 package org.wildfly.httpclient.transaction;
 
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ExecutionException;
-import javax.transaction.SystemException;
-import javax.transaction.xa.XAException;
-import javax.transaction.xa.Xid;
-
+import io.undertow.client.ClientRequest;
+import io.undertow.util.Headers;
+import io.undertow.util.Methods;
 import org.jboss.marshalling.InputStreamByteInput;
 import org.jboss.marshalling.MarshallingConfiguration;
 import org.jboss.marshalling.Unmarshaller;
@@ -14,9 +11,12 @@ import org.wildfly.transaction.client.SimpleXid;
 import org.wildfly.transaction.client.spi.RemoteTransactionPeer;
 import org.wildfly.transaction.client.spi.SimpleTransactionControl;
 import org.wildfly.transaction.client.spi.SubordinateTransactionControl;
-import io.undertow.client.ClientRequest;
-import io.undertow.util.Headers;
-import io.undertow.util.Methods;
+
+import javax.transaction.SystemException;
+import javax.transaction.xa.XAException;
+import javax.transaction.xa.Xid;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutionException;
 
 /**
  * @author Stuart Douglas

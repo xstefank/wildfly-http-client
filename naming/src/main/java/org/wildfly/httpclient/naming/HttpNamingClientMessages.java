@@ -1,11 +1,11 @@
 package org.wildfly.httpclient.naming;
 
-import javax.naming.NamingException;
-
 import org.jboss.logging.BasicLogger;
 import org.jboss.logging.Logger;
 import org.jboss.logging.annotations.Message;
 import org.jboss.logging.annotations.MessageLogger;
+
+import javax.naming.NamingException;
 
 @MessageLogger(projectCode = "JNDIWFHTTP")
 interface HttpNamingClientMessages extends BasicLogger {

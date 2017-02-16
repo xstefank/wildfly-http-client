@@ -1,15 +1,7 @@
 package org.wildfly.httpclient.ejb;
 
-import java.net.URI;
-import java.net.URISyntaxException;
-import java.util.Base64;
-import javax.ejb.ApplicationException;
-
-import io.undertow.server.HttpHandler;
-import io.undertow.server.HttpServerExchange;
 import io.undertow.util.Headers;
 import org.jboss.ejb.client.EJBClient;
-import org.jboss.ejb.client.EJBLocator;
 import org.jboss.ejb.client.StatefulEJBLocator;
 import org.jboss.ejb.client.StatelessEJBLocator;
 import org.jboss.ejb.client.URIAffinity;
@@ -18,8 +10,12 @@ import org.junit.Before;
 import org.junit.Ignore;
 import org.junit.Test;
 import org.junit.runner.RunWith;
-import org.wildfly.httpclient.common.HttpTargetContext;
 import org.wildfly.httpclient.common.WildflyHttpContext;
+
+import javax.ejb.ApplicationException;
+import java.net.URI;
+import java.net.URISyntaxException;
+import java.util.Base64;
 
 /**
  * @author Stuart Douglas
@@ -38,13 +34,22 @@ public class SimpleInvocationTestCase {
     @Test
     public void testSimpleInvocationViaURLAffinity() throws Exception {
         clearSessionId();
-        EJBTestServer.setHandler((invocation,affinity, out) -> invocation.getParameters()[0]);
+        EJBTestServer.setHandler((invocation, affinity, out) -> {
+            if(invocation.getParameters().length == 0) {
+                return "a message";
+            } else {
+                return invocation.getParameters()[0];
+            }
+        });
         final StatelessEJBLocator<EchoRemote> statelessEJBLocator = new StatelessEJBLocator<>(EchoRemote.class, APP, MODULE, "CalculatorBean", "");
         final EchoRemote proxy = EJBClient.createProxy(statelessEJBLocator);
         final String message = "Hello World!!!";
         EJBClient.setStrongAffinity(proxy, URIAffinity.forUri(new URI(EJBTestServer.getDefaultServerURL())));
         final String echo = proxy.echo(message);
         Assert.assertEquals("Unexpected echo message", message, echo);
+
+        String m = proxy.message();
+        Assert.assertEquals("a message", m);
     }
 
     @Test

@@ -1,12 +1,12 @@
 package org.wildfly.httpclient.common;
 
-import java.net.InetSocketAddress;
-import java.net.URI;
-import java.net.URISyntaxException;
-
 import org.junit.Assert;
 import org.junit.Test;
 import org.wildfly.client.config.ConfigXMLParseException;
+
+import java.net.InetSocketAddress;
+import java.net.URI;
+import java.net.URISyntaxException;
 
 /**
  * @author Stuart Douglas

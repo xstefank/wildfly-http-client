@@ -1,16 +1,12 @@
 package org.wildfly.httpclient.ejb;
 
-import java.io.InputStream;
-import java.net.SocketAddress;
-import java.util.Base64;
-import java.util.Map;
-import java.util.concurrent.Executor;
-import java.util.concurrent.ExecutorService;
-import javax.ejb.NoSuchEJBException;
-import javax.transaction.SystemException;
-import javax.transaction.Transaction;
-import javax.transaction.xa.XAException;
-
+import io.undertow.server.HttpServerExchange;
+import io.undertow.server.handlers.Cookie;
+import io.undertow.server.handlers.CookieImpl;
+import io.undertow.server.session.SecureRandomSessionIdGenerator;
+import io.undertow.server.session.SessionIdGenerator;
+import io.undertow.util.Headers;
+import io.undertow.util.StatusCodes;
 import org.jboss.ejb.client.EJBIdentifier;
 import org.jboss.ejb.client.SessionID;
 import org.jboss.ejb.server.Association;
@@ -24,14 +20,16 @@ import org.wildfly.httpclient.common.HttpServerHelper;
 import org.wildfly.transaction.client.ImportResult;
 import org.wildfly.transaction.client.LocalTransaction;
 import org.wildfly.transaction.client.LocalTransactionContext;
-import io.undertow.server.HttpServerExchange;
-import io.undertow.server.handlers.Cookie;
-import io.undertow.server.handlers.CookieImpl;
-import io.undertow.server.session.SecureRandomSessionIdGenerator;
-import io.undertow.server.session.SessionIdGenerator;
-import io.undertow.util.Headers;
-import io.undertow.util.PathTemplateMatch;
-import io.undertow.util.StatusCodes;
+
+import javax.ejb.NoSuchEJBException;
+import javax.transaction.SystemException;
+import javax.transaction.Transaction;
+import javax.transaction.xa.XAException;
+import java.io.InputStream;
+import java.net.SocketAddress;
+import java.util.Base64;
+import java.util.concurrent.Executor;
+import java.util.concurrent.ExecutorService;
 
 /**
  * @author Stuart Douglas
@@ -39,7 +37,6 @@ import io.undertow.util.StatusCodes;
 class HttpSessionOpenHandler extends RemoteHTTPHandler {
 
 
-    static String PATH = "/v1/open/{app}/{module}/{distinct}/{beanName}";
     private final Association association;
     private final ExecutorService executorService;
     private final SessionIdGenerator sessionIdGenerator = new SecureRandomSessionIdGenerator();
@@ -61,12 +58,19 @@ class HttpSessionOpenHandler extends RemoteHTTPHandler {
             EjbHttpClientMessages.MESSAGES.debugf("Bad content type %s", ct);
             return;
         }
-        PathTemplateMatch match = exchange.getAttachment(PathTemplateMatch.ATTACHMENT_KEY);
-        Map<String, String> params = match.getParameters();
-        final String app = handleDash(params.get("app"));
-        final String module = handleDash(params.get("module"));
-        final String distinct = handleDash(params.get("distinct"));
-        final String bean = params.get("beanName");
+        String relativePath = exchange.getRelativePath();
+        if(relativePath.startsWith("/")) {
+            relativePath = relativePath.substring(1);
+        }
+        String[] parts = relativePath.split("/");
+        if(parts.length != 4) {
+            exchange.setStatusCode(StatusCodes.NOT_FOUND);
+            return;
+        }
+        final String app = handleDash(parts[0]);
+        final String module = handleDash(parts[1]);
+        final String distinct = handleDash(parts[2]);
+        final String bean = parts[3];
 
         Cookie cookie = exchange.getRequestCookies().get(EjbHttpService.JSESSIONID);
         String sessionAffinity = null;

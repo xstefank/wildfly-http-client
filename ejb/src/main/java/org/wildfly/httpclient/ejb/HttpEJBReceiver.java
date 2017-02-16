@@ -1,24 +1,9 @@
 package org.wildfly.httpclient.ejb;
 
-import java.io.DataOutput;
-import java.io.IOException;
-import java.io.ObjectInput;
-import java.lang.reflect.Method;
-import java.net.URI;
-import java.util.Base64;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.Map;
-import java.util.Set;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.Future;
-import javax.ejb.Asynchronous;
-import javax.transaction.RollbackException;
-import javax.transaction.SystemException;
-import javax.transaction.Transaction;
-import javax.transaction.xa.Xid;
-
+import io.undertow.client.ClientRequest;
+import io.undertow.util.AttachmentKey;
+import io.undertow.util.Headers;
+import io.undertow.util.StatusCodes;
 import org.jboss.ejb.client.Affinity;
 import org.jboss.ejb.client.EJBClientInvocationContext;
 import org.jboss.ejb.client.EJBLocator;
@@ -44,10 +29,25 @@ import org.wildfly.transaction.client.LocalTransaction;
 import org.wildfly.transaction.client.RemoteTransaction;
 import org.wildfly.transaction.client.RemoteTransactionContext;
 import org.wildfly.transaction.client.XAOutflowHandle;
-import io.undertow.client.ClientRequest;
-import io.undertow.util.AttachmentKey;
-import io.undertow.util.Headers;
-import io.undertow.util.StatusCodes;
+
+import javax.ejb.Asynchronous;
+import javax.transaction.RollbackException;
+import javax.transaction.SystemException;
+import javax.transaction.Transaction;
+import javax.transaction.xa.Xid;
+import java.io.DataOutput;
+import java.io.IOException;
+import java.io.ObjectInput;
+import java.lang.reflect.Method;
+import java.net.URI;
+import java.util.Base64;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.Future;
 
 /**
  * @author Stuart Douglas

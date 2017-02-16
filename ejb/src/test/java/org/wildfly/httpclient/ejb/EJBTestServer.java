@@ -1,7 +1,7 @@
 package org.wildfly.httpclient.ejb;
 
-import java.nio.charset.StandardCharsets;
-
+import io.undertow.server.handlers.CookieImpl;
+import io.undertow.server.handlers.PathHandler;
 import org.jboss.ejb.client.SessionID;
 import org.jboss.ejb.server.Association;
 import org.jboss.ejb.server.CancelHandle;
@@ -13,8 +13,8 @@ import org.jboss.ejb.server.SessionOpenRequest;
 import org.junit.runners.model.InitializationError;
 import org.wildfly.common.annotation.NotNull;
 import org.wildfly.httpclient.common.HTTPTestServer;
-import io.undertow.server.handlers.CookieImpl;
-import io.undertow.server.handlers.PathHandler;
+
+import java.nio.charset.StandardCharsets;
 
 /**
  * @author Stuart Douglas

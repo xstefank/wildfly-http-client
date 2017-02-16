@@ -1,24 +1,13 @@
 package org.wildfly.httpclient.common;
 
-import java.io.IOException;
-import java.net.URI;
-import java.nio.charset.StandardCharsets;
-import java.security.Principal;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
-import java.util.concurrent.CopyOnWriteArrayList;
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicReference;
-
-import javax.security.auth.callback.Callback;
-import javax.security.auth.callback.PasswordCallback;
-import javax.security.auth.callback.UnsupportedCallbackException;
-
+import io.undertow.client.ClientCallback;
+import io.undertow.client.ClientExchange;
+import io.undertow.client.ClientRequest;
+import io.undertow.server.ServerConnection;
 import io.undertow.server.handlers.BlockingHandler;
+import io.undertow.util.FlexBase64;
+import io.undertow.util.Headers;
+import io.undertow.util.Methods;
 import org.junit.Assert;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -27,13 +16,22 @@ import org.wildfly.security.auth.client.AuthenticationContext;
 import org.wildfly.security.auth.client.AuthenticationContextConfigurationClient;
 import org.xnio.OptionMap;
 import org.xnio.channels.Channels;
-import io.undertow.client.ClientCallback;
-import io.undertow.client.ClientExchange;
-import io.undertow.client.ClientRequest;
-import io.undertow.server.ServerConnection;
-import io.undertow.util.FlexBase64;
-import io.undertow.util.Headers;
-import io.undertow.util.Methods;
+
+import javax.security.auth.callback.Callback;
+import javax.security.auth.callback.PasswordCallback;
+import javax.security.auth.callback.UnsupportedCallbackException;
+import java.io.IOException;
+import java.net.URI;
+import java.nio.charset.StandardCharsets;
+import java.security.Principal;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
 
 /**
  * @author Stuart Douglas
