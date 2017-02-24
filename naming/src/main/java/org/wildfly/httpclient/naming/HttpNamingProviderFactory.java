@@ -27,15 +27,19 @@ public class HttpNamingProviderFactory implements NamingProviderFactory {
         return false;
     }
 
-    private static final AuthenticationContextConfigurationClient AUTH_CONFIGURATION_CLIENT = doPrivileged(AuthenticationContextConfigurationClient.ACTION);
-
-    public NamingProvider createProvider(final URI providerUri, final FastHashtable<String, Object> env) throws NamingException {
-
+    @Override
+    public NamingProvider createProvider(FastHashtable<String, Object> env, URI... providerUris) throws NamingException {
+        if(providerUris.length == 0) {
+            throw HttpNamingClientMessages.MESSAGES.atLeastOneUri();
+        }
+        URI providerUri = providerUris[0]; //TODO: FIX THIS
         AuthenticationContext captured = AuthenticationContext.captureCurrent();
         AuthenticationConfiguration mergedConfiguration = AUTH_CONFIGURATION_CLIENT.getAuthenticationConfiguration(providerUri, captured);
 
         final AuthenticationContext context = AuthenticationContext.empty().with(MatchRule.ALL, mergedConfiguration);
         return new HttpNamingProvider(providerUri, context, env);
-
     }
+
+    private static final AuthenticationContextConfigurationClient AUTH_CONFIGURATION_CLIENT = doPrivileged(AuthenticationContextConfigurationClient.ACTION);
+
 }

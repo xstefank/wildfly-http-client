@@ -14,4 +14,7 @@ interface HttpNamingClientMessages extends BasicLogger {
 
     @Message(id = 1, value = "Unexpected data in response")
     NamingException unexpectedDataInResponse();
+
+    @Message(id = 2, value = "At least one URI must be provided")
+    NamingException atLeastOneUri();
 }

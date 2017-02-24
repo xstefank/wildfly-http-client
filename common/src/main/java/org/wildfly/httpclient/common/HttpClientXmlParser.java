@@ -4,7 +4,6 @@ import org.wildfly.client.config.ClientConfiguration;
 import org.wildfly.client.config.ConfigXMLParseException;
 import org.wildfly.client.config.ConfigurationXMLStreamReader;
 
-import javax.xml.stream.XMLInputFactory;
 import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.net.URI;
@@ -35,7 +34,7 @@ final class HttpClientXmlParser {
     //for testing
     static WildflyHttpContext.Builder parseConfig(URI uri) throws ConfigXMLParseException {
         final WildflyHttpContext.Builder builder = new WildflyHttpContext.Builder();
-        try (final ConfigurationXMLStreamReader streamReader = ConfigurationXMLStreamReader.openUri(uri, XMLInputFactory.newFactory())) {
+        try (final ConfigurationXMLStreamReader streamReader = ClientConfiguration.getInstance(uri).readConfiguration(Collections.singleton(NS_EJB_HTTP_CLIENT))) {
             parseDocument(streamReader, builder);
             return builder;
         }

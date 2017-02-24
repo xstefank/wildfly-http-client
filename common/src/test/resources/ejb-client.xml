@@ -22,6 +22,7 @@
   ~ 02110-1301 USA, or see the FSF site: http://www.fsf.org.
   -->
 
+<configuration >
 <http-client xmlns="urn:wildfly-http-client:1.0">
 
     <configs>
@@ -41,3 +42,4 @@
         <bind-address address="127.0.0.1" port="3456" />
     </defaults>
 </http-client>
+</configuration>
