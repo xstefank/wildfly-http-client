@@ -1,14 +1,14 @@
 package org.wildfly.httpclient.transaction;
 
+import javax.transaction.RollbackException;
+import javax.transaction.SystemException;
+import javax.transaction.xa.XAException;
+
 import org.jboss.logging.BasicLogger;
 import org.jboss.logging.Logger;
 import org.jboss.logging.annotations.Field;
 import org.jboss.logging.annotations.Message;
 import org.jboss.logging.annotations.MessageLogger;
-
-import javax.transaction.RollbackException;
-import javax.transaction.SystemException;
-import javax.transaction.xa.XAException;
 
 /**
  * @author Stuart Douglas

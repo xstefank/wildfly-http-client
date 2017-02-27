@@ -22,15 +22,15 @@
 
 package org.wildfly.httpclient.ejb;
 
+import java.io.IOException;
+import java.util.concurrent.ExecutorService;
+import javax.transaction.xa.Xid;
+
+import org.jboss.marshalling.Unmarshaller;
+import org.wildfly.transaction.client.SimpleXid;
 import io.undertow.server.HttpHandler;
 import io.undertow.server.HttpServerExchange;
 import io.undertow.util.AttachmentKey;
-import org.jboss.marshalling.Unmarshaller;
-import org.wildfly.transaction.client.SimpleXid;
-
-import javax.transaction.xa.Xid;
-import java.io.IOException;
-import java.util.concurrent.ExecutorService;
 
 /**
  * Undertow HTTP handler that is responsible for initial parsing of EJB over HTTP messages

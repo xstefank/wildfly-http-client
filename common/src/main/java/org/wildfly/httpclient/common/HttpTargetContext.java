@@ -1,28 +1,5 @@
 package org.wildfly.httpclient.common;
 
-import io.undertow.client.ClientCallback;
-import io.undertow.client.ClientExchange;
-import io.undertow.client.ClientRequest;
-import io.undertow.client.ClientResponse;
-import io.undertow.server.handlers.Cookie;
-import io.undertow.util.AbstractAttachable;
-import io.undertow.util.Cookies;
-import io.undertow.util.HeaderValues;
-import io.undertow.util.Headers;
-import io.undertow.util.Methods;
-import io.undertow.util.StatusCodes;
-import org.jboss.marshalling.ByteOutput;
-import org.jboss.marshalling.InputStreamByteInput;
-import org.jboss.marshalling.Marshaller;
-import org.jboss.marshalling.MarshallerFactory;
-import org.jboss.marshalling.Marshalling;
-import org.jboss.marshalling.MarshallingConfiguration;
-import org.jboss.marshalling.Unmarshaller;
-import org.jboss.marshalling.river.RiverMarshallerFactory;
-import org.xnio.channels.Channels;
-import org.xnio.streams.ChannelInputStream;
-import org.xnio.streams.ChannelOutputStream;
-
 import java.io.BufferedInputStream;
 import java.io.BufferedOutputStream;
 import java.io.IOException;
@@ -34,6 +11,29 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicBoolean;
+
+import org.jboss.marshalling.ByteOutput;
+import org.jboss.marshalling.InputStreamByteInput;
+import org.jboss.marshalling.Marshaller;
+import org.jboss.marshalling.MarshallerFactory;
+import org.jboss.marshalling.Marshalling;
+import org.jboss.marshalling.MarshallingConfiguration;
+import org.jboss.marshalling.Unmarshaller;
+import org.jboss.marshalling.river.RiverMarshallerFactory;
+import org.xnio.channels.Channels;
+import org.xnio.streams.ChannelInputStream;
+import org.xnio.streams.ChannelOutputStream;
+import io.undertow.client.ClientCallback;
+import io.undertow.client.ClientExchange;
+import io.undertow.client.ClientRequest;
+import io.undertow.client.ClientResponse;
+import io.undertow.server.handlers.Cookie;
+import io.undertow.util.AbstractAttachable;
+import io.undertow.util.Cookies;
+import io.undertow.util.HeaderValues;
+import io.undertow.util.Headers;
+import io.undertow.util.Methods;
+import io.undertow.util.StatusCodes;
 
 /**
  * @author Stuart Douglas

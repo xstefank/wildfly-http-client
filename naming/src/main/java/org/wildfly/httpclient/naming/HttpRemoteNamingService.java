@@ -1,13 +1,14 @@
 package org.wildfly.httpclient.naming;
 
-import io.undertow.server.HttpHandler;
-import io.undertow.server.HttpServerExchange;
-import io.undertow.server.RoutingHandler;
-import io.undertow.server.handlers.BlockingHandler;
-import io.undertow.util.Headers;
-import io.undertow.util.Methods;
-import io.undertow.util.PathTemplateMatch;
-import io.undertow.util.StatusCodes;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
+import java.io.UnsupportedEncodingException;
+import java.net.URLDecoder;
+import java.util.Deque;
+import javax.naming.Context;
+import javax.naming.NamingException;
+
 import org.jboss.marshalling.ByteOutput;
 import org.jboss.marshalling.InputStreamByteInput;
 import org.jboss.marshalling.Marshaller;
@@ -18,15 +19,14 @@ import org.jboss.marshalling.OutputStreamByteOutput;
 import org.jboss.marshalling.Unmarshaller;
 import org.jboss.marshalling.river.RiverMarshallerFactory;
 import org.wildfly.httpclient.common.ContentType;
-
-import javax.naming.Context;
-import javax.naming.NamingException;
-import java.io.IOException;
-import java.io.InputStream;
-import java.io.OutputStream;
-import java.io.UnsupportedEncodingException;
-import java.net.URLDecoder;
-import java.util.Deque;
+import io.undertow.server.HttpHandler;
+import io.undertow.server.HttpServerExchange;
+import io.undertow.server.RoutingHandler;
+import io.undertow.server.handlers.BlockingHandler;
+import io.undertow.util.Headers;
+import io.undertow.util.Methods;
+import io.undertow.util.PathTemplateMatch;
+import io.undertow.util.StatusCodes;
 
 /**
  * @author Stuart Douglas

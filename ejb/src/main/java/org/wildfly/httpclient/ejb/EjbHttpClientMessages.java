@@ -1,14 +1,14 @@
 package org.wildfly.httpclient.ejb;
 
+import java.io.IOException;
+import javax.ejb.EJBException;
+
 import org.jboss.ejb.client.Affinity;
 import org.jboss.ejb.client.EJBLocator;
 import org.jboss.logging.BasicLogger;
 import org.jboss.logging.Logger;
 import org.jboss.logging.annotations.Message;
 import org.jboss.logging.annotations.MessageLogger;
-
-import javax.ejb.EJBException;
-import java.io.IOException;
 
 @MessageLogger(projectCode = "WFHTTPEJB")
 interface EjbHttpClientMessages extends BasicLogger {

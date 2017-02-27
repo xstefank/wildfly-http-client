@@ -1,14 +1,14 @@
 package org.wildfly.httpclient.ejb;
 
-import org.jboss.ejb.client.AttachmentKey;
-import org.jboss.ejb.client.EJBReceiver;
-import org.jboss.ejb.client.EJBReceiverContext;
-import org.jboss.ejb.client.EJBTransportProvider;
-
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.Set;
+
+import org.jboss.ejb.client.AttachmentKey;
+import org.jboss.ejb.client.EJBReceiver;
+import org.jboss.ejb.client.EJBReceiverContext;
+import org.jboss.ejb.client.EJBTransportProvider;
 
 /**
  * @author Stuart Douglas

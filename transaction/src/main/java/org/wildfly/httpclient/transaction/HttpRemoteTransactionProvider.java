@@ -1,11 +1,11 @@
 package org.wildfly.httpclient.transaction;
 
+import java.net.URI;
+import javax.transaction.SystemException;
+
 import org.wildfly.httpclient.common.WildflyHttpContext;
 import org.wildfly.transaction.client.spi.RemoteTransactionPeer;
 import org.wildfly.transaction.client.spi.RemoteTransactionProvider;
-
-import javax.transaction.SystemException;
-import java.net.URI;
 
 /**
  * @author Stuart Douglas

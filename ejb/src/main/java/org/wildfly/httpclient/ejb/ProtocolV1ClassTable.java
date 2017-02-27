@@ -1,26 +1,10 @@
 package org.wildfly.httpclient.ejb;
 
-import org.jboss.ejb.client.Affinity;
-import org.jboss.ejb.client.BasicSessionID;
-import org.jboss.ejb.client.ClusterAffinity;
-import org.jboss.ejb.client.EJBHandle;
-import org.jboss.ejb.client.EJBHomeHandle;
-import org.jboss.ejb.client.EJBHomeLocator;
-import org.jboss.ejb.client.EJBLocator;
-import org.jboss.ejb.client.EntityEJBLocator;
-import org.jboss.ejb.client.NodeAffinity;
-import org.jboss.ejb.client.SerializedEJBInvocationHandler;
-import org.jboss.ejb.client.SessionID;
-import org.jboss.ejb.client.StatefulEJBLocator;
-import org.jboss.ejb.client.StatelessEJBLocator;
-import org.jboss.ejb.client.TransactionID;
-import org.jboss.ejb.client.UnknownSessionID;
-import org.jboss.ejb.client.UserTransactionID;
-import org.jboss.ejb.client.XidTransactionID;
-import org.jboss.marshalling.ByteWriter;
-import org.jboss.marshalling.ClassTable;
-import org.jboss.marshalling.Unmarshaller;
-
+import java.io.IOException;
+import java.rmi.RemoteException;
+import java.util.IdentityHashMap;
+import java.util.Map;
+import java.util.concurrent.Future;
 import javax.ejb.CreateException;
 import javax.ejb.DuplicateKeyException;
 import javax.ejb.EJBAccessException;
@@ -43,11 +27,27 @@ import javax.transaction.RollbackException;
 import javax.transaction.SystemException;
 import javax.transaction.TransactionRequiredException;
 import javax.transaction.TransactionRolledbackException;
-import java.io.IOException;
-import java.rmi.RemoteException;
-import java.util.IdentityHashMap;
-import java.util.Map;
-import java.util.concurrent.Future;
+
+import org.jboss.ejb.client.Affinity;
+import org.jboss.ejb.client.BasicSessionID;
+import org.jboss.ejb.client.ClusterAffinity;
+import org.jboss.ejb.client.EJBHandle;
+import org.jboss.ejb.client.EJBHomeHandle;
+import org.jboss.ejb.client.EJBHomeLocator;
+import org.jboss.ejb.client.EJBLocator;
+import org.jboss.ejb.client.EntityEJBLocator;
+import org.jboss.ejb.client.NodeAffinity;
+import org.jboss.ejb.client.SerializedEJBInvocationHandler;
+import org.jboss.ejb.client.SessionID;
+import org.jboss.ejb.client.StatefulEJBLocator;
+import org.jboss.ejb.client.StatelessEJBLocator;
+import org.jboss.ejb.client.TransactionID;
+import org.jboss.ejb.client.UnknownSessionID;
+import org.jboss.ejb.client.UserTransactionID;
+import org.jboss.ejb.client.XidTransactionID;
+import org.jboss.marshalling.ByteWriter;
+import org.jboss.marshalling.ClassTable;
+import org.jboss.marshalling.Unmarshaller;
 /**
  * @author <a href="mailto:david.lloyd@redhat.com">David M. Lloyd</a>
  * @author Jaikiran Pai

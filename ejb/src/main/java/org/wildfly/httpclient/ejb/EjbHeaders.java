@@ -1,7 +1,7 @@
 package org.wildfly.httpclient.ejb;
 
-import io.undertow.util.HttpString;
 import org.wildfly.httpclient.common.ContentType;
+import io.undertow.util.HttpString;
 
 /**
  * @author Stuart Douglas
@@ -18,5 +18,5 @@ interface EjbHeaders {
     ContentType EJB_RESPONSE_NEW_SESSION = new ContentType("application/x-wf-ejb-jbmar-new-session", 1);
 
     HttpString EJB_SESSION_ID = new HttpString("x-wf-ejb-jbmar-session-id");
-
+    HttpString INVOCATION_ID = new HttpString("X-wf-invocation-id");
 }

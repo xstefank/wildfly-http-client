@@ -1,15 +1,15 @@
 package org.wildfly.httpclient.common;
 
-import io.undertow.server.HttpServerExchange;
-import io.undertow.util.Headers;
+import java.io.OutputStream;
+
 import org.jboss.marshalling.ByteOutput;
 import org.jboss.marshalling.Marshaller;
 import org.jboss.marshalling.MarshallerFactory;
 import org.jboss.marshalling.Marshalling;
 import org.jboss.marshalling.MarshallingConfiguration;
 import org.jboss.marshalling.river.RiverMarshallerFactory;
-
-import java.io.OutputStream;
+import io.undertow.server.HttpServerExchange;
+import io.undertow.util.Headers;
 
 /**
  * @author Stuart Douglas

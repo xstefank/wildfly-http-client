@@ -1,6 +1,10 @@
 package org.wildfly.httpclient.ejb;
 
-import io.undertow.util.Headers;
+import java.net.URI;
+import java.net.URISyntaxException;
+import java.util.Base64;
+import javax.ejb.ApplicationException;
+
 import org.jboss.ejb.client.EJBClient;
 import org.jboss.ejb.client.StatefulEJBLocator;
 import org.jboss.ejb.client.StatelessEJBLocator;
@@ -11,11 +15,7 @@ import org.junit.Ignore;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.wildfly.httpclient.common.WildflyHttpContext;
-
-import javax.ejb.ApplicationException;
-import java.net.URI;
-import java.net.URISyntaxException;
-import java.util.Base64;
+import io.undertow.util.Headers;
 
 /**
  * @author Stuart Douglas

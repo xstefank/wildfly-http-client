@@ -1,7 +1,7 @@
 package org.wildfly.httpclient.transaction;
 
-import io.undertow.util.HttpString;
 import org.wildfly.httpclient.common.ContentType;
+import io.undertow.util.HttpString;
 
 /**
  * @author Stuart Douglas

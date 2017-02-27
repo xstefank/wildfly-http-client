@@ -1,11 +1,11 @@
 package org.wildfly.httpclient.common;
 
-import org.wildfly.client.config.ConfigXMLParseException;
-
 import java.io.IOException;
 import java.security.AccessController;
 import java.security.PrivilegedAction;
 import java.util.function.Supplier;
+
+import org.wildfly.client.config.ConfigXMLParseException;
 
 /**
  * A configuration-based EJBHttpContext supplier.

@@ -1,7 +1,6 @@
 package org.wildfly.httpclient.naming;
 
-import org.wildfly.naming.client.util.FastHashtable;
-
+import java.util.Hashtable;
 import javax.naming.Binding;
 import javax.naming.CompositeName;
 import javax.naming.Context;
@@ -10,7 +9,8 @@ import javax.naming.NameClassPair;
 import javax.naming.NameParser;
 import javax.naming.NamingEnumeration;
 import javax.naming.NamingException;
-import java.util.Hashtable;
+
+import org.wildfly.naming.client.util.FastHashtable;
 
 /**
  * @author Stuart Douglas

@@ -1,14 +1,14 @@
 package org.wildfly.httpclient.common;
 
 
-import io.undertow.server.handlers.CookieImpl;
+import java.net.URI;
+import java.net.URISyntaxException;
+
 import org.junit.Assert;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.wildfly.security.auth.client.AuthenticationContext;
-
-import java.net.URI;
-import java.net.URISyntaxException;
+import io.undertow.server.handlers.CookieImpl;
 
 /**
  * @author Stuart Douglas

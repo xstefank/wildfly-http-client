@@ -3,3 +3,6 @@
 - Digest Auth
 - Cancellation
 - Multiple URL's for naming
+- Multiplexing support
+- SSL testing
+

@@ -1,12 +1,15 @@
 package org.wildfly.httpclient.ejb;
 
-import io.undertow.server.HttpServerExchange;
-import io.undertow.server.handlers.Cookie;
-import io.undertow.server.handlers.CookieImpl;
-import io.undertow.server.session.SecureRandomSessionIdGenerator;
-import io.undertow.server.session.SessionIdGenerator;
-import io.undertow.util.Headers;
-import io.undertow.util.StatusCodes;
+import java.io.InputStream;
+import java.net.SocketAddress;
+import java.util.Base64;
+import java.util.concurrent.Executor;
+import java.util.concurrent.ExecutorService;
+import javax.ejb.NoSuchEJBException;
+import javax.transaction.SystemException;
+import javax.transaction.Transaction;
+import javax.transaction.xa.XAException;
+
 import org.jboss.ejb.client.EJBIdentifier;
 import org.jboss.ejb.client.SessionID;
 import org.jboss.ejb.server.Association;
@@ -20,16 +23,13 @@ import org.wildfly.httpclient.common.HttpServerHelper;
 import org.wildfly.transaction.client.ImportResult;
 import org.wildfly.transaction.client.LocalTransaction;
 import org.wildfly.transaction.client.LocalTransactionContext;
-
-import javax.ejb.NoSuchEJBException;
-import javax.transaction.SystemException;
-import javax.transaction.Transaction;
-import javax.transaction.xa.XAException;
-import java.io.InputStream;
-import java.net.SocketAddress;
-import java.util.Base64;
-import java.util.concurrent.Executor;
-import java.util.concurrent.ExecutorService;
+import io.undertow.server.HttpServerExchange;
+import io.undertow.server.handlers.Cookie;
+import io.undertow.server.handlers.CookieImpl;
+import io.undertow.server.session.SecureRandomSessionIdGenerator;
+import io.undertow.server.session.SessionIdGenerator;
+import io.undertow.util.Headers;
+import io.undertow.util.StatusCodes;
 
 /**
  * @author Stuart Douglas

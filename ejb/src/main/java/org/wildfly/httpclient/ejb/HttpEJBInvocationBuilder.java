@@ -1,11 +1,10 @@
 package org.wildfly.httpclient.ejb;
 
+import java.lang.reflect.Method;
+
 import io.undertow.client.ClientRequest;
 import io.undertow.util.Headers;
-import io.undertow.util.HttpString;
 import io.undertow.util.Methods;
-
-import java.lang.reflect.Method;
 
 
 /**
@@ -15,7 +14,6 @@ import java.lang.reflect.Method;
  */
 class HttpEJBInvocationBuilder {
 
-    private static final HttpString INVOCATION_ID = new HttpString("X-wf-invocation-id");
     private static final String INVOCATION_ACCEPT = "application/x-wf-ejb-response;version=1,application/x-wf-jbmar-exception;version=1";
     private static final String STATEFUL_CREATE_ACCEPT = "application/x-wf-jbmar-exception;version=1";
 
@@ -29,6 +27,7 @@ class HttpEJBInvocationBuilder {
     private InvocationType invocationType;
     private Long invocationId;
     private int version = 1;
+    private boolean cancelIfRunning;
 
     public String getAppName() {
         return appName;
@@ -144,6 +143,23 @@ class HttpEJBInvocationBuilder {
      * @param moduleName   The module name
      * @param distinctName The distinct name
      * @param beanName     The bean name
+     * @return The request path to invoke
+     */
+    private String buildPath(final String mountPoint, String type, final String appName, final String moduleName, final String distinctName, final String beanName, boolean cancelIfRunning) {
+        StringBuilder sb = new StringBuilder();
+        buildBeanPath(mountPoint, type, appName, moduleName, distinctName, beanName, sb);
+        sb.append("/");
+        sb.append(Boolean.toString(cancelIfRunning));
+        return sb.toString();
+    }
+    /**
+     * Constructs an EJB invocation path
+     *
+     * @param mountPoint   The mount point of the EJB context
+     * @param appName      The application name
+     * @param moduleName   The module name
+     * @param distinctName The distinct name
+     * @param beanName     The bean name
      * @param beanId       The bean id
      * @return The request path to invoke
      */
@@ -207,7 +223,7 @@ class HttpEJBInvocationBuilder {
             clientRequest.setMethod(Methods.POST);
             clientRequest.getRequestHeaders().add(Headers.ACCEPT, INVOCATION_ACCEPT);
             if (invocationId != null) {
-                clientRequest.getRequestHeaders().put(INVOCATION_ID, invocationId);
+                clientRequest.getRequestHeaders().put(EjbHeaders.INVOCATION_ID, invocationId);
             }
             clientRequest.setPath(buildPath(mountPoint, "invoke", appName, moduleName, distinctName, beanName, beanId, view, method));
             clientRequest.getRequestHeaders().put(Headers.CONTENT_TYPE, EjbHeaders.INVOCATION_VERSION_ONE);
@@ -216,8 +232,20 @@ class HttpEJBInvocationBuilder {
             clientRequest.getRequestHeaders().put(Headers.CONTENT_TYPE, EjbHeaders.SESSION_OPEN_VERSION_ONE);
             clientRequest.setPath(buildPath(mountPoint,"open", appName, moduleName, distinctName, beanName));
             clientRequest.getRequestHeaders().add(Headers.ACCEPT, STATEFUL_CREATE_ACCEPT);
+        } else if(invocationType == InvocationType.CANCEL) {
+            clientRequest.setMethod(Methods.DELETE);
+            clientRequest.setPath(buildPath(mountPoint,"cancel", appName, moduleName, distinctName, beanName));
         }
         return clientRequest;
+    }
+
+    public HttpEJBInvocationBuilder setCancelIfRunning(boolean cancelIfRunning) {
+        this.cancelIfRunning = cancelIfRunning;
+        return this;
+    }
+
+    public boolean isCancelIfRunning() {
+        return cancelIfRunning;
     }
 
 

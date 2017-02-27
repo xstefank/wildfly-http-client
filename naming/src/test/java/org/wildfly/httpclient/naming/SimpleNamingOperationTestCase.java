@@ -1,12 +1,8 @@
 package org.wildfly.httpclient.naming;
 
-import io.undertow.server.handlers.CookieImpl;
-import org.junit.Assert;
-import org.junit.Before;
-import org.junit.Test;
-import org.junit.runner.RunWith;
-import org.wildfly.httpclient.common.HTTPTestServer;
-
+import java.util.Hashtable;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 import javax.naming.Binding;
 import javax.naming.Context;
 import javax.naming.InitialContext;
@@ -16,9 +12,13 @@ import javax.naming.NameNotFoundException;
 import javax.naming.NameParser;
 import javax.naming.NamingEnumeration;
 import javax.naming.NamingException;
-import java.util.Hashtable;
-import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
+
+import org.junit.Assert;
+import org.junit.Before;
+import org.junit.Test;
+import org.junit.runner.RunWith;
+import org.wildfly.httpclient.common.HTTPTestServer;
+import io.undertow.server.handlers.CookieImpl;
 
 /**
  * @author Stuart Douglas

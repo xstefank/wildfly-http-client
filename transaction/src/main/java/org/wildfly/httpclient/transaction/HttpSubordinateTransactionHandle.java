@@ -18,24 +18,24 @@
 
 package org.wildfly.httpclient.transaction;
 
+import static org.wildfly.httpclient.transaction.TransactionConstants.TXN_V1_XA_BC;
+import static org.wildfly.httpclient.transaction.TransactionConstants.TXN_V1_XA_PREP;
+import static org.wildfly.httpclient.transaction.TransactionConstants.TXN_V1_XA_ROLLBACK;
+
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutionException;
+import java.util.function.Function;
+import javax.transaction.xa.XAException;
+import javax.transaction.xa.XAResource;
+import javax.transaction.xa.Xid;
+
+import org.jboss.marshalling.Marshaller;
+import org.wildfly.httpclient.common.HttpTargetContext;
+import org.wildfly.transaction.client.spi.SubordinateTransactionControl;
 import io.undertow.client.ClientRequest;
 import io.undertow.client.ClientResponse;
 import io.undertow.util.Headers;
 import io.undertow.util.Methods;
-import org.jboss.marshalling.Marshaller;
-import org.wildfly.httpclient.common.HttpTargetContext;
-import org.wildfly.transaction.client.spi.SubordinateTransactionControl;
-
-import javax.transaction.xa.XAException;
-import javax.transaction.xa.XAResource;
-import javax.transaction.xa.Xid;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ExecutionException;
-import java.util.function.Function;
-
-import static org.wildfly.httpclient.transaction.TransactionConstants.TXN_V1_XA_BC;
-import static org.wildfly.httpclient.transaction.TransactionConstants.TXN_V1_XA_PREP;
-import static org.wildfly.httpclient.transaction.TransactionConstants.TXN_V1_XA_ROLLBACK;
 
 /**
  * @author <a href="mailto:david.lloyd@redhat.com">David M. Lloyd</a>

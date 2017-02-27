@@ -1,19 +1,9 @@
 package org.wildfly.httpclient.transaction;
 
-import io.undertow.server.handlers.CookieImpl;
-import org.junit.Before;
-import org.junit.Test;
-import org.junit.runner.RunWith;
-import org.wildfly.common.annotation.NotNull;
-import org.wildfly.httpclient.common.HTTPTestServer;
-import org.wildfly.transaction.client.ImportResult;
-import org.wildfly.transaction.client.LocalTransactionContext;
-import org.wildfly.transaction.client.RemoteUserTransaction;
-import org.wildfly.transaction.client.SimpleXid;
-import org.wildfly.transaction.client.XAImporter;
-import org.wildfly.transaction.client.spi.LocalTransactionProvider;
-import org.wildfly.transaction.client.spi.SubordinateTransactionControl;
-
+import java.util.Hashtable;
+import java.util.Map;
+import java.util.Random;
+import java.util.concurrent.ConcurrentHashMap;
 import javax.naming.Context;
 import javax.naming.InitialContext;
 import javax.naming.NamingException;
@@ -29,10 +19,20 @@ import javax.transaction.TransactionManager;
 import javax.transaction.xa.XAException;
 import javax.transaction.xa.XAResource;
 import javax.transaction.xa.Xid;
-import java.util.Hashtable;
-import java.util.Map;
-import java.util.Random;
-import java.util.concurrent.ConcurrentHashMap;
+
+import org.junit.Before;
+import org.junit.Test;
+import org.junit.runner.RunWith;
+import org.wildfly.common.annotation.NotNull;
+import org.wildfly.httpclient.common.HTTPTestServer;
+import org.wildfly.transaction.client.ImportResult;
+import org.wildfly.transaction.client.LocalTransactionContext;
+import org.wildfly.transaction.client.RemoteUserTransaction;
+import org.wildfly.transaction.client.SimpleXid;
+import org.wildfly.transaction.client.XAImporter;
+import org.wildfly.transaction.client.spi.LocalTransactionProvider;
+import org.wildfly.transaction.client.spi.SubordinateTransactionControl;
+import io.undertow.server.handlers.CookieImpl;
 
 /**
  * TODO: this test needs a lot of work. It does not really test much at the moment.

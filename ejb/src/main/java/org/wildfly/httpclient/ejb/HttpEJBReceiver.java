@@ -1,9 +1,26 @@
 package org.wildfly.httpclient.ejb;
 
-import io.undertow.client.ClientRequest;
-import io.undertow.util.AttachmentKey;
-import io.undertow.util.Headers;
-import io.undertow.util.StatusCodes;
+import java.io.DataOutput;
+import java.io.IOException;
+import java.io.ObjectInput;
+import java.lang.reflect.Method;
+import java.net.URI;
+import java.util.Base64;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Future;
+import java.util.concurrent.atomic.AtomicLong;
+import javax.ejb.Asynchronous;
+import javax.transaction.RollbackException;
+import javax.transaction.SystemException;
+import javax.transaction.Transaction;
+import javax.transaction.xa.Xid;
+
 import org.jboss.ejb.client.Affinity;
 import org.jboss.ejb.client.EJBClientInvocationContext;
 import org.jboss.ejb.client.EJBLocator;
@@ -29,25 +46,11 @@ import org.wildfly.transaction.client.LocalTransaction;
 import org.wildfly.transaction.client.RemoteTransaction;
 import org.wildfly.transaction.client.RemoteTransactionContext;
 import org.wildfly.transaction.client.XAOutflowHandle;
-
-import javax.ejb.Asynchronous;
-import javax.transaction.RollbackException;
-import javax.transaction.SystemException;
-import javax.transaction.Transaction;
-import javax.transaction.xa.Xid;
-import java.io.DataOutput;
-import java.io.IOException;
-import java.io.ObjectInput;
-import java.lang.reflect.Method;
-import java.net.URI;
-import java.util.Base64;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.Map;
-import java.util.Set;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.Future;
+import org.xnio.IoUtils;
+import io.undertow.client.ClientRequest;
+import io.undertow.util.AttachmentKey;
+import io.undertow.util.Headers;
+import io.undertow.util.StatusCodes;
 
 /**
  * @author Stuart Douglas
@@ -55,8 +58,14 @@ import java.util.concurrent.Future;
 class HttpEJBReceiver extends EJBReceiver {
 
     private final AttachmentKey<EjbContextData> EJB_CONTEXT_DATA = AttachmentKey.create(EjbContextData.class);
+    /**
+     * The invocation id, as used for request cancellation
+     */
+    private final org.jboss.ejb.client.AttachmentKey<Long> INVOCATION_ID = new org.jboss.ejb.client.AttachmentKey<>();
 
     private final RemoteTransactionContext transactionContext;
+
+    private static final AtomicLong invocationIdGenerator = new AtomicLong();
 
     HttpEJBReceiver() {
         transactionContext = RemoteTransactionContext.getInstance();
@@ -154,6 +163,55 @@ class HttpEJBReceiver extends EJBReceiver {
 
     }
 
+    @Override
+    protected boolean cancelInvocation(EJBReceiverInvocationContext receiverContext, boolean cancelIfRunning) {
+
+        final NamingProvider namingProvider = receiverContext.getNamingProvider();
+        EJBClientInvocationContext clientInvocationContext = receiverContext.getClientInvocationContext();
+        EJBLocator locator = clientInvocationContext.getLocator();
+
+        Affinity affinity = locator.getAffinity();
+        URI uri;
+        if (namingProvider instanceof HttpNamingProvider) {
+            uri = namingProvider.getProviderUri();
+        } else if (affinity instanceof URIAffinity) {
+            uri = affinity.getUri();
+        } else {
+            throw EjbHttpClientMessages.MESSAGES.invalidAffinity(affinity);
+        }
+
+        WildflyHttpContext current = WildflyHttpContext.getCurrent();
+        HttpTargetContext targetContext = current.getTargetContext(uri);
+        if (targetContext == null) {
+            throw EjbHttpClientMessages.MESSAGES.couldNotResolveTargetForLocator(locator);
+        }
+        if (targetContext.getAttachment(EJB_CONTEXT_DATA) == null) {
+            synchronized (this) {
+                if (targetContext.getAttachment(EJB_CONTEXT_DATA) == null) {
+                    targetContext.putAttachment(EJB_CONTEXT_DATA, new EjbContextData());
+                }
+            }
+        }
+        targetContext.awaitSessionId(false);
+        HttpEJBInvocationBuilder builder = new HttpEJBInvocationBuilder()
+                .setInvocationType(HttpEJBInvocationBuilder.InvocationType.CANCEL)
+                .setAppName(locator.getAppName())
+                .setModuleName(locator.getModuleName())
+                .setDistinctName(locator.getDistinctName())
+                .setCancelIfRunning(cancelIfRunning)
+                .setBeanName(locator.getBeanName());
+        final CompletableFuture<Boolean> result = new CompletableFuture<>();
+        targetContext.sendRequest(builder.createRequest(targetContext.getUri().getPath()), null, (stream, response) -> {
+            result.complete(true);
+            IoUtils.safeClose(stream);
+        }, throwable -> result.complete(false), null, null);
+        try {
+            return result.get();
+        } catch (InterruptedException | ExecutionException e) {
+            return false;
+        }
+    }
+
     private void invocationConnectionReady(EJBClientInvocationContext clientInvocationContext, EJBReceiverInvocationContext receiverContext, HttpConnectionPool.ConnectionHandle connection, HttpTargetContext targetContext) {
         EjbContextData ejbData = targetContext.getAttachment(EJB_CONTEXT_DATA);
         EJBLocator<?> locator = clientInvocationContext.getLocator();
@@ -168,8 +226,16 @@ class HttpEJBReceiver extends EJBReceiver {
         if (locator instanceof StatefulEJBLocator) {
             builder.setBeanId(Base64.getEncoder().encodeToString(((StatefulEJBLocator) locator).getSessionId().getEncodedForm()));
         }
+
+
         if (clientInvocationContext.getInvokedMethod().getReturnType() == Future.class) {
             receiverContext.proceedAsynchronously();
+            //cancellation is only supported if we have affinity
+            if (targetContext.getSessionId() != null) {
+                long invocationId = invocationIdGenerator.incrementAndGet();
+                receiverContext.getClientInvocationContext().putAttachment(INVOCATION_ID, invocationId);
+                builder.setInvocationId(invocationId);
+            }
         } else if (clientInvocationContext.getInvokedMethod().getReturnType() == void.class) {
             if (clientInvocationContext.getInvokedMethod().isAnnotationPresent(Asynchronous.class)) {
                 receiverContext.proceedAsynchronously();

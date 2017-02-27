@@ -1,11 +1,11 @@
 package org.wildfly.httpclient.naming;
 
+import javax.naming.Context;
+import javax.naming.NamingException;
+
 import org.wildfly.naming.client.NamingContextFactory;
 import org.wildfly.naming.client.NamingProvider;
 import org.wildfly.naming.client.util.FastHashtable;
-
-import javax.naming.Context;
-import javax.naming.NamingException;
 
 /**
  * @author Stuart Douglas
