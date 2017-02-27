@@ -25,7 +25,7 @@ class HttpEJBInvocationBuilder {
     private String view;
     private Method method;
     private InvocationType invocationType;
-    private Long invocationId;
+    private String invocationId;
     private int version = 1;
     private boolean cancelIfRunning;
 
@@ -101,11 +101,11 @@ class HttpEJBInvocationBuilder {
         return this;
     }
 
-    public Long getInvocationId() {
+    public String getInvocationId() {
         return invocationId;
     }
 
-    public HttpEJBInvocationBuilder setInvocationId(Long invocationId) {
+    public HttpEJBInvocationBuilder setInvocationId(String invocationId) {
         this.invocationId = invocationId;
         return this;
     }
@@ -145,9 +145,11 @@ class HttpEJBInvocationBuilder {
      * @param beanName     The bean name
      * @return The request path to invoke
      */
-    private String buildPath(final String mountPoint, String type, final String appName, final String moduleName, final String distinctName, final String beanName, boolean cancelIfRunning) {
+    private String buildPath(final String mountPoint, String type, final String appName, final String moduleName, final String distinctName, final String beanName, String invocationId, boolean cancelIfRunning) {
         StringBuilder sb = new StringBuilder();
         buildBeanPath(mountPoint, type, appName, moduleName, distinctName, beanName, sb);
+        sb.append("/");
+        sb.append(invocationId);
         sb.append("/");
         sb.append(Boolean.toString(cancelIfRunning));
         return sb.toString();
@@ -234,7 +236,7 @@ class HttpEJBInvocationBuilder {
             clientRequest.getRequestHeaders().add(Headers.ACCEPT, STATEFUL_CREATE_ACCEPT);
         } else if(invocationType == InvocationType.CANCEL) {
             clientRequest.setMethod(Methods.DELETE);
-            clientRequest.setPath(buildPath(mountPoint,"cancel", appName, moduleName, distinctName, beanName));
+            clientRequest.setPath(buildPath(mountPoint,"cancel", appName, moduleName, distinctName, beanName, invocationId, cancelIfRunning));
         }
         return clientRequest;
     }

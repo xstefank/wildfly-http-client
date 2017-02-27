@@ -1,6 +1,8 @@
 package org.wildfly.httpclient.ejb;
 
 import java.nio.charset.StandardCharsets;
+import java.util.concurrent.LinkedBlockingDeque;
+import java.util.concurrent.TimeUnit;
 
 import org.jboss.ejb.client.SessionID;
 import org.jboss.ejb.server.Association;
@@ -40,20 +42,26 @@ public class EJBTestServer extends HTTPTestServer {
         servicesHandler.addPrefixPath("/ejb", new EjbHttpService(new Association() {
             @Override
             public <T> CancelHandle receiveInvocationRequest(@NotNull InvocationRequest invocationRequest) {
+                TestCancelHandle handle = new TestCancelHandle();
                 try {
                     InvocationRequest.Resolved request = invocationRequest.getRequestContent(getClass().getClassLoader());
                     HttpInvocationHandler.ResolvedInvocation resolvedInvocation = (HttpInvocationHandler.ResolvedInvocation) request;
-
                     TestEjbOutput out = new TestEjbOutput();
-                    Object result = handler.handle(request, resolvedInvocation.getSessionAffinity(), out);
-                    if(out.getSessionAffinity() != null) {
-                        resolvedInvocation.getExchange().getResponseCookies().put("JSESSIONID", new CookieImpl("JSESSIONID",  out.getSessionAffinity()));
-                    }
-                    request.writeInvocationResult(result);
+                    getWorker().execute(() -> {
+                        try {
+                            Object result = handler.handle(request, resolvedInvocation.getSessionAffinity(), out, invocationRequest.getMethodLocator(), handle);
+                            if (out.getSessionAffinity() != null) {
+                                resolvedInvocation.getExchange().getResponseCookies().put("JSESSIONID", new CookieImpl("JSESSIONID", out.getSessionAffinity()));
+                            }
+                            request.writeInvocationResult(result);
+                        } catch (Exception e) {
+                            invocationRequest.writeException(e);
+                        }
+                    });
                 } catch (Exception e) {
                     invocationRequest.writeException(e);
                 }
-                return null;
+                return handle;
             }
 
             @Override
@@ -73,5 +81,23 @@ public class EJBTestServer extends HTTPTestServer {
             }
         }, null, null).createHttpHandler());
 
+    }
+
+    public static class TestCancelHandle implements CancelHandle {
+
+        private final LinkedBlockingDeque<Boolean> resultQueue = new LinkedBlockingDeque<>();
+
+        @Override
+        public void cancel(boolean aggressiveCancelRequested) {
+            resultQueue.add(aggressiveCancelRequested);
+        }
+
+        public Boolean awaitResult() {
+            try {
+                return resultQueue.poll(10, TimeUnit.SECONDS);
+            } catch (InterruptedException e) {
+                throw new RuntimeException(e);
+            }
+        }
     }
 }

@@ -29,6 +29,7 @@ import javax.transaction.TransactionRequiredException;
 import javax.transaction.TransactionRolledbackException;
 
 import org.jboss.ejb.client.Affinity;
+import org.jboss.ejb.client.AttachmentKey;
 import org.jboss.ejb.client.BasicSessionID;
 import org.jboss.ejb.client.ClusterAffinity;
 import org.jboss.ejb.client.EJBHandle;
@@ -109,6 +110,7 @@ final class ProtocolV1ClassTable implements ClassTable {
             Affinity.NONE.getClass(),
             NodeAffinity.class,
             ClusterAffinity.class,
+            AttachmentKey.class
     };
 
     static {

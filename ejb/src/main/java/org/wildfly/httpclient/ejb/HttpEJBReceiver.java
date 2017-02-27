@@ -58,11 +58,7 @@ import io.undertow.util.StatusCodes;
 class HttpEJBReceiver extends EJBReceiver {
 
     private final AttachmentKey<EjbContextData> EJB_CONTEXT_DATA = AttachmentKey.create(EjbContextData.class);
-    /**
-     * The invocation id, as used for request cancellation
-     */
-    private final org.jboss.ejb.client.AttachmentKey<Long> INVOCATION_ID = new org.jboss.ejb.client.AttachmentKey<>();
-
+    private final org.jboss.ejb.client.AttachmentKey<String> INVOCATION_ID = new org.jboss.ejb.client.AttachmentKey<>();
     private final RemoteTransactionContext transactionContext;
 
     private static final AtomicLong invocationIdGenerator = new AtomicLong();
@@ -199,6 +195,7 @@ class HttpEJBReceiver extends EJBReceiver {
                 .setModuleName(locator.getModuleName())
                 .setDistinctName(locator.getDistinctName())
                 .setCancelIfRunning(cancelIfRunning)
+                .setInvocationId(receiverContext.getClientInvocationContext().getAttachment(INVOCATION_ID))
                 .setBeanName(locator.getBeanName());
         final CompletableFuture<Boolean> result = new CompletableFuture<>();
         targetContext.sendRequest(builder.createRequest(targetContext.getUri().getPath()), null, (stream, response) -> {
@@ -233,8 +230,9 @@ class HttpEJBReceiver extends EJBReceiver {
             //cancellation is only supported if we have affinity
             if (targetContext.getSessionId() != null) {
                 long invocationId = invocationIdGenerator.incrementAndGet();
-                receiverContext.getClientInvocationContext().putAttachment(INVOCATION_ID, invocationId);
-                builder.setInvocationId(invocationId);
+                String invocationIdString = Long.toString(invocationId);
+                builder.setInvocationId(invocationIdString);
+                clientInvocationContext.putAttachment(INVOCATION_ID, invocationIdString);
             }
         } else if (clientInvocationContext.getInvokedMethod().getReturnType() == void.class) {
             if (clientInvocationContext.getInvokedMethod().isAnnotationPresent(Asynchronous.class)) {
@@ -312,14 +310,15 @@ class HttpEJBReceiver extends EJBReceiver {
         // (a.k.a user application specific data)
         final Map<?, ?> privateAttachments = clientInvocationContext.getAttachments();
         final Map<String, Object> contextData = clientInvocationContext.getContextData();
+        int privateAttachmentsSize = privateAttachments.size() - (privateAttachments.containsKey(INVOCATION_ID) ? 1 : 0);
         // no private or public data to write out
-        if (contextData == null && privateAttachments.isEmpty()) {
+        if (contextData == null && privateAttachmentsSize == 0) {
             marshaller.writeByte(0);
         } else {
             // write the attachment count which is the sum of invocation context data + 1 (since we write
             // out the private attachments under a single key with the value being the entire attachment map)
             int totalAttachments = contextData.size();
-            if (!privateAttachments.isEmpty()) {
+            if (privateAttachmentsSize > 0) {
                 totalAttachments++;
             }
             PackedInteger.writePackedInteger(marshaller, totalAttachments);
@@ -328,11 +327,13 @@ class HttpEJBReceiver extends EJBReceiver {
                 marshaller.writeObject(invocationContextData.getKey());
                 marshaller.writeObject(invocationContextData.getValue());
             }
-            if (!privateAttachments.isEmpty()) {
+            if (privateAttachmentsSize > 0) {
                 // now write out the JBoss specific attachments under a single key and the value will be the
                 // entire map of JBoss specific attachments
                 marshaller.writeObject(EJBClientInvocationContext.PRIVATE_ATTACHMENTS_KEY);
-                marshaller.writeObject(privateAttachments);
+                Map<?, ?> copy = new HashMap<>(privateAttachments);
+                copy.remove(INVOCATION_ID);
+                marshaller.writeObject(copy);
             }
         }
         // finish marshalling

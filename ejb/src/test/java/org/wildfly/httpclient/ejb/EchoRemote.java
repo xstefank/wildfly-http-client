@@ -22,6 +22,8 @@
 
 package org.wildfly.httpclient.ejb;
 
+import java.util.concurrent.Future;
+
 /**
  * User: jpai
  */
@@ -30,4 +32,10 @@ public interface EchoRemote {
     String echo(String msg) throws Exception;
 
     String message() throws Exception;
+
+    Future<String> asyncMessage();
+
+    Future<String> asyncException() throws Exception;
+
+    Future<String> asyncCancel();
 }
