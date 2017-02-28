@@ -19,6 +19,7 @@ import org.jboss.marshalling.OutputStreamByteOutput;
 import org.jboss.marshalling.Unmarshaller;
 import org.jboss.marshalling.river.RiverMarshallerFactory;
 import org.wildfly.httpclient.common.ContentType;
+import org.wildfly.httpclient.common.ElytronIdentityHandler;
 import io.undertow.server.HttpHandler;
 import io.undertow.server.HttpServerExchange;
 import io.undertow.server.RoutingHandler;
@@ -65,7 +66,7 @@ public class HttpRemoteNamingService {
         routingHandler.add(Methods.GET, LIST_BINDINGS, new ListBindingsHandler());
         routingHandler.add(Methods.PATCH, RENAME, new RenameHandler());
         routingHandler.add(Methods.PUT, CREATE_SUBCONTEXT, new CreateSubContextHandler());
-        return new BlockingHandler(routingHandler);
+        return new BlockingHandler(new ElytronIdentityHandler(routingHandler));
     }
 
 

@@ -35,7 +35,9 @@ import org.jboss.marshalling.MarshallingConfiguration;
 import org.jboss.marshalling.Unmarshaller;
 import org.wildfly.common.annotation.NotNull;
 import org.wildfly.httpclient.common.ContentType;
+import org.wildfly.httpclient.common.ElytronIdentityHandler;
 import org.wildfly.httpclient.common.HttpServerHelper;
+import org.wildfly.security.auth.server.SecurityIdentity;
 import org.wildfly.transaction.client.ImportResult;
 import org.wildfly.transaction.client.LocalTransaction;
 import org.wildfly.transaction.client.LocalTransactionContext;
@@ -230,6 +232,11 @@ class HttpInvocationHandler extends RemoteHTTPHandler {
                 @Override
                 public EJBIdentifier getEJBIdentifier() {
                     return ejbIdentifier;
+                }
+
+//                @Override
+                public SecurityIdentity getSecurityIdentity() {
+                    return exchange.getAttachment(ElytronIdentityHandler.IDENTITY_KEY);
                 }
 
                 @Override
