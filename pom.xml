@@ -46,17 +46,17 @@
         <version.org.junit>4.11</version.org.junit>
         <version.org.jboss.logmanager>1.5.3.Final</version.org.jboss.logmanager>
         <version.xnio>3.5.0.Beta1</version.xnio>
-        <version.org.jboss.ejb-client>4.0.0.Beta16</version.org.jboss.ejb-client>
+        <version.org.jboss.ejb-client>4.0.0.Beta18</version.org.jboss.ejb-client>
         <version.javax.ejb.api>1.0.0.Final</version.javax.ejb.api>
         <version.javax.transactions>1.0.1.Final</version.javax.transactions>
         <version.org.wildfly.checkstyle-config>1.0.4.Final</version.org.wildfly.checkstyle-config>
         <version.org.jboss.marshalling>2.0.0.Beta5</version.org.jboss.marshalling>
         <version.org.jboss.modules>1.6.0.Beta5</version.org.jboss.modules>
         <version.org.wildfly.client-config>1.0.0.Beta2</version.org.wildfly.client-config>
-        <version.org.wildfly.common>1.2.0.Beta6</version.org.wildfly.common>
+        <version.org.wildfly.common>1.2.0.Beta7</version.org.wildfly.common>
         <version.org.wildfly.naming.client>1.0.0.Beta11</version.org.wildfly.naming.client>
-        <version.org.wildfly.elytron>1.1.0.Beta27</version.org.wildfly.elytron>
-        <version.org.wildfly.transaction.client>1.0.0.Beta17</version.org.wildfly.transaction.client>
+        <version.org.wildfly.elytron>1.1.0.Beta28</version.org.wildfly.elytron>
+        <version.org.wildfly.transaction.client>1.0.0.Beta18</version.org.wildfly.transaction.client>
     </properties>
 
     <modules>
