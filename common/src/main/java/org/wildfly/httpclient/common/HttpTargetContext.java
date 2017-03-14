@@ -157,6 +157,8 @@ public class HttpTargetContext extends AbstractAttachable {
                                         //retry the invocation
                                         sendRequestInternal(connection, request, httpMarshaller, httpResultHandler, failureHandler, expectedResponse, completedTask, allowNoContent, true);
                                         return;
+                                    } else {
+                                        failureHandler.handleFailure(HttpClientMessages.MESSAGES.authenticationFailed());
                                     }
                                 }
                             }

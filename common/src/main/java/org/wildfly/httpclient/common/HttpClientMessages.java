@@ -34,9 +34,6 @@ interface HttpClientMessages extends BasicLogger {
 
     HttpClientMessages MESSAGES = Logger.getMessageLogger(HttpClientMessages.class, HttpClientMessages.class.getPackage().getName());
 
-    @Message(id = 1, value = "Connection in wrong state")
-    IllegalStateException connectionInWrongState();
-
     @Message(id = 2, value = "Port value %s out of range")
     ConfigXMLParseException portValueOutOfRange(int port);
 
@@ -56,4 +53,7 @@ interface HttpClientMessages extends BasicLogger {
 
     @Message(id = 7, value = "Invalid content encoding %s")
     IOException invalidContentEncoding(String encoding);
+
+    @Message(id = 8, value = "Authentication failed")
+    SecurityException authenticationFailed();
 }
