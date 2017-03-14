@@ -84,18 +84,18 @@
     </xs:simpleType>
 
     <xs:complexType name="idle-timeout-type">
-        <xs:attribute name="value" type="xs:long" use="required" default="60000"/>
+        <xs:attribute name="value" type="xs:long" use="required" />
     </xs:complexType>
     <xs:complexType name="max-connections-type">
-        <xs:attribute name="value" type="xs:int" use="required" default="10"/>
+        <xs:attribute name="value" type="xs:int" use="required"/>
     </xs:complexType>
     <xs:complexType name="max-streams-type">
-        <xs:attribute name="value" type="xs:int" use="required" default="10"/>
+        <xs:attribute name="value" type="xs:int" use="required"/>
     </xs:complexType>
     <xs:complexType name="eager-session-type">
-        <xs:attribute name="value" type="xs:boolean" use="required" default="false"/>
+        <xs:attribute name="value" type="xs:boolean" use="required"/>
     </xs:complexType>
     <xs:complexType name="enable-http2-type">
-        <xs:attribute name="value" type="xs:boolean" use="required" default="true"/>
+        <xs:attribute name="value" type="xs:boolean" use="required"/>
     </xs:complexType>
 </xs:schema>
