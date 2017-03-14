@@ -29,6 +29,7 @@ import javax.transaction.SystemException;
 import javax.transaction.xa.Xid;
 
 import org.jboss.marshalling.Marshaller;
+import org.jboss.marshalling.Marshalling;
 import org.wildfly.httpclient.common.HttpTargetContext;
 import org.wildfly.transaction.client.spi.SimpleTransactionControl;
 import io.undertow.client.ClientRequest;
@@ -77,7 +78,7 @@ class HttpRemoteTransactionHandle implements SimpleTransactionControl {
             cr.getRequestHeaders().put(Headers.CONTENT_TYPE, TransactionConstants.XID_VERSION_1);
             targetContext.sendRequest(cr, output -> {
                 Marshaller marshaller = targetContext.createMarshaller(HttpRemoteTransactionPeer.createMarshallingConf());
-                marshaller.start(output);
+                marshaller.start(Marshalling.createByteOutput(output));
                 marshaller.writeInt(id.getFormatId());
                 final byte[] gtid = id.getGlobalTransactionId();
                 marshaller.writeInt(gtid.length);
@@ -140,7 +141,7 @@ class HttpRemoteTransactionHandle implements SimpleTransactionControl {
             cr.getRequestHeaders().put(Headers.CONTENT_TYPE, TransactionConstants.XID_VERSION_1);
             targetContext.sendRequest(cr, output -> {
                 Marshaller marshaller = targetContext.createMarshaller(HttpRemoteTransactionPeer.createMarshallingConf());
-                marshaller.start(output);
+                marshaller.start(Marshalling.createByteOutput(output));
                 marshaller.writeInt(id.getFormatId());
                 final byte[] gtid = id.getGlobalTransactionId();
                 marshaller.writeInt(gtid.length);

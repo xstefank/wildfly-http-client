@@ -20,6 +20,8 @@ package org.wildfly.httpclient.ejb;
 
 import java.util.concurrent.Future;
 
+import org.jboss.ejb.client.annotation.CompressionHint;
+
 /**
  * User: jpai
  */
@@ -34,4 +36,7 @@ public interface EchoRemote {
     Future<String> asyncException() throws Exception;
 
     Future<String> asyncCancel();
+
+    @CompressionHint
+    String compressMessage() throws Exception;
 }

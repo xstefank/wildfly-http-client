@@ -72,6 +72,31 @@ public class SimpleInvocationTestCase {
     }
 
     @Test
+    public void testCompressedInvocation() throws Exception {
+        clearSessionId();
+        EJBTestServer.setHandler((invocation, affinity, out, method, handle) -> "a message");
+        final StatelessEJBLocator<EchoRemote> statelessEJBLocator = new StatelessEJBLocator<>(EchoRemote.class, APP, MODULE, "CalculatorBean", "");
+        final EchoRemote proxy = EJBClient.createProxy(statelessEJBLocator);
+        EJBClient.setStrongAffinity(proxy, URIAffinity.forUri(new URI(EJBTestServer.getDefaultServerURL())));
+        String m = proxy.compressMessage();
+        Assert.assertEquals("a message", m);
+    }
+
+    @Test
+    public void testFailedCompressedInvocation() throws Exception {
+        clearSessionId();
+        EJBTestServer.setHandler((invocation, affinity, out, method, handle) -> {throw new RuntimeException("a message");});
+        final StatelessEJBLocator<EchoRemote> statelessEJBLocator = new StatelessEJBLocator<>(EchoRemote.class, APP, MODULE, "CalculatorBean", "");
+        final EchoRemote proxy = EJBClient.createProxy(statelessEJBLocator);
+        EJBClient.setStrongAffinity(proxy, URIAffinity.forUri(new URI(EJBTestServer.getDefaultServerURL())));
+        try {
+            proxy.compressMessage();
+        } catch (RuntimeException e) {
+            Assert.assertEquals("a message", e.getMessage());
+        }
+    }
+
+    @Test
     public void testSimpleInvocationViaDiscovery() throws Exception {
         clearSessionId();
         EJBTestServer.setHandler((invocation, affinity, out, method, handle) -> invocation.getParameters()[0]);

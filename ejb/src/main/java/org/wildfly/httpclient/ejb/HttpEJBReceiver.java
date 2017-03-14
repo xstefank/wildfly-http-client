@@ -21,6 +21,7 @@ package org.wildfly.httpclient.ejb;
 import java.io.DataOutput;
 import java.io.IOException;
 import java.io.ObjectInput;
+import java.io.OutputStream;
 import java.lang.reflect.Method;
 import java.net.URI;
 import java.util.Base64;
@@ -33,6 +34,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.zip.GZIPOutputStream;
 import javax.ejb.Asynchronous;
 import javax.transaction.RollbackException;
 import javax.transaction.SystemException;
@@ -51,6 +53,7 @@ import org.jboss.ejb.client.URIAffinity;
 import org.jboss.marshalling.ByteOutput;
 import org.jboss.marshalling.InputStreamByteInput;
 import org.jboss.marshalling.Marshaller;
+import org.jboss.marshalling.Marshalling;
 import org.jboss.marshalling.MarshallingConfiguration;
 import org.jboss.marshalling.Unmarshaller;
 import org.wildfly.httpclient.common.HttpConnectionPool;
@@ -101,7 +104,6 @@ class HttpEJBReceiver extends EJBReceiver {
         } else {
             throw EjbHttpClientMessages.MESSAGES.invalidAffinity(affinity);
         }
-
         WildflyHttpContext current = WildflyHttpContext.getCurrent();
         HttpTargetContext targetContext = current.getTargetContext(uri);
         if (targetContext == null) {
@@ -160,7 +162,7 @@ class HttpEJBReceiver extends EJBReceiver {
         targetContext.sendRequest(connection, request, output -> {
                     MarshallingConfiguration config = createMarshallingConfig();
                     Marshaller marshaller = targetContext.createMarshaller(config);
-                    marshaller.start(output);
+                    marshaller.start(Marshalling.createByteOutput(output));
                     writeTransaction(ContextTransactionManager.getInstance().getTransaction(), marshaller, connection.getUri());
                     marshaller.finish();
                 },
@@ -259,22 +261,40 @@ class HttpEJBReceiver extends EJBReceiver {
                 receiverContext.proceedAsynchronously();
             }
         }
+        boolean compressResponse = receiverContext.getClientInvocationContext().isCompressResponse();
         ClientRequest request = builder.createRequest(connection.getUri().getPath());
-        request.getRequestHeaders().put(Headers.TRANSFER_ENCODING, "chunked");
-        targetContext.sendRequest(connection, request, (marshaller -> {
-                    marshalEJBRequest(marshaller, clientInvocationContext, targetContext);
+        if(compressResponse) {
+            request.getRequestHeaders().put(Headers.ACCEPT_ENCODING, Headers.GZIP.toString());
+        }
+        request.getRequestHeaders().put(Headers.TRANSFER_ENCODING, Headers.CHUNKED.toString());
+        final boolean compressRequest = receiverContext.getClientInvocationContext().isCompressRequest();
+        if(compressRequest) {
+            request.getRequestHeaders().put(Headers.CONTENT_ENCODING, Headers.GZIP.toString());
+        }
+        targetContext.sendRequest(connection, request, (output -> {
+                    OutputStream data = output;
+                    if(compressRequest) {
+                        data = new GZIPOutputStream(data);
+                    }
+                    try {
+                        marshalEJBRequest(Marshalling.createByteOutput(data), clientInvocationContext, targetContext);
+                    } finally {
+                        IoUtils.safeClose(data);
+                    }
                 }),
 
                 ((input, response) -> {
                     if (response.getResponseCode() == StatusCodes.ACCEPTED && clientInvocationContext.getInvokedMethod().getReturnType() == void.class) {
                         ejbData.asyncMethods.add(clientInvocationContext.getInvokedMethod());
                     }
+
                     Exception exception = null;
                     Object returned = null;
                     try {
 
                         final MarshallingConfiguration marshallingConfiguration = createMarshallingConfig();
                         final Unmarshaller unmarshaller = targetContext.createUnmarshaller(marshallingConfiguration);
+
                         unmarshaller.start(new InputStreamByteInput(input));
                         returned = unmarshaller.readObject();
                         // read the attachments

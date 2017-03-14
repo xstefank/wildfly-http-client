@@ -26,15 +26,15 @@ import java.io.ObjectInput;
 import java.io.OutputStream;
 import java.net.URI;
 import java.util.HashMap;
+import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.zip.GZIPInputStream;
 
-import org.jboss.marshalling.ByteOutput;
 import org.jboss.marshalling.InputStreamByteInput;
 import org.jboss.marshalling.Marshaller;
 import org.jboss.marshalling.MarshallerFactory;
-import org.jboss.marshalling.Marshalling;
 import org.jboss.marshalling.MarshallingConfiguration;
 import org.jboss.marshalling.Unmarshaller;
 import org.jboss.marshalling.river.RiverMarshallerFactory;
@@ -206,10 +206,20 @@ public class HttpTargetContext extends AbstractAttachable {
                                     final MarshallingConfiguration marshallingConfiguration = createExceptionMarshallingConfig();
                                     final Unmarshaller unmarshaller = MARSHALLER_FACTORY.createUnmarshaller(marshallingConfiguration);
                                     try (ChannelInputStream inputStream = new ChannelInputStream(result.getResponseChannel())) {
-                                        unmarshaller.start(new InputStreamByteInput(new BufferedInputStream(inputStream)));
+                                        InputStream in = inputStream;
+                                        String encoding = response.getResponseHeaders().getFirst(Headers.CONTENT_ENCODING);
+                                        if(encoding != null) {
+                                            String lowerEncoding = encoding.toLowerCase(Locale.ENGLISH);
+                                            if(Headers.GZIP.toString().equals(lowerEncoding)) {
+                                                in = new GZIPInputStream(in);
+                                            } else if(!lowerEncoding.equals(Headers.IDENTITY.toString())) {
+                                                throw HttpClientMessages.MESSAGES.invalidContentEncoding(encoding);
+                                            }
+                                        }
+                                        unmarshaller.start(new InputStreamByteInput(new BufferedInputStream(in)));
                                         Throwable exception = (Throwable) unmarshaller.readObject();
                                         Map<String, Object> attachments = readAttachments(unmarshaller);
-                                        if (unmarshaller.read() != -1) {
+                                        if (inputStream.read() != -1) {
                                             HttpClientMessages.MESSAGES.debugf("Unexpected data when reading exception from %s", response);
                                             connection.done(true);
                                         } else {
@@ -229,7 +239,17 @@ public class HttpTargetContext extends AbstractAttachable {
                                             Channels.drain(result.getResponseChannel(), Long.MAX_VALUE);
                                             httpResultHandler.handleResult(null, response);
                                         } else {
-                                            ChannelInputStream inputStream = new ChannelInputStream(result.getResponseChannel());
+                                            InputStream underlying = new ChannelInputStream(result.getResponseChannel());
+                                            InputStream inputStream = underlying;
+                                            String encoding = response.getResponseHeaders().getFirst(Headers.CONTENT_ENCODING);
+                                            if(encoding != null) {
+                                                String lowerEncoding = encoding.toLowerCase(Locale.ENGLISH);
+                                                if(Headers.GZIP.toString().equals(lowerEncoding)) {
+                                                    inputStream = new GZIPInputStream(inputStream);
+                                                } else if(!lowerEncoding.equals(Headers.IDENTITY.toString())) {
+                                                    throw HttpClientMessages.MESSAGES.invalidContentEncoding(encoding);
+                                                }
+                                            }
                                             httpResultHandler.handleResult(new BufferedInputStream(inputStream), response);
                                         }
                                     }
@@ -260,9 +280,8 @@ public class HttpTargetContext extends AbstractAttachable {
                         try (OutputStream outputStream = new BufferedOutputStream(new ChannelOutputStream(result.getRequestChannel()))) {
 
                             // marshall the locator and method params
-                            final ByteOutput byteOutput = Marshalling.createByteOutput(outputStream);
                             // start the marshaller
-                            httpMarshaller.marshall(byteOutput);
+                            httpMarshaller.marshall(outputStream);
 
                         } catch (Exception e) {
                             connection.done(true);
@@ -324,6 +343,7 @@ public class HttpTargetContext extends AbstractAttachable {
     }
 
     public void clearSessionId() {
+        awaitSessionId(true); //to prevent a race make sure we have one before we clear it
         synchronized (this) {
             CountDownLatch old = sessionAffinityLatch;
             sessionAffinityLatch = new CountDownLatch(1);
@@ -348,7 +368,7 @@ public class HttpTargetContext extends AbstractAttachable {
     }
 
     public interface HttpMarshaller {
-        void marshall(ByteOutput output) throws Exception;
+        void marshall(OutputStream output) throws Exception;
     }
 
     public interface HttpResultHandler {

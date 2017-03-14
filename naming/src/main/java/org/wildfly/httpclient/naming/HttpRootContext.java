@@ -33,6 +33,7 @@ import javax.naming.NamingException;
 
 import org.jboss.marshalling.InputStreamByteInput;
 import org.jboss.marshalling.Marshaller;
+import org.jboss.marshalling.Marshalling;
 import org.jboss.marshalling.MarshallingConfiguration;
 import org.jboss.marshalling.Unmarshaller;
 import org.wildfly.httpclient.common.ContentType;
@@ -259,7 +260,7 @@ public class HttpRootContext extends AbstractContext {
         targetContext.sendRequest(clientRequest, output -> {
             if (object != null) {
                 Marshaller marshaller = targetContext.createMarshaller(createMarshallingConfig());
-                marshaller.start(output);
+                marshaller.start(Marshalling.createByteOutput(output));
                 marshaller.writeObject(object);
                 marshaller.finish();
             }

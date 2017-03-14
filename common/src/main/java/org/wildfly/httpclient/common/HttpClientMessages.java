@@ -54,4 +54,6 @@ interface HttpClientMessages extends BasicLogger {
     @Message(id = 6, value = "Failed to write exception")
     void failedToWriteException(@Cause Exception ex);
 
+    @Message(id = 7, value = "Invalid content encoding %s")
+    IOException invalidContentEncoding(String encoding);
 }
