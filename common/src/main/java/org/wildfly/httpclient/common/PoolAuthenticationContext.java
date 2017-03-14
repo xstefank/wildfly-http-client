@@ -32,6 +32,7 @@ import javax.security.auth.callback.UnsupportedCallbackException;
 import org.wildfly.security.auth.client.AuthenticationConfiguration;
 import org.wildfly.security.auth.client.AuthenticationContext;
 import org.wildfly.security.auth.client.AuthenticationContextConfigurationClient;
+import org.wildfly.security.auth.principal.AnonymousPrincipal;
 import io.undertow.client.ClientRequest;
 import io.undertow.client.ClientResponse;
 import io.undertow.util.FlexBase64;
@@ -74,6 +75,9 @@ class PoolAuthenticationContext {
             AuthenticationContext context = AuthenticationContext.captureCurrent();
             AuthenticationConfiguration config = AUTH_CONTEXT_CLIENT.getAuthenticationConfiguration(uri, context);
             Principal principal = AUTH_CONTEXT_CLIENT.getPrincipal(config);
+            if(principal instanceof AnonymousPrincipal) {
+                return false;
+            }
             PasswordCallback callback = new PasswordCallback("password", false);
             try {
                 AUTH_CONTEXT_CLIENT.getCallbackHandler(config).handle(new Callback[]{callback});
@@ -81,6 +85,9 @@ class PoolAuthenticationContext {
                 return false;
             }
             char[] password = callback.getPassword();
+            if(password == null) {
+                return false;
+            }
             String challenge = principal.getName() + ":" + new String(password);
             request.getRequestHeaders().put(Headers.AUTHORIZATION, "Basic " + FlexBase64.encodeString(challenge.getBytes(StandardCharsets.UTF_8), false));
             return true;
