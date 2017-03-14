@@ -84,7 +84,7 @@
     </xs:simpleType>
 
     <xs:complexType name="idle-timeout-type">
-        <xs:attribute name="value" type="xs:long" use="required" />
+        <xs:attribute name="value" type="xs:long" use="required" /> 
     </xs:complexType>
     <xs:complexType name="max-connections-type">
         <xs:attribute name="value" type="xs:int" use="required"/>
