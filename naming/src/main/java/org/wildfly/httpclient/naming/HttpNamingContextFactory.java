@@ -31,7 +31,7 @@ import org.wildfly.naming.client.util.FastHashtable;
 public class HttpNamingContextFactory implements NamingContextFactory {
     @Override
     public boolean supportsUriScheme(NamingProvider namingProvider, String nameScheme) {
-        return namingProvider instanceof HttpNamingProvider && nameScheme == null;
+        return namingProvider instanceof HttpNamingProvider && (nameScheme == null || nameScheme.equals("java"));
     }
 
     @Override
