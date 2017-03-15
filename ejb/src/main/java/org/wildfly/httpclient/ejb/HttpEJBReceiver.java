@@ -120,12 +120,18 @@ class HttpEJBReceiver extends EJBReceiver {
         targetContext.getConnectionPool().getConnection((connection) -> invocationConnectionReady(clientInvocationContext, receiverContext, connection, targetContext), (e) -> receiverContext.resultReady(new StaticResultProducer(e, null)), false);
     }
 
-    @Override
     protected <T> StatefulEJBLocator<T> createSession(StatelessEJBLocator<T> locator) throws Exception {
+        //TODO: remove this
+        return createSession(locator, null);
+    }
+
+    protected <T> StatefulEJBLocator<T> createSession(StatelessEJBLocator<T> locator, NamingProvider namingProvider) throws Exception {
 
         Affinity affinity = locator.getAffinity();
         URI uri;
-        if (affinity instanceof URIAffinity) {
+        if(namingProvider instanceof HttpNamingProvider) {
+            uri = namingProvider.getProviderUri();
+        } else if (affinity instanceof URIAffinity) {
             uri = affinity.getUri();
         } else {
             throw EjbHttpClientMessages.MESSAGES.invalidAffinity(affinity);
