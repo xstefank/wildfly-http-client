@@ -153,7 +153,7 @@ class HttpSessionOpenHandler extends RemoteHTTPHandler {
 
                 @Override
                 public Executor getRequestExecutor() {
-                    return executorService;
+                    return executorService != null ? executorService : exchange.getIoThread().getWorker();
                 }
 
 
