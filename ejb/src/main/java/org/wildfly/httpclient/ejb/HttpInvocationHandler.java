@@ -22,7 +22,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.SocketAddress;
-import java.nio.charset.StandardCharsets;
+import java.util.Base64;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
@@ -107,7 +107,8 @@ class HttpInvocationHandler extends RemoteHTTPHandler {
         final String bean = parts[3];
 
 
-        String sessionID = handleDash(parts[4]);
+        String originalSessionId = handleDash(parts[4]);
+        final byte[] sessionID = originalSessionId.isEmpty() ? null : Base64.getDecoder().decode(originalSessionId);
         String viewName = parts[5];
         String method = parts[6];
         String[] parameterTypeNames = new String[parts.length - 7];
@@ -188,9 +189,9 @@ class HttpInvocationHandler extends RemoteHTTPHandler {
                         EJBLocator<?> locator;
                         if (EJBHome.class.isAssignableFrom(view)) {
                             locator = new EJBHomeLocator(view, app, module, bean, distinct, Affinity.LOCAL); //TODO: what is the correct affinity?
-                        } else if (!sessionID.isEmpty()) {
+                        } else if (sessionID != null) {
                             locator = new StatefulEJBLocator<>(view, app, module, bean, distinct,
-                                    SessionID.createSessionID(sessionID.getBytes(StandardCharsets.UTF_8)), Affinity.LOCAL);
+                                    SessionID.createSessionID(sessionID), Affinity.LOCAL);
                         } else {
                             locator = new StatelessEJBLocator<>(view, app, module, bean, distinct, Affinity.LOCAL);
                         }

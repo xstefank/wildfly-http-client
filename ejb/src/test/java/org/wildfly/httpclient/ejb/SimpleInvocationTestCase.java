@@ -146,7 +146,7 @@ public class SimpleInvocationTestCase {
         clearSessionId();
         EJBTestServer.setHandler((invocation, affinity, out, method, handle) -> {
             StatefulEJBLocator<?> ejbLocator = (StatefulEJBLocator<?>) invocation.getEJBLocator();
-            return new String(Base64.getDecoder().decode(ejbLocator.getSessionId().getEncodedForm()));
+            return new String(ejbLocator.getSessionId().getEncodedForm());
         });
         StatefulEJBLocator<EchoRemote> locator = EJBClient.createSession(EchoRemote.class, APP, MODULE, BEAN, "");
         EchoRemote proxy = EJBClient.createProxy(locator);
