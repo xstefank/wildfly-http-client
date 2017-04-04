@@ -108,7 +108,7 @@ class HttpInvocationHandler extends RemoteHTTPHandler {
 
 
         String originalSessionId = handleDash(parts[4]);
-        final byte[] sessionID = originalSessionId.isEmpty() ? null : Base64.getDecoder().decode(originalSessionId);
+        final byte[] sessionID = originalSessionId.isEmpty() ? null : Base64.getUrlDecoder().decode(originalSessionId);
         String viewName = parts[5];
         String method = parts[6];
         String[] parameterTypeNames = new String[parts.length - 7];

@@ -177,7 +177,7 @@ class HttpEJBReceiver extends EJBReceiver {
                     if (sessionId == null) {
                         result.completeExceptionally(EjbHttpClientMessages.MESSAGES.noSessionIdInResponse());
                     } else {
-                        SessionID sessionID = SessionID.createSessionID(Base64.getDecoder().decode(sessionId));
+                        SessionID sessionID = SessionID.createSessionID(Base64.getUrlDecoder().decode(sessionId));
                         result.complete(new StatefulEJBLocator<T>(locator, sessionID));
                     }
                 })
@@ -247,7 +247,7 @@ class HttpEJBReceiver extends EJBReceiver {
                 .setView(clientInvocationContext.getViewClass().getName())
                 .setBeanName(locator.getBeanName());
         if (locator instanceof StatefulEJBLocator) {
-            builder.setBeanId(Base64.getEncoder().encodeToString(((StatefulEJBLocator) locator).getSessionId().getEncodedForm()));
+            builder.setBeanId(Base64.getUrlEncoder().encodeToString(((StatefulEJBLocator) locator).getSessionId().getEncodedForm()));
         }
 
 

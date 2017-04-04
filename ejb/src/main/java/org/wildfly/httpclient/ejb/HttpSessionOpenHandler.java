@@ -223,7 +223,7 @@ class HttpSessionOpenHandler extends RemoteHTTPHandler {
                     }
 
                     exchange.getResponseHeaders().put(Headers.CONTENT_TYPE, EjbHeaders.EJB_RESPONSE_NEW_SESSION.toString());
-                    exchange.getResponseHeaders().put(EjbHeaders.EJB_SESSION_ID, Base64.getEncoder().encodeToString(sessionId.getEncodedForm()));
+                    exchange.getResponseHeaders().put(EjbHeaders.EJB_SESSION_ID, Base64.getUrlEncoder().encodeToString(sessionId.getEncodedForm()));
 
                     exchange.setStatusCode(StatusCodes.NO_CONTENT);
                     exchange.endExchange();
