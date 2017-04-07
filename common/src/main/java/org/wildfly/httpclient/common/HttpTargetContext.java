@@ -263,16 +263,22 @@ public class HttpTargetContext extends AbstractAttachable {
                                 }
 
                             } catch (Exception e) {
-                                connection.done(true);
-                                failureHandler.handleFailure(e);
+                                try {
+                                    failureHandler.handleFailure(e);
+                                } finally {
+                                    connection.done(true);
+                                }
                             }
                         });
                     }
 
                     @Override
                     public void failed(IOException e) {
-                        connection.done(true);
-                        failureHandler.handleFailure(e);
+                        try {
+                            failureHandler.handleFailure(e);
+                        } finally {
+                            connection.done(true);
+                        }
                     }
                 });
 
@@ -286,8 +292,11 @@ public class HttpTargetContext extends AbstractAttachable {
                             httpMarshaller.marshall(outputStream);
 
                         } catch (Exception e) {
-                            connection.done(true);
-                            failureHandler.handleFailure(e);
+                            try {
+                                failureHandler.handleFailure(e);
+                            } finally {
+                                connection.done(true);
+                            }
                         }
                     });
                 }
@@ -295,8 +304,11 @@ public class HttpTargetContext extends AbstractAttachable {
 
             @Override
             public void failed(IOException e) {
-                connection.done(true);
-                failureHandler.handleFailure(e);
+                try {
+                    failureHandler.handleFailure(e);
+                } finally {
+                    connection.done(true);
+                }
             }
         });
     }
