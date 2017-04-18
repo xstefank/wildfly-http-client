@@ -39,14 +39,12 @@ final class HttpClientXmlParser {
     static WildflyHttpContext parseHttpContext() throws ConfigXMLParseException, IOException {
         final ClientConfiguration clientConfiguration = ClientConfiguration.getInstance();
         final WildflyHttpContext.Builder builder = new WildflyHttpContext.Builder();
-        if (clientConfiguration != null)
+        if (clientConfiguration != null) {
             try (final ConfigurationXMLStreamReader streamReader = clientConfiguration.readConfiguration(Collections.singleton(NS_EJB_HTTP_CLIENT))) {
                 parseDocument(streamReader, builder);
-                return builder.build();
             }
-        else {
-            return null;
         }
+        return builder.build();
     }
 
     //for testing
