@@ -21,6 +21,7 @@ package org.wildfly.httpclient.transaction;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.AtomicInteger;
+import javax.net.ssl.SSLContext;
 import javax.transaction.HeuristicMixedException;
 import javax.transaction.HeuristicRollbackException;
 import javax.transaction.RollbackException;
@@ -31,6 +32,7 @@ import javax.transaction.xa.Xid;
 import org.jboss.marshalling.Marshaller;
 import org.jboss.marshalling.Marshalling;
 import org.wildfly.httpclient.common.HttpTargetContext;
+import org.wildfly.security.auth.client.AuthenticationConfiguration;
 import org.wildfly.transaction.client.spi.SimpleTransactionControl;
 import io.undertow.client.ClientRequest;
 import io.undertow.util.Headers;
@@ -44,10 +46,14 @@ class HttpRemoteTransactionHandle implements SimpleTransactionControl {
     private final HttpTargetContext targetContext;
     private final AtomicInteger statusRef = new AtomicInteger(Status.STATUS_ACTIVE);
     private final Xid id;
+    private final SSLContext sslContext;
+    private final AuthenticationConfiguration authenticationConfiguration;
 
-    HttpRemoteTransactionHandle(final Xid id, final HttpTargetContext targetContext) {
+    HttpRemoteTransactionHandle(final Xid id, final HttpTargetContext targetContext, SSLContext sslContext, AuthenticationConfiguration authenticationConfiguration) {
         this.id = id;
         this.targetContext = targetContext;
+        this.sslContext = sslContext;
+        this.authenticationConfiguration = authenticationConfiguration;
     }
 
     Xid getId() {
@@ -76,7 +82,7 @@ class HttpRemoteTransactionHandle implements SimpleTransactionControl {
                     .setPath(targetContext.getUri().getPath() + TransactionConstants.TXN_V1_UT_COMMIT);
             cr.getRequestHeaders().put(Headers.ACCEPT, TransactionConstants.EXCEPTION);
             cr.getRequestHeaders().put(Headers.CONTENT_TYPE, TransactionConstants.XID_VERSION_1);
-            targetContext.sendRequest(cr, output -> {
+            targetContext.sendRequest(cr, sslContext, authenticationConfiguration, output -> {
                 Marshaller marshaller = targetContext.createMarshaller(HttpRemoteTransactionPeer.createMarshallingConf());
                 marshaller.start(Marshalling.createByteOutput(output));
                 marshaller.writeInt(id.getFormatId());
@@ -139,7 +145,7 @@ class HttpRemoteTransactionHandle implements SimpleTransactionControl {
                     .setPath(targetContext.getUri().getPath() + TransactionConstants.TXN_V1_UT_ROLLBACK);
             cr.getRequestHeaders().put(Headers.ACCEPT, TransactionConstants.EXCEPTION);
             cr.getRequestHeaders().put(Headers.CONTENT_TYPE, TransactionConstants.XID_VERSION_1);
-            targetContext.sendRequest(cr, output -> {
+            targetContext.sendRequest(cr, sslContext, authenticationConfiguration, output -> {
                 Marshaller marshaller = targetContext.createMarshaller(HttpRemoteTransactionPeer.createMarshallingConf());
                 marshaller.start(Marshalling.createByteOutput(output));
                 marshaller.writeInt(id.getFormatId());

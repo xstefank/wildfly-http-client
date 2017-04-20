@@ -25,6 +25,9 @@ import java.io.InputStream;
 import java.io.ObjectInput;
 import java.io.OutputStream;
 import java.net.URI;
+import java.security.AccessController;
+import java.security.GeneralSecurityException;
+import java.security.PrivilegedAction;
 import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
@@ -32,12 +35,17 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.zip.GZIPInputStream;
 
+import javax.net.ssl.SSLContext;
+
 import org.jboss.marshalling.InputStreamByteInput;
 import org.jboss.marshalling.Marshaller;
 import org.jboss.marshalling.MarshallerFactory;
 import org.jboss.marshalling.MarshallingConfiguration;
 import org.jboss.marshalling.Unmarshaller;
 import org.jboss.marshalling.river.RiverMarshallerFactory;
+import org.wildfly.security.auth.client.AuthenticationConfiguration;
+import org.wildfly.security.auth.client.AuthenticationContext;
+import org.wildfly.security.auth.client.AuthenticationContextConfigurationClient;
 import org.xnio.channels.Channels;
 import org.xnio.streams.ChannelInputStream;
 import org.xnio.streams.ChannelOutputStream;
@@ -57,6 +65,13 @@ import io.undertow.util.StatusCodes;
  * @author Stuart Douglas
  */
 public class HttpTargetContext extends AbstractAttachable {
+
+    private static final AuthenticationContextConfigurationClient AUTH_CONTEXT_CLIENT;
+
+    static {
+        AUTH_CONTEXT_CLIENT = AccessController.doPrivileged((PrivilegedAction<AuthenticationContextConfigurationClient>) () -> new AuthenticationContextConfigurationClient());
+    }
+
 
     private static final String EXCEPTION_TYPE = "application/x-wf-jbmar-exception";
 
@@ -95,8 +110,16 @@ public class HttpTargetContext extends AbstractAttachable {
         ClientRequest clientRequest = new ClientRequest();
         clientRequest.setMethod(Methods.GET);
         clientRequest.setPath(uri.getPath() + "/common/v1/affinity");
-
-        sendRequest(clientRequest, null, null, (e) -> {
+        AuthenticationContext context = AuthenticationContext.captureCurrent();
+        SSLContext sslContext;
+        try {
+            sslContext = AUTH_CONTEXT_CLIENT.getSSLContext(uri, context);
+        } catch (GeneralSecurityException e) {
+            latch.countDown();
+            HttpClientMessages.MESSAGES.failedToAcquireSession(e);
+            return;
+        }
+        sendRequest(clientRequest, sslContext, AUTH_CONTEXT_CLIENT.getAuthenticationConfiguration(uri, context), null, null, (e) -> {
             latch.countDown();
             HttpClientMessages.MESSAGES.failedToAcquireSession(e);
         }, null, latch::countDown);
@@ -110,30 +133,23 @@ public class HttpTargetContext extends AbstractAttachable {
         return MARSHALLER_FACTORY.createMarshaller(marshallingConfiguration);
     }
 
-    public void sendRequest( ClientRequest request, HttpMarshaller httpMarshaller, HttpResultHandler httpResultHandler, HttpFailureHandler failureHandler, ContentType expectedResponse, Runnable completedTask) {
+    public void sendRequest(ClientRequest request, SSLContext sslContext, AuthenticationConfiguration authenticationConfiguration, HttpMarshaller httpMarshaller, HttpResultHandler httpResultHandler, HttpFailureHandler failureHandler, ContentType expectedResponse, Runnable completedTask) {
         if (sessionId != null) {
             request.getRequestHeaders().add(Headers.COOKIE, "JSESSIONID=" + sessionId);
         }
-        connectionPool.getConnection(connection -> sendRequestInternal(connection, request, httpMarshaller, httpResultHandler, failureHandler, expectedResponse, completedTask, false, false), failureHandler::handleFailure, false);
+        connectionPool.getConnection(connection -> sendRequestInternal(connection, request, authenticationConfiguration, httpMarshaller, httpResultHandler, failureHandler, expectedResponse, completedTask, false, false), failureHandler::handleFailure, false, sslContext);
     }
 
-    public void sendRequest(ClientRequest request, HttpMarshaller httpMarshaller, HttpResultHandler httpResultHandler, HttpFailureHandler failureHandler, ContentType expectedResponse, Runnable completedTask, boolean allowNoContent) {
+    public void sendRequest(ClientRequest request, SSLContext sslContext, AuthenticationConfiguration authenticationConfiguration, HttpMarshaller httpMarshaller, HttpResultHandler httpResultHandler, HttpFailureHandler failureHandler, ContentType expectedResponse, Runnable completedTask, boolean allowNoContent) {
         if (sessionId != null) {
             request.getRequestHeaders().add(Headers.COOKIE, "JSESSIONID=" + sessionId);
         }
-        connectionPool.getConnection(connection -> sendRequestInternal(connection, request, httpMarshaller, httpResultHandler, failureHandler, expectedResponse, completedTask, allowNoContent, false), failureHandler::handleFailure, false);
+        connectionPool.getConnection(connection -> sendRequestInternal(connection, request, authenticationConfiguration, httpMarshaller, httpResultHandler, failureHandler, expectedResponse, completedTask, allowNoContent, false), failureHandler::handleFailure, false, sslContext);
     }
 
-    public void sendRequest(final HttpConnectionPool.ConnectionHandle connection, ClientRequest request, HttpMarshaller httpMarshaller, HttpResultHandler httpResultHandler, HttpFailureHandler failureHandler, ContentType expectedResponse, Runnable completedTask) {
-        if (sessionId != null) {
-            request.getRequestHeaders().add(Headers.COOKIE, "JSESSIONID=" + sessionId);
-        }
-        sendRequestInternal(connection, request, httpMarshaller, httpResultHandler, failureHandler, expectedResponse, completedTask, false, false);
-    }
+    public void sendRequestInternal(final HttpConnectionPool.ConnectionHandle connection, ClientRequest request, AuthenticationConfiguration authenticationConfiguration, HttpMarshaller httpMarshaller, HttpResultHandler httpResultHandler, HttpFailureHandler failureHandler, ContentType expectedResponse, Runnable completedTask, boolean allowNoContent, boolean retry) {
 
-    public void sendRequestInternal(final HttpConnectionPool.ConnectionHandle connection, ClientRequest request, HttpMarshaller httpMarshaller, HttpResultHandler httpResultHandler, HttpFailureHandler failureHandler, ContentType expectedResponse, Runnable completedTask, boolean allowNoContent, boolean retry) {
-
-        final boolean authAdded = retry || connection.getAuthenticationContext().prepareRequest(connection.getUri(), request);
+        final boolean authAdded = retry || connection.getAuthenticationContext().prepareRequest(connection.getUri(), request, authenticationConfiguration);
         request.getRequestHeaders().put(Headers.HOST, connection.getUri().getHost());
         if (request.getRequestHeaders().contains(Headers.CONTENT_TYPE)) {
             request.getRequestHeaders().put(Headers.TRANSFER_ENCODING, Headers.CHUNKED.toString());
@@ -153,9 +169,9 @@ public class HttpTargetContext extends AbstractAttachable {
                                     } catch (IOException e) {
                                         failureHandler.handleFailure(e);
                                     }
-                                    if (connection.getAuthenticationContext().prepareRequest(connection.getUri(), request)) {
+                                    if (connection.getAuthenticationContext().prepareRequest(connection.getUri(), request, authenticationConfiguration)) {
                                         //retry the invocation
-                                        sendRequestInternal(connection, request, httpMarshaller, httpResultHandler, failureHandler, expectedResponse, completedTask, allowNoContent, true);
+                                        sendRequestInternal(connection, request, authenticationConfiguration, httpMarshaller, httpResultHandler, failureHandler, expectedResponse, completedTask, allowNoContent, true);
                                         return;
                                     } else {
                                         failureHandler.handleFailure(HttpClientMessages.MESSAGES.authenticationFailed());

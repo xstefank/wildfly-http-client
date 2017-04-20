@@ -57,7 +57,6 @@ import org.jboss.marshalling.Marshaller;
 import org.jboss.marshalling.Marshalling;
 import org.jboss.marshalling.MarshallingConfiguration;
 import org.jboss.marshalling.Unmarshaller;
-import org.wildfly.httpclient.common.HttpConnectionPool;
 import org.wildfly.httpclient.common.HttpTargetContext;
 import org.wildfly.httpclient.common.WildflyHttpContext;
 import org.wildfly.httpclient.transaction.XidProvider;
@@ -114,116 +113,9 @@ class HttpEJBReceiver extends EJBReceiver {
             }
         }
         targetContext.awaitSessionId(false);
-        targetContext.getConnectionPool().getConnection((connection) -> invocationConnectionReady(clientInvocationContext, receiverContext, connection, targetContext), (e) -> receiverContext.resultReady(new StaticResultProducer(e, null)), false);
-    }
 
-    protected <T> StatefulEJBLocator<T> createSession(final StatelessEJBLocator<T> locator, final AuthenticationConfiguration authenticationConfiguration, final SSLContext sslContext) throws Exception {
-        Affinity affinity = locator.getAffinity();
-        URI uri;
-        if (affinity instanceof URIAffinity) {
-            uri = affinity.getUri();
-        } else {
-            throw EjbHttpClientMessages.MESSAGES.invalidAffinity(affinity);
-        }
-        WildflyHttpContext current = WildflyHttpContext.getCurrent();
-        HttpTargetContext targetContext = current.getTargetContext(uri);
-        if (targetContext == null) {
-            throw EjbHttpClientMessages.MESSAGES.couldNotResolveTargetForLocator(locator);
-        }
-        if (targetContext.getAttachment(EJB_CONTEXT_DATA) == null) {
-            synchronized (this) {
-                if (targetContext.getAttachment(EJB_CONTEXT_DATA) == null) {
-                    targetContext.putAttachment(EJB_CONTEXT_DATA, new EjbContextData());
-                }
-            }
-        }
-        targetContext.awaitSessionId(true);
-        CompletableFuture<StatefulEJBLocator<T>> result = new CompletableFuture<>();
-        targetContext.getConnectionPool().getConnection((connection) -> openSessionConnectionReady(connection, result, locator, targetContext), (e) -> result.completeExceptionally(new IOException(e)), false);
 
-        return result.get();
-    }
-
-    private <T> void openSessionConnectionReady(HttpConnectionPool.ConnectionHandle connection, CompletableFuture<StatefulEJBLocator<T>> result, StatelessEJBLocator<T> locator, HttpTargetContext targetContext) throws IllegalArgumentException {
-
-        HttpEJBInvocationBuilder builder = new HttpEJBInvocationBuilder()
-                .setInvocationType(HttpEJBInvocationBuilder.InvocationType.STATEFUL_CREATE)
-                .setAppName(locator.getAppName())
-                .setModuleName(locator.getModuleName())
-                .setDistinctName(locator.getDistinctName())
-                .setView(locator.getViewType().getName())
-                .setBeanName(locator.getBeanName());
-        ClientRequest request = builder.createRequest(connection.getUri().getPath());
-        targetContext.sendRequest(connection, request, output -> {
-                    MarshallingConfiguration config = createMarshallingConfig(targetContext.getUri());
-                    Marshaller marshaller = targetContext.createMarshaller(config);
-                    marshaller.start(Marshalling.createByteOutput(output));
-                    writeTransaction(ContextTransactionManager.getInstance().getTransaction(), marshaller, connection.getUri());
-                    marshaller.finish();
-                },
-                ((unmarshaller, response) -> {
-                    String sessionId = response.getResponseHeaders().getFirst(EjbHeaders.EJB_SESSION_ID);
-                    if (sessionId == null) {
-                        result.completeExceptionally(EjbHttpClientMessages.MESSAGES.noSessionIdInResponse());
-                    } else {
-                        SessionID sessionID = SessionID.createSessionID(Base64.getUrlDecoder().decode(sessionId));
-                        result.complete(new StatefulEJBLocator<T>(locator, sessionID));
-                    }
-                })
-                , result::completeExceptionally, EjbHeaders.EJB_RESPONSE_NEW_SESSION, null);
-
-    }
-
-    @Override
-    protected boolean cancelInvocation(EJBReceiverInvocationContext receiverContext, boolean cancelIfRunning) {
-
-        EJBClientInvocationContext clientInvocationContext = receiverContext.getClientInvocationContext();
-        EJBLocator<?> locator = clientInvocationContext.getLocator();
-
-        Affinity affinity = locator.getAffinity();
-        URI uri;
-        if (affinity instanceof URIAffinity) {
-            uri = affinity.getUri();
-        } else {
-            throw EjbHttpClientMessages.MESSAGES.invalidAffinity(affinity);
-        }
-
-        WildflyHttpContext current = WildflyHttpContext.getCurrent();
-        HttpTargetContext targetContext = current.getTargetContext(uri);
-        if (targetContext == null) {
-            throw EjbHttpClientMessages.MESSAGES.couldNotResolveTargetForLocator(locator);
-        }
-        if (targetContext.getAttachment(EJB_CONTEXT_DATA) == null) {
-            synchronized (this) {
-                if (targetContext.getAttachment(EJB_CONTEXT_DATA) == null) {
-                    targetContext.putAttachment(EJB_CONTEXT_DATA, new EjbContextData());
-                }
-            }
-        }
-        targetContext.awaitSessionId(false);
-        HttpEJBInvocationBuilder builder = new HttpEJBInvocationBuilder()
-                .setInvocationType(HttpEJBInvocationBuilder.InvocationType.CANCEL)
-                .setAppName(locator.getAppName())
-                .setModuleName(locator.getModuleName())
-                .setDistinctName(locator.getDistinctName())
-                .setCancelIfRunning(cancelIfRunning)
-                .setInvocationId(receiverContext.getClientInvocationContext().getAttachment(INVOCATION_ID))
-                .setBeanName(locator.getBeanName());
-        final CompletableFuture<Boolean> result = new CompletableFuture<>();
-        targetContext.sendRequest(builder.createRequest(targetContext.getUri().getPath()), null, (stream, response) -> {
-            result.complete(true);
-            IoUtils.safeClose(stream);
-        }, throwable -> result.complete(false), null, null);
-        try {
-            return result.get();
-        } catch (InterruptedException | ExecutionException e) {
-            return false;
-        }
-    }
-
-    private void invocationConnectionReady(EJBClientInvocationContext clientInvocationContext, EJBReceiverInvocationContext receiverContext, HttpConnectionPool.ConnectionHandle connection, HttpTargetContext targetContext) {
         EjbContextData ejbData = targetContext.getAttachment(EJB_CONTEXT_DATA);
-        EJBLocator<?> locator = clientInvocationContext.getLocator();
         HttpEJBInvocationBuilder builder = new HttpEJBInvocationBuilder()
                 .setInvocationType(HttpEJBInvocationBuilder.InvocationType.METHOD_INVOCATION)
                 .setMethod(clientInvocationContext.getInvokedMethod())
@@ -235,7 +127,6 @@ class HttpEJBReceiver extends EJBReceiver {
         if (locator instanceof StatefulEJBLocator) {
             builder.setBeanId(Base64.getUrlEncoder().encodeToString(locator.asStateful().getSessionId().getEncodedForm()));
         }
-
 
         if (clientInvocationContext.getInvokedMethod().getReturnType() == Future.class) {
             receiverContext.proceedAsynchronously();
@@ -254,18 +145,18 @@ class HttpEJBReceiver extends EJBReceiver {
             }
         }
         boolean compressResponse = receiverContext.getClientInvocationContext().isCompressResponse();
-        ClientRequest request = builder.createRequest(connection.getUri().getPath());
-        if(compressResponse) {
+        ClientRequest request = builder.createRequest(targetContext.getUri().getPath());
+        if (compressResponse) {
             request.getRequestHeaders().put(Headers.ACCEPT_ENCODING, Headers.GZIP.toString());
         }
         request.getRequestHeaders().put(Headers.TRANSFER_ENCODING, Headers.CHUNKED.toString());
         final boolean compressRequest = receiverContext.getClientInvocationContext().isCompressRequest();
-        if(compressRequest) {
+        if (compressRequest) {
             request.getRequestHeaders().put(Headers.CONTENT_ENCODING, Headers.GZIP.toString());
         }
-        targetContext.sendRequest(connection, request, (output -> {
+        targetContext.sendRequest(request, receiverContext.getSSLContext(), receiverContext.getAuthenticationConfiguration(), (output -> {
                     OutputStream data = output;
-                    if(compressRequest) {
+                    if (compressRequest) {
                         data = new GZIPOutputStream(data);
                     }
                     try {
@@ -310,7 +201,106 @@ class HttpEJBReceiver extends EJBReceiver {
                     receiverContext.resultReady(new StaticResultProducer(ex, ret));
                 }),
                 (e) -> receiverContext.resultReady(new StaticResultProducer(e instanceof Exception ? (Exception) e : new RuntimeException(e), null)), EjbHeaders.EJB_RESPONSE_VERSION_ONE, null);
+    }
 
+    protected <T> StatefulEJBLocator<T> createSession(final StatelessEJBLocator<T> locator, final AuthenticationConfiguration authenticationConfiguration, final SSLContext sslContext) throws Exception {
+        Affinity affinity = locator.getAffinity();
+        URI uri;
+        if (affinity instanceof URIAffinity) {
+            uri = affinity.getUri();
+        } else {
+            throw EjbHttpClientMessages.MESSAGES.invalidAffinity(affinity);
+        }
+        WildflyHttpContext current = WildflyHttpContext.getCurrent();
+        HttpTargetContext targetContext = current.getTargetContext(uri);
+        if (targetContext == null) {
+            throw EjbHttpClientMessages.MESSAGES.couldNotResolveTargetForLocator(locator);
+        }
+        if (targetContext.getAttachment(EJB_CONTEXT_DATA) == null) {
+            synchronized (this) {
+                if (targetContext.getAttachment(EJB_CONTEXT_DATA) == null) {
+                    targetContext.putAttachment(EJB_CONTEXT_DATA, new EjbContextData());
+                }
+            }
+        }
+
+        targetContext.awaitSessionId(true);
+        CompletableFuture<StatefulEJBLocator<T>> result = new CompletableFuture<>();
+
+        HttpEJBInvocationBuilder builder = new HttpEJBInvocationBuilder()
+                .setInvocationType(HttpEJBInvocationBuilder.InvocationType.STATEFUL_CREATE)
+                .setAppName(locator.getAppName())
+                .setModuleName(locator.getModuleName())
+                .setDistinctName(locator.getDistinctName())
+                .setView(locator.getViewType().getName())
+                .setBeanName(locator.getBeanName());
+        ClientRequest request = builder.createRequest(targetContext.getUri().getPath());
+        targetContext.sendRequest(request, sslContext, authenticationConfiguration, output -> {
+                    MarshallingConfiguration config = createMarshallingConfig(targetContext.getUri());
+                    Marshaller marshaller = targetContext.createMarshaller(config);
+                    marshaller.start(Marshalling.createByteOutput(output));
+                    writeTransaction(ContextTransactionManager.getInstance().getTransaction(), marshaller, targetContext.getUri());
+                    marshaller.finish();
+                },
+                ((unmarshaller, response) -> {
+                    String sessionId = response.getResponseHeaders().getFirst(EjbHeaders.EJB_SESSION_ID);
+                    if (sessionId == null) {
+                        result.completeExceptionally(EjbHttpClientMessages.MESSAGES.noSessionIdInResponse());
+                    } else {
+                        SessionID sessionID = SessionID.createSessionID(Base64.getUrlDecoder().decode(sessionId));
+                        result.complete(new StatefulEJBLocator<T>(locator, sessionID));
+                    }
+                })
+                , result::completeExceptionally, EjbHeaders.EJB_RESPONSE_NEW_SESSION, null);
+
+        return result.get();
+    }
+
+    @Override
+    protected boolean cancelInvocation(EJBReceiverInvocationContext receiverContext, boolean cancelIfRunning) {
+
+        EJBClientInvocationContext clientInvocationContext = receiverContext.getClientInvocationContext();
+        EJBLocator<?> locator = clientInvocationContext.getLocator();
+
+        Affinity affinity = locator.getAffinity();
+        URI uri;
+        if (affinity instanceof URIAffinity) {
+            uri = affinity.getUri();
+        } else {
+            throw EjbHttpClientMessages.MESSAGES.invalidAffinity(affinity);
+        }
+
+        WildflyHttpContext current = WildflyHttpContext.getCurrent();
+        HttpTargetContext targetContext = current.getTargetContext(uri);
+        if (targetContext == null) {
+            throw EjbHttpClientMessages.MESSAGES.couldNotResolveTargetForLocator(locator);
+        }
+        if (targetContext.getAttachment(EJB_CONTEXT_DATA) == null) {
+            synchronized (this) {
+                if (targetContext.getAttachment(EJB_CONTEXT_DATA) == null) {
+                    targetContext.putAttachment(EJB_CONTEXT_DATA, new EjbContextData());
+                }
+            }
+        }
+        targetContext.awaitSessionId(false);
+        HttpEJBInvocationBuilder builder = new HttpEJBInvocationBuilder()
+                .setInvocationType(HttpEJBInvocationBuilder.InvocationType.CANCEL)
+                .setAppName(locator.getAppName())
+                .setModuleName(locator.getModuleName())
+                .setDistinctName(locator.getDistinctName())
+                .setCancelIfRunning(cancelIfRunning)
+                .setInvocationId(receiverContext.getClientInvocationContext().getAttachment(INVOCATION_ID))
+                .setBeanName(locator.getBeanName());
+        final CompletableFuture<Boolean> result = new CompletableFuture<>();
+        targetContext.sendRequest(builder.createRequest(targetContext.getUri().getPath()), receiverContext.getSSLContext(), receiverContext.getAuthenticationConfiguration(), null, (stream, response) -> {
+            result.complete(true);
+            IoUtils.safeClose(stream);
+        }, throwable -> result.complete(false), null, null);
+        try {
+            return result.get();
+        } catch (InterruptedException | ExecutionException e) {
+            return false;
+        }
     }
 
     private MarshallingConfiguration createMarshallingConfig(URI uri) {

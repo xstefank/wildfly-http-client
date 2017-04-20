@@ -185,7 +185,7 @@ public class HttpRootContext extends AbstractContext {
         final CompletableFuture<Object> result = new CompletableFuture<>();
 
         final HttpTargetContext targetContext = WildflyHttpContext.getCurrent().getTargetContext(providerUri);
-        targetContext.sendRequest(clientRequest, null, (input, response) -> {
+        targetContext.sendRequest(clientRequest, httpNamingProvider.getSSLContext(), httpNamingProvider.getAuthenticationConfiguration(), null, (input, response) -> {
             if (response.getResponseCode() == StatusCodes.NO_CONTENT) {
                 result.complete(new HttpRemoteContext(HttpRootContext.this, name.toString()));
                 IoUtils.safeClose(input);
@@ -257,7 +257,7 @@ public class HttpRootContext extends AbstractContext {
         final CompletableFuture<Object> result = new CompletableFuture<>();
 
         final HttpTargetContext targetContext = WildflyHttpContext.getCurrent().getTargetContext(providerUri);
-        targetContext.sendRequest(clientRequest, output -> {
+        targetContext.sendRequest(clientRequest, httpNamingProvider.getSSLContext(), httpNamingProvider.getAuthenticationConfiguration(), output -> {
             if (object != null) {
                 Marshaller marshaller = targetContext.createMarshaller(createMarshallingConfig());
                 marshaller.start(Marshalling.createByteOutput(output));

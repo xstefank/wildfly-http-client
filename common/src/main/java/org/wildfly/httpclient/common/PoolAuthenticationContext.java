@@ -69,13 +69,16 @@ class PoolAuthenticationContext {
         return false; //TODO: digest
     }
 
-    boolean prepareRequest(URI uri, ClientRequest request) {
+    boolean prepareRequest(URI uri, ClientRequest request, AuthenticationConfiguration authenticationConfiguration) {
         if (current == Type.BASIC) {
+            AuthenticationConfiguration config = authenticationConfiguration;
+            if(config == null) {
+                config = AUTH_CONTEXT_CLIENT.getAuthenticationConfiguration(uri, AuthenticationContext.captureCurrent());
+            }
 
-            AuthenticationContext context = AuthenticationContext.captureCurrent();
-            AuthenticationConfiguration config = AUTH_CONTEXT_CLIENT.getAuthenticationConfiguration(uri, context);
+
             Principal principal = AUTH_CONTEXT_CLIENT.getPrincipal(config);
-            if(principal instanceof AnonymousPrincipal) {
+            if (principal instanceof AnonymousPrincipal) {
                 return false;
             }
             PasswordCallback callback = new PasswordCallback("password", false);
@@ -85,7 +88,7 @@ class PoolAuthenticationContext {
                 return false;
             }
             char[] password = callback.getPassword();
-            if(password == null) {
+            if (password == null) {
                 return false;
             }
             String challenge = principal.getName() + ":" + new String(password);

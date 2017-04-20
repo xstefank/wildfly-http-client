@@ -25,6 +25,7 @@ import static org.wildfly.httpclient.transaction.TransactionConstants.TXN_V1_XA_
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.function.Function;
+import javax.net.ssl.SSLContext;
 import javax.transaction.xa.XAException;
 import javax.transaction.xa.XAResource;
 import javax.transaction.xa.Xid;
@@ -32,6 +33,7 @@ import javax.transaction.xa.Xid;
 import org.jboss.marshalling.Marshaller;
 import org.jboss.marshalling.Marshalling;
 import org.wildfly.httpclient.common.HttpTargetContext;
+import org.wildfly.security.auth.client.AuthenticationConfiguration;
 import org.wildfly.transaction.client.spi.SubordinateTransactionControl;
 import io.undertow.client.ClientRequest;
 import io.undertow.client.ClientResponse;
@@ -45,10 +47,14 @@ class HttpSubordinateTransactionHandle implements SubordinateTransactionControl 
 
     private final HttpTargetContext targetContext;
     private final Xid id;
+    private final SSLContext sslContext;
+    private final AuthenticationConfiguration authenticationConfiguration;
 
-    HttpSubordinateTransactionHandle(final Xid id, final HttpTargetContext targetContext) {
+    HttpSubordinateTransactionHandle(final Xid id, final HttpTargetContext targetContext, SSLContext sslContext, AuthenticationConfiguration authenticationConfiguration) {
         this.id = id;
         this.targetContext = targetContext;
+        this.sslContext = sslContext;
+        this.authenticationConfiguration = authenticationConfiguration;
     }
 
     Xid getId() {
@@ -101,7 +107,7 @@ class HttpSubordinateTransactionHandle implements SubordinateTransactionControl 
                 .setPath(targetContext.getUri().getPath() + operationPath);
         cr.getRequestHeaders().put(Headers.ACCEPT, TransactionConstants.EXCEPTION);
         cr.getRequestHeaders().put(Headers.CONTENT_TYPE, TransactionConstants.XID_VERSION_1);
-        targetContext.sendRequest(cr, output -> {
+        targetContext.sendRequest(cr, sslContext, authenticationConfiguration, output -> {
             Marshaller marshaller = targetContext.createMarshaller(HttpRemoteTransactionPeer.createMarshallingConf());
             marshaller.start(Marshalling.createByteOutput(output));
             marshaller.writeInt(id.getFormatId());

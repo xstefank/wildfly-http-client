@@ -20,6 +20,7 @@ package org.wildfly.httpclient.transaction;
 
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
+import javax.net.ssl.SSLContext;
 import javax.transaction.SystemException;
 import javax.transaction.xa.XAException;
 import javax.transaction.xa.Xid;
@@ -28,6 +29,7 @@ import org.jboss.marshalling.InputStreamByteInput;
 import org.jboss.marshalling.MarshallingConfiguration;
 import org.jboss.marshalling.Unmarshaller;
 import org.wildfly.httpclient.common.HttpTargetContext;
+import org.wildfly.security.auth.client.AuthenticationConfiguration;
 import org.wildfly.transaction.client.SimpleXid;
 import org.wildfly.transaction.client.spi.RemoteTransactionPeer;
 import org.wildfly.transaction.client.spi.SimpleTransactionControl;
@@ -41,14 +43,18 @@ import io.undertow.util.Methods;
  */
 public class HttpRemoteTransactionPeer implements RemoteTransactionPeer {
     private final HttpTargetContext targetContext;
+    private final SSLContext sslContext;
+    private final AuthenticationConfiguration authenticationConfiguration;
 
-    public HttpRemoteTransactionPeer(HttpTargetContext targetContext) {
+    public HttpRemoteTransactionPeer(HttpTargetContext targetContext, SSLContext sslContext, AuthenticationConfiguration authenticationConfiguration) {
         this.targetContext = targetContext;
+        this.sslContext = sslContext;
+        this.authenticationConfiguration = authenticationConfiguration;
     }
 
     @Override
     public SubordinateTransactionControl lookupXid(Xid xid) throws XAException {
-        return new HttpSubordinateTransactionHandle(xid, targetContext);
+        return new HttpSubordinateTransactionHandle(xid, targetContext, sslContext, authenticationConfiguration);
     }
 
     @Override
@@ -62,7 +68,7 @@ public class HttpRemoteTransactionPeer implements RemoteTransactionPeer {
         cr.getRequestHeaders().put(TransactionConstants.RECOVERY_PARENT_NAME, parentName);
         cr.getRequestHeaders().put(TransactionConstants.RECOVERY_FLAGS, Integer.toString(flag));
 
-        targetContext.sendRequest(cr, null, (result, response) -> {
+        targetContext.sendRequest(cr,  sslContext, authenticationConfiguration,null, (result, response) -> {
             try {
                 Unmarshaller unmarshaller = targetContext.createUnmarshaller(createMarshallingConf());
                 unmarshaller.start(new InputStreamByteInput(result));
@@ -111,7 +117,7 @@ public class HttpRemoteTransactionPeer implements RemoteTransactionPeer {
         cr.getRequestHeaders().put(TransactionConstants.TIMEOUT, timeout);
 
 
-        targetContext.sendRequest(cr, null, (result, response) -> {
+        targetContext.sendRequest(cr, sslContext, authenticationConfiguration, null, (result, response) -> {
             try {
                 Unmarshaller unmarshaller = targetContext.createUnmarshaller(createMarshallingConf());
                 unmarshaller.start(new InputStreamByteInput(result));
@@ -131,7 +137,7 @@ public class HttpRemoteTransactionPeer implements RemoteTransactionPeer {
         }, beginXid::completeExceptionally, TransactionConstants.NEW_TRANSACTION, null);
         try {
             Xid xid = beginXid.get();
-            return new HttpRemoteTransactionHandle(xid, targetContext);
+            return new HttpRemoteTransactionHandle(xid, targetContext, sslContext, authenticationConfiguration);
 
         } catch (InterruptedException e) {
             throw new RuntimeException(e);

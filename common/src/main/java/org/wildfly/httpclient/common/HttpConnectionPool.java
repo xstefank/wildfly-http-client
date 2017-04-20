@@ -24,9 +24,6 @@ import java.net.InetAddress;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.net.UnknownHostException;
-import java.security.AccessController;
-import java.security.GeneralSecurityException;
-import java.security.PrivilegedAction;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedDeque;
@@ -34,8 +31,6 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import javax.net.ssl.SSLContext;
 
-import org.wildfly.security.auth.client.AuthenticationContext;
-import org.wildfly.security.auth.client.AuthenticationContextConfigurationClient;
 import org.xnio.ChannelListener;
 import org.xnio.IoUtils;
 import org.xnio.OptionMap;
@@ -49,20 +44,13 @@ import io.undertow.protocols.ssl.UndertowXnioSsl;
 
 /**
  * A pool of HTTP connections for a given host pool.
- *
- *
+ * <p>
+ * <p>
  * This pool is designed to give an
  *
  * @author Stuart Douglas
  */
 public class HttpConnectionPool implements Closeable {
-
-    private static final AuthenticationContextConfigurationClient AUTH_CONTEXT_CLIENT;
-
-    static {
-        AUTH_CONTEXT_CLIENT = AccessController.doPrivileged((PrivilegedAction<AuthenticationContextConfigurationClient>) () -> new AuthenticationContextConfigurationClient());
-    }
-
 
     private final int maxConnections;
     private final int maxStreamsPerConnection;
@@ -80,7 +68,7 @@ public class HttpConnectionPool implements Closeable {
     private final Object NULL_SSL_CONTEXT = new Object();
     private final PoolAuthenticationContext poolAuthenticationContext = new PoolAuthenticationContext();
 
-    public HttpConnectionPool(int maxConnections, int maxStreamsPerConnection, XnioWorker worker, ByteBufferPool byteBufferPool,  OptionMap options, HostPool hostPool, long connectionIdleTimeout) {
+    public HttpConnectionPool(int maxConnections, int maxStreamsPerConnection, XnioWorker worker, ByteBufferPool byteBufferPool, OptionMap options, HostPool hostPool, long connectionIdleTimeout) {
         this.maxConnections = maxConnections;
         this.maxStreamsPerConnection = maxStreamsPerConnection;
         this.worker = worker;
@@ -90,9 +78,8 @@ public class HttpConnectionPool implements Closeable {
         this.connectionIdleTimeout = connectionIdleTimeout;
     }
 
-    public void getConnection(ConnectionListener connectionListener, ErrorListener errorListener, boolean ignoreConnectionLimits) {
-        AuthenticationContext context = AuthenticationContext.captureCurrent();
-        pendingConnectionRequests.add(new RequestHolder(connectionListener, errorListener, ignoreConnectionLimits, context));
+    public void getConnection(ConnectionListener connectionListener, ErrorListener errorListener, boolean ignoreConnectionLimits, SSLContext sslContext) {
+        pendingConnectionRequests.add(new RequestHolder(connectionListener, errorListener, ignoreConnectionLimits, sslContext));
         runPending();
     }
 
@@ -120,23 +107,18 @@ public class HttpConnectionPool implements Closeable {
         }
         SSLContext sslContext = null;
         UndertowXnioSsl ssl = null;
-        if(hostPool.getUri().getScheme().equals("https")) {
-            try {
-                sslContext = AUTH_CONTEXT_CLIENT.getSSLContext(hostPool.getUri(), next.context);
-            } catch (GeneralSecurityException e) {
-                next.errorListener.error(e);
-                return;
-            }
-            if(sslContext != null) {
+        if (hostPool.getUri().getScheme().equals("https")) {
+            sslContext = next.context;
+            if (sslContext != null) {
                 ssl = sslInstances.get(sslContext);
-                if(ssl == null) {
-                    sslInstances.put(sslContext, ssl = new UndertowXnioSsl(worker.getXnio(),OptionMap.EMPTY,sslContext));
+                if (ssl == null) {
+                    sslInstances.put(sslContext, ssl = new UndertowXnioSsl(worker.getXnio(), OptionMap.EMPTY, sslContext));
                 }
             }
         }
         Object key = sslContext == null ? NULL_SSL_CONTEXT : sslContext;
         ConcurrentLinkedDeque<ClientConnectionHolder> queue = connections.get(key);
-        if(queue == null) {
+        if (queue == null) {
             connections.putIfAbsent(key, new ConcurrentLinkedDeque<>());
             queue = connections.get(key);
         }
@@ -218,9 +200,9 @@ public class HttpConnectionPool implements Closeable {
         final ConnectionListener connectionListener;
         final ErrorListener errorListener;
         final boolean ignoreConnectionLimits;
-        final AuthenticationContext context;
+        final SSLContext context;
 
-        private RequestHolder(ConnectionListener connectionListener, ErrorListener errorListener, boolean ignoreConnectionLimits, AuthenticationContext context) {
+        private RequestHolder(ConnectionListener connectionListener, ErrorListener errorListener, boolean ignoreConnectionLimits, SSLContext context) {
             this.connectionListener = connectionListener;
             this.errorListener = errorListener;
             this.ignoreConnectionLimits = ignoreConnectionLimits;

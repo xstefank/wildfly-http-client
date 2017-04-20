@@ -172,7 +172,7 @@ public class ConnectionPoolTestCase {
         }, (error) -> {
             failed.set(error);
             latch.countDown();
-        }, false);
+        }, false, null);
     }
 
     private void checkFailed(AtomicReference<Throwable> failed) {

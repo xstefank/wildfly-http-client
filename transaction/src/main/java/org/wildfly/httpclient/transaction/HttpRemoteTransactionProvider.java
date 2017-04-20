@@ -35,7 +35,7 @@ public class HttpRemoteTransactionProvider implements RemoteTransactionProvider 
 
     @Override
     public RemoteTransactionPeer getPeerHandle(final URI uri, final SSLContext sslContext, final AuthenticationConfiguration authenticationConfiguration) throws SystemException {
-        return new HttpRemoteTransactionPeer(WildflyHttpContext.getCurrent().getTargetContext(uri));
+        return new HttpRemoteTransactionPeer(WildflyHttpContext.getCurrent().getTargetContext(uri), sslContext, authenticationConfiguration);
     }
 
     @Override
