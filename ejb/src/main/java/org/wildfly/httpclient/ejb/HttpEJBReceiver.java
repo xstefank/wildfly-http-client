@@ -36,6 +36,7 @@ import java.util.concurrent.Future;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.zip.GZIPOutputStream;
 import javax.ejb.Asynchronous;
+import javax.net.ssl.SSLContext;
 import javax.transaction.RollbackException;
 import javax.transaction.SystemException;
 import javax.transaction.Transaction;
@@ -59,9 +60,8 @@ import org.jboss.marshalling.Unmarshaller;
 import org.wildfly.httpclient.common.HttpConnectionPool;
 import org.wildfly.httpclient.common.HttpTargetContext;
 import org.wildfly.httpclient.common.WildflyHttpContext;
-import org.wildfly.httpclient.naming.HttpNamingProvider;
 import org.wildfly.httpclient.transaction.XidProvider;
-import org.wildfly.naming.client.NamingProvider;
+import org.wildfly.security.auth.client.AuthenticationConfiguration;
 import org.wildfly.transaction.client.ContextTransactionManager;
 import org.wildfly.transaction.client.LocalTransaction;
 import org.wildfly.transaction.client.RemoteTransaction;
@@ -91,15 +91,12 @@ class HttpEJBReceiver extends EJBReceiver {
     @Override
     protected void processInvocation(EJBReceiverInvocationContext receiverContext) throws Exception {
 
-        final NamingProvider namingProvider = receiverContext.getNamingProvider();
         EJBClientInvocationContext clientInvocationContext = receiverContext.getClientInvocationContext();
-        EJBLocator locator = clientInvocationContext.getLocator();
+        EJBLocator<?> locator = clientInvocationContext.getLocator();
 
         Affinity affinity = locator.getAffinity();
         URI uri;
-        if (namingProvider instanceof HttpNamingProvider) {
-            uri = namingProvider.getProviderUri();
-        } else if (affinity instanceof URIAffinity) {
+        if (affinity instanceof URIAffinity) {
             uri = affinity.getUri();
         } else {
             throw EjbHttpClientMessages.MESSAGES.invalidAffinity(affinity);
@@ -120,18 +117,10 @@ class HttpEJBReceiver extends EJBReceiver {
         targetContext.getConnectionPool().getConnection((connection) -> invocationConnectionReady(clientInvocationContext, receiverContext, connection, targetContext), (e) -> receiverContext.resultReady(new StaticResultProducer(e, null)), false);
     }
 
-    protected <T> StatefulEJBLocator<T> createSession(StatelessEJBLocator<T> locator) throws Exception {
-        //TODO: remove this
-        return createSession(locator, null);
-    }
-
-    protected <T> StatefulEJBLocator<T> createSession(StatelessEJBLocator<T> locator, NamingProvider namingProvider) throws Exception {
-
+    protected <T> StatefulEJBLocator<T> createSession(final StatelessEJBLocator<T> locator, final AuthenticationConfiguration authenticationConfiguration, final SSLContext sslContext) throws Exception {
         Affinity affinity = locator.getAffinity();
         URI uri;
-        if(namingProvider instanceof HttpNamingProvider) {
-            uri = namingProvider.getProviderUri();
-        } else if (affinity instanceof URIAffinity) {
+        if (affinity instanceof URIAffinity) {
             uri = affinity.getUri();
         } else {
             throw EjbHttpClientMessages.MESSAGES.invalidAffinity(affinity);
@@ -188,15 +177,12 @@ class HttpEJBReceiver extends EJBReceiver {
     @Override
     protected boolean cancelInvocation(EJBReceiverInvocationContext receiverContext, boolean cancelIfRunning) {
 
-        final NamingProvider namingProvider = receiverContext.getNamingProvider();
         EJBClientInvocationContext clientInvocationContext = receiverContext.getClientInvocationContext();
-        EJBLocator locator = clientInvocationContext.getLocator();
+        EJBLocator<?> locator = clientInvocationContext.getLocator();
 
         Affinity affinity = locator.getAffinity();
         URI uri;
-        if (namingProvider instanceof HttpNamingProvider) {
-            uri = namingProvider.getProviderUri();
-        } else if (affinity instanceof URIAffinity) {
+        if (affinity instanceof URIAffinity) {
             uri = affinity.getUri();
         } else {
             throw EjbHttpClientMessages.MESSAGES.invalidAffinity(affinity);
@@ -247,7 +233,7 @@ class HttpEJBReceiver extends EJBReceiver {
                 .setView(clientInvocationContext.getViewClass().getName())
                 .setBeanName(locator.getBeanName());
         if (locator instanceof StatefulEJBLocator) {
-            builder.setBeanId(Base64.getUrlEncoder().encodeToString(((StatefulEJBLocator) locator).getSessionId().getEncodedForm()));
+            builder.setBeanId(Base64.getUrlEncoder().encodeToString(locator.asStateful().getSessionId().getEncodedForm()));
         }
 
 
@@ -462,7 +448,7 @@ class HttpEJBReceiver extends EJBReceiver {
     }
 
     private static class EjbContextData {
-        final Set<Method> asyncMethods = Collections.newSetFromMap(new ConcurrentHashMap());
+        final Set<Method> asyncMethods = Collections.newSetFromMap(new ConcurrentHashMap<>());
 
     }
 }
