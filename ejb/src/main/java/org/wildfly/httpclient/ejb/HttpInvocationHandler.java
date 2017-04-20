@@ -144,8 +144,7 @@ class HttpInvocationHandler extends RemoteHTTPHandler {
                     Object[] methodParams = new Object[parameterTypeNames.length];
                     final Class<?> view = Class.forName(viewName, false, classLoader);
                     final MarshallingConfiguration marshallingConfiguration = new MarshallingConfiguration();
-                    marshallingConfiguration.setClassTable(ProtocolV1ClassTable.INSTANCE);
-                    marshallingConfiguration.setObjectTable(ProtocolV1ObjectTable.INSTANCE);
+                    marshallingConfiguration.setObjectTable(HttpProtocolV1ObjectTable.INSTANCE);
                     marshallingConfiguration.setVersion(2);
                     Unmarshaller unmarshaller = HttpServerHelper.RIVER_MARSHALLER_FACTORY.createUnmarshaller(marshallingConfiguration);
 

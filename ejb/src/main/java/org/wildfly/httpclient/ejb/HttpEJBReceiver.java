@@ -155,7 +155,7 @@ class HttpEJBReceiver extends EJBReceiver {
                 .setBeanName(locator.getBeanName());
         ClientRequest request = builder.createRequest(connection.getUri().getPath());
         targetContext.sendRequest(connection, request, output -> {
-                    MarshallingConfiguration config = createMarshallingConfig();
+                    MarshallingConfiguration config = createMarshallingConfig(targetContext.getUri());
                     Marshaller marshaller = targetContext.createMarshaller(config);
                     marshaller.start(Marshalling.createByteOutput(output));
                     writeTransaction(ContextTransactionManager.getInstance().getTransaction(), marshaller, connection.getUri());
@@ -284,7 +284,7 @@ class HttpEJBReceiver extends EJBReceiver {
                     Object returned = null;
                     try {
 
-                        final MarshallingConfiguration marshallingConfiguration = createMarshallingConfig();
+                        final MarshallingConfiguration marshallingConfiguration = createMarshallingConfig(targetContext.getUri());
                         final Unmarshaller unmarshaller = targetContext.createUnmarshaller(marshallingConfiguration);
 
                         unmarshaller.start(new InputStreamByteInput(input));
@@ -313,17 +313,17 @@ class HttpEJBReceiver extends EJBReceiver {
 
     }
 
-    private MarshallingConfiguration createMarshallingConfig() {
+    private MarshallingConfiguration createMarshallingConfig(URI uri) {
         final MarshallingConfiguration marshallingConfiguration = new MarshallingConfiguration();
-        marshallingConfiguration.setClassTable(ProtocolV1ClassTable.INSTANCE);
-        marshallingConfiguration.setObjectTable(ProtocolV1ObjectTable.INSTANCE);
+        marshallingConfiguration.setObjectResolver(new HttpProtocolV1ObjectResolver(uri));
+        marshallingConfiguration.setObjectTable(HttpProtocolV1ObjectTable.INSTANCE);
         marshallingConfiguration.setVersion(2);
         return marshallingConfiguration;
     }
 
     private void marshalEJBRequest(ByteOutput byteOutput, EJBClientInvocationContext clientInvocationContext, HttpTargetContext targetContext) throws IOException, RollbackException, SystemException {
 
-        MarshallingConfiguration config = createMarshallingConfig();
+        MarshallingConfiguration config = createMarshallingConfig(targetContext.getUri());
         Marshaller marshaller = targetContext.createMarshaller(config);
         marshaller.start(byteOutput);
         writeTransaction(clientInvocationContext.getTransaction(), marshaller, targetContext.getUri());

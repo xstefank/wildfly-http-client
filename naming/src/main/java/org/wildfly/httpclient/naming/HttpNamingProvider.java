@@ -25,7 +25,6 @@ import javax.net.ssl.SSLContext;
 import org.wildfly.naming.client.NamingProvider;
 import org.wildfly.naming.client.util.FastHashtable;
 import org.wildfly.security.auth.client.AuthenticationConfiguration;
-import org.wildfly.security.auth.client.AuthenticationContext;
 import org.wildfly.security.auth.client.PeerIdentity;
 
 /**
@@ -34,13 +33,16 @@ import org.wildfly.security.auth.client.PeerIdentity;
 public class HttpNamingProvider implements NamingProvider {
 
     private final URI uri;
-    private final AuthenticationContext context;
     private final FastHashtable<String, Object> env;
 
-    public HttpNamingProvider(URI uri, AuthenticationContext context, FastHashtable<String, Object> env) {
+    private final AuthenticationConfiguration authenticationConfiguration;
+    private final SSLContext sslContext;
+
+    public HttpNamingProvider(URI uri, FastHashtable<String, Object> env, AuthenticationConfiguration authenticationConfiguration, SSLContext sslContext) {
         this.uri = uri;
-        this.context = context;
         this.env = env;
+        this.authenticationConfiguration = authenticationConfiguration;
+        this.sslContext = sslContext;
     }
 
     @Override
@@ -50,12 +52,12 @@ public class HttpNamingProvider implements NamingProvider {
 
     @Override
     public AuthenticationConfiguration getAuthenticationConfiguration() {
-        return null;
+        return authenticationConfiguration;
     }
 
     @Override
     public SSLContext getSSLContext() {
-        return null;
+        return sslContext;
     }
 
     @Override
