@@ -20,9 +20,11 @@ package org.wildfly.httpclient.naming;
 
 import java.net.URI;
 import javax.naming.NamingException;
+import javax.net.ssl.SSLContext;
 
 import org.wildfly.naming.client.NamingProvider;
 import org.wildfly.naming.client.util.FastHashtable;
+import org.wildfly.security.auth.client.AuthenticationConfiguration;
 import org.wildfly.security.auth.client.AuthenticationContext;
 import org.wildfly.security.auth.client.PeerIdentity;
 
@@ -44,6 +46,16 @@ public class HttpNamingProvider implements NamingProvider {
     @Override
     public URI getProviderUri() {
         return uri;
+    }
+
+    @Override
+    public AuthenticationConfiguration getAuthenticationConfiguration() {
+        return null;
+    }
+
+    @Override
+    public SSLContext getSSLContext() {
+        return null;
     }
 
     @Override

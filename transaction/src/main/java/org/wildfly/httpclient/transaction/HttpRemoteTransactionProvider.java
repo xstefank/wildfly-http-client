@@ -19,9 +19,12 @@
 package org.wildfly.httpclient.transaction;
 
 import java.net.URI;
+
+import javax.net.ssl.SSLContext;
 import javax.transaction.SystemException;
 
 import org.wildfly.httpclient.common.WildflyHttpContext;
+import org.wildfly.security.auth.client.AuthenticationConfiguration;
 import org.wildfly.transaction.client.spi.RemoteTransactionPeer;
 import org.wildfly.transaction.client.spi.RemoteTransactionProvider;
 
@@ -31,7 +34,7 @@ import org.wildfly.transaction.client.spi.RemoteTransactionProvider;
 public class HttpRemoteTransactionProvider implements RemoteTransactionProvider {
 
     @Override
-    public RemoteTransactionPeer getPeerHandle(URI uri) throws SystemException {
+    public RemoteTransactionPeer getPeerHandle(final URI uri, final SSLContext sslContext, final AuthenticationConfiguration authenticationConfiguration) throws SystemException {
         return new HttpRemoteTransactionPeer(WildflyHttpContext.getCurrent().getTargetContext(uri));
     }
 
