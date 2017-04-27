@@ -128,11 +128,11 @@ final class HttpClientXmlParser {
         for (int i = 0; i < attributeCount; i++) {
             switch (reader.getAttributeLocalName(i)) {
                 case "address": {
-                    address = reader.getAttributeValue(i);
+                    address = reader.getAttributeValueResolved(i);
                     break;
                 }
                 case "port": {
-                    port = reader.getIntAttributeValue(i);
+                    port = reader.getIntAttributeValueResolved(i);
                     if (port < 0 || port > 65535) {
                         throw HttpClientMessages.MESSAGES.portValueOutOfRange(port);
                     }
@@ -163,7 +163,7 @@ final class HttpClientXmlParser {
         for (int i = 0; i < attributeCount; i++) {
             switch (reader.getAttributeLocalName(i)) {
                 case "value": {
-                    value = reader.getLongAttributeValue(i);
+                    value = reader.getLongAttributeValueResolved(i);
                     break;
                 }
                 default: {
@@ -190,7 +190,7 @@ final class HttpClientXmlParser {
         for (int i = 0; i < attributeCount; i++) {
             switch (reader.getAttributeLocalName(i)) {
                 case "value": {
-                    value = reader.getIntAttributeValue(i);
+                    value = reader.getIntAttributeValueResolved(i);
                     break;
                 }
                 default: {
@@ -217,7 +217,7 @@ final class HttpClientXmlParser {
         for (int i = 0; i < attributeCount; i++) {
             switch (reader.getAttributeLocalName(i)) {
                 case "value": {
-                    value = reader.getBooleanAttributeValue(i);
+                    value = reader.getBooleanAttributeValueResolved(i);
                     break;
                 }
                 default: {
@@ -332,19 +332,19 @@ final class HttpClientXmlParser {
         for (int i = 0; i < attributeCount; i++) {
             switch (reader.getAttributeLocalName(i)) {
                 case "buffer-size": {
-                    bufferSize = reader.getIntAttributeValue(i);
+                    bufferSize = reader.getIntAttributeValueResolved(i);
                     break;
                 }
                 case "max-size": {
-                    maxSize = reader.getIntAttributeValue(i);
+                    maxSize = reader.getIntAttributeValueResolved(i);
                     break;
                 }
                 case "thread-local-size": {
-                    threadLocalSize = reader.getIntAttributeValue(i);
+                    threadLocalSize = reader.getIntAttributeValueResolved(i);
                     break;
                 }
                 case "direct": {
-                    direct = reader.getBooleanAttributeValue(i);
+                    direct = reader.getBooleanAttributeValueResolved(i);
                     break;
                 }
                 default: {
@@ -382,7 +382,7 @@ final class HttpClientXmlParser {
         for (int i = 0; i < attributeCount; i++) {
             switch (reader.getAttributeLocalName(i)) {
                 case "uri": {
-                    uri = reader.getURIAttributeValue(i);
+                    uri = reader.getURIAttributeValueResolved(i);
                     break;
                 }
                 default: {
