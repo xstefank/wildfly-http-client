@@ -177,10 +177,10 @@ class HttpInvocationHandler extends RemoteHTTPHandler {
                                 Object value = unmarshaller.readObject();
                                 contextData.put(key, value);
                             }
-                            privateAttachments = (Map<String, Object>) unmarshaller.readObject();
+                            privateAttachments = new HashMap<>((Map<String, Object>) unmarshaller.readObject());
                         } else {
                             contextData = Collections.emptyMap();
-                            privateAttachments = Collections.emptyMap();
+                            privateAttachments = new HashMap<>();
                         }
 
                         unmarshaller.finish();
