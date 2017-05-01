@@ -18,8 +18,31 @@
 
 package org.wildfly.httpclient.common;
 
+import io.undertow.client.ClientCallback;
+import io.undertow.client.ClientExchange;
+import io.undertow.client.ClientRequest;
+import io.undertow.client.ClientResponse;
+import io.undertow.server.handlers.Cookie;
+import io.undertow.util.AbstractAttachable;
+import io.undertow.util.Cookies;
+import io.undertow.util.HeaderValues;
+import io.undertow.util.Headers;
+import io.undertow.util.Methods;
+import io.undertow.util.StatusCodes;
+import org.jboss.marshalling.InputStreamByteInput;
+import org.jboss.marshalling.Marshaller;
+import org.jboss.marshalling.MarshallerFactory;
+import org.jboss.marshalling.MarshallingConfiguration;
+import org.jboss.marshalling.Unmarshaller;
+import org.jboss.marshalling.river.RiverMarshallerFactory;
+import org.wildfly.security.auth.client.AuthenticationConfiguration;
+import org.wildfly.security.auth.client.AuthenticationContext;
+import org.wildfly.security.auth.client.AuthenticationContextConfigurationClient;
+import org.xnio.channels.Channels;
+import org.xnio.streams.ChannelInputStream;
+
+import javax.net.ssl.SSLContext;
 import java.io.BufferedInputStream;
-import java.io.BufferedOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.ObjectInput;
@@ -34,32 +57,6 @@ import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.zip.GZIPInputStream;
-
-import javax.net.ssl.SSLContext;
-
-import org.jboss.marshalling.InputStreamByteInput;
-import org.jboss.marshalling.Marshaller;
-import org.jboss.marshalling.MarshallerFactory;
-import org.jboss.marshalling.MarshallingConfiguration;
-import org.jboss.marshalling.Unmarshaller;
-import org.jboss.marshalling.river.RiverMarshallerFactory;
-import org.wildfly.security.auth.client.AuthenticationConfiguration;
-import org.wildfly.security.auth.client.AuthenticationContext;
-import org.wildfly.security.auth.client.AuthenticationContextConfigurationClient;
-import org.xnio.channels.Channels;
-import org.xnio.streams.ChannelInputStream;
-import org.xnio.streams.ChannelOutputStream;
-import io.undertow.client.ClientCallback;
-import io.undertow.client.ClientExchange;
-import io.undertow.client.ClientRequest;
-import io.undertow.client.ClientResponse;
-import io.undertow.server.handlers.Cookie;
-import io.undertow.util.AbstractAttachable;
-import io.undertow.util.Cookies;
-import io.undertow.util.HeaderValues;
-import io.undertow.util.Headers;
-import io.undertow.util.Methods;
-import io.undertow.util.StatusCodes;
 
 /**
  * @author Stuart Douglas
@@ -226,11 +223,11 @@ public class HttpTargetContext extends AbstractAttachable {
                                     try (ChannelInputStream inputStream = new ChannelInputStream(result.getResponseChannel())) {
                                         InputStream in = inputStream;
                                         String encoding = response.getResponseHeaders().getFirst(Headers.CONTENT_ENCODING);
-                                        if(encoding != null) {
+                                        if (encoding != null) {
                                             String lowerEncoding = encoding.toLowerCase(Locale.ENGLISH);
-                                            if(Headers.GZIP.toString().equals(lowerEncoding)) {
+                                            if (Headers.GZIP.toString().equals(lowerEncoding)) {
                                                 in = new GZIPInputStream(in);
-                                            } else if(!lowerEncoding.equals(Headers.IDENTITY.toString())) {
+                                            } else if (!lowerEncoding.equals(Headers.IDENTITY.toString())) {
                                                 throw HttpClientMessages.MESSAGES.invalidContentEncoding(encoding);
                                             }
                                         }
@@ -260,11 +257,11 @@ public class HttpTargetContext extends AbstractAttachable {
                                             InputStream underlying = new ChannelInputStream(result.getResponseChannel());
                                             InputStream inputStream = underlying;
                                             String encoding = response.getResponseHeaders().getFirst(Headers.CONTENT_ENCODING);
-                                            if(encoding != null) {
+                                            if (encoding != null) {
                                                 String lowerEncoding = encoding.toLowerCase(Locale.ENGLISH);
-                                                if(Headers.GZIP.toString().equals(lowerEncoding)) {
+                                                if (Headers.GZIP.toString().equals(lowerEncoding)) {
                                                     inputStream = new GZIPInputStream(inputStream);
-                                                } else if(!lowerEncoding.equals(Headers.IDENTITY.toString())) {
+                                                } else if (!lowerEncoding.equals(Headers.IDENTITY.toString())) {
                                                     throw HttpClientMessages.MESSAGES.invalidContentEncoding(encoding);
                                                 }
                                             }
@@ -301,7 +298,7 @@ public class HttpTargetContext extends AbstractAttachable {
                 if (httpMarshaller != null) {
                     //marshalling is blocking, we need to delegate, otherwise we may need to buffer arbitrarily large requests
                     connection.getConnection().getWorker().execute(() -> {
-                        try (OutputStream outputStream = new BufferedOutputStream(new ChannelOutputStream(result.getRequestChannel()))) {
+                        try (OutputStream outputStream = new WildflyClientOutputStream(result.getRequestChannel(), result.getConnection().getBufferPool())) {
 
                             // marshall the locator and method params
                             // start the marshaller
