@@ -55,6 +55,7 @@ import org.wildfly.common.annotation.NotNull;
 import org.wildfly.httpclient.common.ContentType;
 import org.wildfly.httpclient.common.ElytronIdentityHandler;
 import org.wildfly.httpclient.common.HttpServerHelper;
+import org.wildfly.httpclient.common.NoFlushByteOutput;
 import org.wildfly.security.auth.server.SecurityIdentity;
 import org.wildfly.transaction.client.ImportResult;
 import org.wildfly.transaction.client.LocalTransaction;
@@ -373,7 +374,7 @@ class HttpInvocationHandler extends RemoteHTTPHandler {
 //                                    }
                 final Marshaller marshaller = HttpServerHelper.RIVER_MARSHALLER_FACTORY.createMarshaller(marshallingConfiguration);
                 OutputStream outputStream = exchange.getOutputStream();
-                final ByteOutput byteOutput = Marshalling.createByteOutput(outputStream);
+                final ByteOutput byteOutput = new NoFlushByteOutput(Marshalling.createByteOutput(outputStream));
                 // start the marshaller
                 marshaller.start(byteOutput);
                 marshaller.writeObject(result);

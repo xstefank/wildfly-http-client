@@ -21,6 +21,7 @@ package org.wildfly.httpclient.common;
 import io.undertow.UndertowMessages;
 import io.undertow.connector.ByteBufferPool;
 import io.undertow.connector.PooledByteBuffer;
+import org.jboss.marshalling.ByteOutput;
 import org.xnio.channels.Channels;
 import org.xnio.channels.StreamSinkChannel;
 
@@ -38,7 +39,7 @@ import static org.xnio.Bits.anyAreSet;
  *
  * @author Stuart Douglas
  */
-public class WildflyClientOutputStream extends OutputStream {
+public class WildflyClientOutputStream extends OutputStream implements ByteOutput {
 
     private ByteBuffer buffer;
     private PooledByteBuffer pooledBuffer;

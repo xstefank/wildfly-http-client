@@ -33,11 +33,11 @@ import org.jboss.marshalling.Marshaller;
 import org.jboss.marshalling.MarshallerFactory;
 import org.jboss.marshalling.Marshalling;
 import org.jboss.marshalling.MarshallingConfiguration;
-import org.jboss.marshalling.OutputStreamByteOutput;
 import org.jboss.marshalling.Unmarshaller;
 import org.jboss.marshalling.river.RiverMarshallerFactory;
 import org.wildfly.httpclient.common.ContentType;
 import org.wildfly.httpclient.common.ElytronIdentityHandler;
+import org.wildfly.httpclient.common.NoFlushByteOutput;
 import io.undertow.server.HttpHandler;
 import io.undertow.server.HttpServerExchange;
 import io.undertow.server.RoutingHandler;
@@ -229,7 +229,7 @@ public class HttpRemoteNamingService {
         final MarshallingConfiguration marshallingConfiguration = new MarshallingConfiguration();
         marshallingConfiguration.setVersion(2);
         Marshaller marshaller = MARSHALLER_FACTORY.createMarshaller(marshallingConfiguration);
-        marshaller.start(new OutputStreamByteOutput(exchange.getOutputStream()));
+        marshaller.start(new NoFlushByteOutput(Marshalling.createByteOutput(exchange.getOutputStream())));
         marshaller.writeObject(result);
         marshaller.finish();
     }
@@ -242,7 +242,7 @@ public class HttpRemoteNamingService {
         marshallingConfiguration.setVersion(2);
         final Marshaller marshaller = MARSHALLER_FACTORY.createMarshaller(marshallingConfiguration);
         OutputStream outputStream = exchange.getOutputStream();
-        final ByteOutput byteOutput = Marshalling.createByteOutput(outputStream);
+        final ByteOutput byteOutput = new NoFlushByteOutput(Marshalling.createByteOutput(outputStream));
         // start the marshaller
         marshaller.start(byteOutput);
         marshaller.writeObject(e);
