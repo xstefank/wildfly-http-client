@@ -399,7 +399,7 @@ class HttpEJBReceiver extends EJBReceiver {
     }
 
     private static Map<String, Object> readAttachments(final ObjectInput input) throws IOException, ClassNotFoundException {
-        final int numAttachments = input.readByte();
+        final int numAttachments = PackedInteger.readPackedInteger(input);
         if (numAttachments == 0) {
             return null;
         }

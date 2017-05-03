@@ -19,6 +19,7 @@
 package org.wildfly.httpclient.ejb;
 
 import java.net.URI;
+import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
@@ -50,7 +51,7 @@ public class AsyncInvocationTestCase {
 
     @Test
     public void testSimpleAsyncInvocation() throws Exception {
-        EJBTestServer.setHandler((invocation, affinity, out, method, handle) -> {
+        EJBTestServer.setHandler((invocation, affinity, out, method, handle, attachments) -> {
             if (method.getMethodName().equals("asyncMessage")) {
                 return "a message";
             }
@@ -64,7 +65,7 @@ public class AsyncInvocationTestCase {
 
     @Test
     public void testSimpleAsyncException() throws Exception {
-        EJBTestServer.setHandler((invocation, affinity, out, method, handle) -> {
+        EJBTestServer.setHandler((invocation, affinity, out, method, handle, attachments) -> {
             if (method.getMethodName().equals("asyncMessage")) {
                 return "a message";
             } else if (method.getMethodName().equals("asyncException")) {
@@ -88,7 +89,7 @@ public class AsyncInvocationTestCase {
     @Test
     public void testSimpleAsyncCancellation() throws Exception {
         final CompletableFuture<Boolean> resultFuture = new CompletableFuture<>();
-        EJBTestServer.setHandler((invocation, affinity, out, method, handle) -> {
+        EJBTestServer.setHandler((invocation, affinity, out, method, handle, attachments) -> {
             if (method.getMethodName().equals("asyncMessage")) {
                 return "a message";
             } else if (method.getMethodName().equals("asyncException")) {

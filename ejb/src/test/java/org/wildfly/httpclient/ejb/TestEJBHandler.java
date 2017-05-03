@@ -18,6 +18,8 @@
 
 package org.wildfly.httpclient.ejb;
 
+import java.util.Map;
+
 import org.jboss.ejb.client.EJBMethodLocator;
 import org.jboss.ejb.server.InvocationRequest;
 
@@ -26,5 +28,5 @@ import org.jboss.ejb.server.InvocationRequest;
  */
 public interface TestEJBHandler {
 
-    Object handle(InvocationRequest.Resolved invocation, String affinity, TestEjbOutput out, EJBMethodLocator method, EJBTestServer.TestCancelHandle handle) throws Exception;
+    Object handle(InvocationRequest.Resolved invocation, String affinity, TestEjbOutput out, EJBMethodLocator method, EJBTestServer.TestCancelHandle handle, Map<String, Object> attachments) throws Exception;
 }

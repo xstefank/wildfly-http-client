@@ -21,6 +21,7 @@ package org.wildfly.httpclient.ejb;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.util.Base64;
+import java.util.Map;
 import javax.ejb.ApplicationException;
 
 import org.jboss.ejb.client.EJBClient;
@@ -53,7 +54,7 @@ public class SimpleInvocationTestCase {
     @Test
     public void testSimpleInvocationViaURLAffinity() throws Exception {
         clearSessionId();
-        EJBTestServer.setHandler((invocation, affinity, out, method, handle) -> {
+        EJBTestServer.setHandler((invocation, affinity, out, method, handle, attachments) -> {
             if (invocation.getParameters().length == 0) {
                 return "a message";
             } else {
@@ -74,7 +75,7 @@ public class SimpleInvocationTestCase {
     @Test
     public void testCompressedInvocation() throws Exception {
         clearSessionId();
-        EJBTestServer.setHandler((invocation, affinity, out, method, handle) -> "a message");
+        EJBTestServer.setHandler((invocation, affinity, out, method, handle, attachments) -> "a message");
         final StatelessEJBLocator<EchoRemote> statelessEJBLocator = new StatelessEJBLocator<>(EchoRemote.class, APP, MODULE, "CalculatorBean", "");
         final EchoRemote proxy = EJBClient.createProxy(statelessEJBLocator);
         EJBClient.setStrongAffinity(proxy, URIAffinity.forUri(new URI(EJBTestServer.getDefaultServerURL())));
@@ -85,7 +86,7 @@ public class SimpleInvocationTestCase {
     @Test
     public void testFailedCompressedInvocation() throws Exception {
         clearSessionId();
-        EJBTestServer.setHandler((invocation, affinity, out, method, handle) -> {throw new RuntimeException("a message");});
+        EJBTestServer.setHandler((invocation, affinity, out, method, handle, attachments) -> {throw new RuntimeException("a message");});
         final StatelessEJBLocator<EchoRemote> statelessEJBLocator = new StatelessEJBLocator<>(EchoRemote.class, APP, MODULE, "CalculatorBean", "");
         final EchoRemote proxy = EJBClient.createProxy(statelessEJBLocator);
         EJBClient.setStrongAffinity(proxy, URIAffinity.forUri(new URI(EJBTestServer.getDefaultServerURL())));
@@ -99,7 +100,7 @@ public class SimpleInvocationTestCase {
     @Test
     public void testSimpleInvocationViaDiscovery() throws Exception {
         clearSessionId();
-        EJBTestServer.setHandler((invocation, affinity, out, method, handle) -> invocation.getParameters()[0]);
+        EJBTestServer.setHandler((invocation, affinity, out, method, handle, attachments) -> invocation.getParameters()[0]);
         final StatelessEJBLocator<EchoRemote> statelessEJBLocator = new StatelessEJBLocator<>(EchoRemote.class, APP, MODULE, "CalculatorBean", "");
         final EchoRemote proxy = EJBClient.createProxy(statelessEJBLocator);
         final String message = "Hello World!!!";
@@ -111,7 +112,7 @@ public class SimpleInvocationTestCase {
     @Test(expected = TestException.class)
     public void testSimpleFailedInvocation() throws Exception {
         clearSessionId();
-        EJBTestServer.setHandler((invocation, affinity, out, method, handle) -> {
+        EJBTestServer.setHandler((invocation, affinity, out, method, handle, attachments) -> {
             throw new TestException(invocation.getParameters()[0].toString());
         });
         final StatelessEJBLocator<EchoRemote> statelessEJBLocator = new StatelessEJBLocator<EchoRemote>(EchoRemote.class, APP, MODULE, BEAN, "");
@@ -126,7 +127,7 @@ public class SimpleInvocationTestCase {
     @Test
     public void testInvocationAffinity() throws Exception {
         clearSessionId();
-        EJBTestServer.setHandler((invocation, affinity, out, method, handle) -> {
+        EJBTestServer.setHandler((invocation, affinity, out, method, handle, attachments) -> {
             out.setSessionAffinity("foo");
             return affinity;
         });
@@ -144,7 +145,7 @@ public class SimpleInvocationTestCase {
     @Test
     public void testSessionOpen() throws Exception {
         clearSessionId();
-        EJBTestServer.setHandler((invocation, affinity, out, method, handle) -> {
+        EJBTestServer.setHandler((invocation, affinity, out, method, handle, attachments) -> {
             StatefulEJBLocator<?> ejbLocator = (StatefulEJBLocator<?>) invocation.getEJBLocator();
             return new String(ejbLocator.getSessionId().getEncodedForm());
         });
@@ -160,7 +161,7 @@ public class SimpleInvocationTestCase {
     @Ignore
     public void testSessionOpenLazyAffinity() throws Exception {
         clearSessionId();
-        EJBTestServer.setHandler((invocation, affinity, out, method, handle) -> new String(Base64.getDecoder().decode(invocation.getEJBLocator().asStateful().getSessionId().getEncodedForm())) + "-" + affinity);
+        EJBTestServer.setHandler((invocation, affinity, out, method, handle, attachments) -> new String(Base64.getDecoder().decode(invocation.getEJBLocator().asStateful().getSessionId().getEncodedForm())) + "-" + affinity);
 
         StatefulEJBLocator<EchoRemote> locator = EJBClient.createSession(EchoRemote.class, APP, MODULE, BEAN, "");
         EchoRemote proxy = EJBClient.createProxy(locator);

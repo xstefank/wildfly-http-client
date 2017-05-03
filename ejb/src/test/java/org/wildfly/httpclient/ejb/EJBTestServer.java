@@ -19,6 +19,7 @@
 package org.wildfly.httpclient.ejb;
 
 import java.nio.charset.StandardCharsets;
+import java.util.Map;
 import java.util.concurrent.LinkedBlockingDeque;
 import java.util.concurrent.TimeUnit;
 
@@ -67,7 +68,7 @@ public class EJBTestServer extends HTTPTestServer {
                     TestEjbOutput out = new TestEjbOutput();
                     getWorker().execute(() -> {
                         try {
-                            Object result = handler.handle(request, resolvedInvocation.getSessionAffinity(), out, invocationRequest.getMethodLocator(), handle);
+                            Object result = handler.handle(request, resolvedInvocation.getSessionAffinity(), out, invocationRequest.getMethodLocator(), handle, resolvedInvocation.getAttachments());
                             if (out.getSessionAffinity() != null) {
                                 resolvedInvocation.getExchange().getResponseCookies().put("JSESSIONID", new CookieImpl("JSESSIONID", out.getSessionAffinity()));
                             }

@@ -378,7 +378,11 @@ class HttpInvocationHandler extends RemoteHTTPHandler {
                 // start the marshaller
                 marshaller.start(byteOutput);
                 marshaller.writeObject(result);
-                marshaller.write(0);
+                PackedInteger.writePackedInteger(marshaller, privateAttachments.size());
+                for(Map.Entry<String, Object> entry : privateAttachments.entrySet()) {
+                    marshaller.writeObject(entry.getKey());
+                    marshaller.writeObject(entry.getValue());
+                }
                 marshaller.finish();
                 marshaller.flush();
                 exchange.endExchange();
