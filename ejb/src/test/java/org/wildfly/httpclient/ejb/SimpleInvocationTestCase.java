@@ -73,6 +73,26 @@ public class SimpleInvocationTestCase {
     }
 
     @Test
+    public void testSimpleSSLInvocationViaURLAffinity() throws Exception {
+        clearSessionId();
+        EJBTestServer.setHandler((invocation, affinity, out, method, handle, attachments) -> {
+            if (invocation.getParameters().length == 0) {
+                return "a message";
+            } else {
+                return invocation.getParameters()[0];
+            }
+        });
+        final StatelessEJBLocator<EchoRemote> statelessEJBLocator = new StatelessEJBLocator<>(EchoRemote.class, APP, MODULE, "CalculatorBean", "");
+        final EchoRemote proxy = EJBClient.createProxy(statelessEJBLocator);
+        final String message = "Hello World!!!";
+        EJBClient.setStrongAffinity(proxy, URIAffinity.forUri(new URI(EJBTestServer.getDefaultSSLServerURL())));
+        final String echo = proxy.echo(message);
+        Assert.assertEquals("Unexpected echo message", message, echo);
+
+        String m = proxy.message();
+        Assert.assertEquals("a message", m);
+    }
+    @Test
     public void testCompressedInvocation() throws Exception {
         clearSessionId();
         EJBTestServer.setHandler((invocation, affinity, out, method, handle, attachments) -> "a message");

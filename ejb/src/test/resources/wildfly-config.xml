@@ -37,7 +37,7 @@
     <authentication-client xmlns="urn:elytron:1.0">
         <authentication-rules>
             <rule use-configuration="administrator">
-                <match-host name="localhost" />
+                <match-protocol name="http" />
             </rule>
         </authentication-rules>
         <authentication-configurations>
@@ -50,5 +50,26 @@
                 <set-mechanism-realm name="ManagementRealm" />
             </configuration>
         </authentication-configurations>
+        <key-stores>
+            <key-store name="client-keys" type="JKS">
+                <resource name="client.keystore"/>
+            </key-store>
+            <key-store name="client-trust" type="JKS">
+                <resource name="client.truststore" />
+            </key-store>
+        </key-stores>
+        <ssl-contexts>
+            <ssl-context name="client-ssl">
+                <trust-store key-store-name="client-trust"/>
+                <key-store-ssl-certificate key-store-name="client-keys" alias="client">
+                    <key-store-clear-password password="password"/>
+                </key-store-ssl-certificate>
+            </ssl-context>
+        </ssl-contexts>
+        <ssl-context-rules>
+            <rule use-ssl-context="client-ssl">
+                <match-protocol name="https" />
+            </rule>
+        </ssl-context-rules>
     </authentication-client>
 </configuration>

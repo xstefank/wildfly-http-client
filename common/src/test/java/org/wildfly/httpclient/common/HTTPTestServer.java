@@ -18,27 +18,43 @@
 
 package org.wildfly.httpclient.common;
 
+import java.io.IOException;
+import java.io.InputStream;
+import java.security.KeyManagementException;
+import java.security.KeyStore;
+import java.security.KeyStoreException;
+import java.security.NoSuchAlgorithmException;
 import java.security.Principal;
+import java.security.Security;
+import java.security.UnrecoverableKeyException;
+import java.security.cert.CertificateException;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.Set;
+import javax.net.ssl.KeyManager;
+import javax.net.ssl.KeyManagerFactory;
+import javax.net.ssl.SSLContext;
+import javax.net.ssl.TrustManager;
+import javax.net.ssl.TrustManagerFactory;
 
-import org.jboss.marshalling.MarshallerFactory;
-import org.jboss.marshalling.river.RiverMarshallerFactory;
 import org.junit.runner.Description;
 import org.junit.runner.Result;
 import org.junit.runner.notification.RunListener;
 import org.junit.runner.notification.RunNotifier;
 import org.junit.runners.BlockJUnit4ClassRunner;
 import org.junit.runners.model.InitializationError;
+import org.wildfly.security.WildFlyElytronProvider;
+import org.xnio.IoUtils;
 import org.xnio.OptionMap;
 import org.xnio.Options;
+import org.xnio.SslClientAuthMode;
 import org.xnio.Xnio;
 import org.xnio.XnioWorker;
 import io.undertow.Undertow;
 import io.undertow.UndertowOptions;
 import io.undertow.connector.ByteBufferPool;
+import io.undertow.security.api.AuthenticationMechanism;
 import io.undertow.security.api.AuthenticationMode;
 import io.undertow.security.handlers.AuthenticationCallHandler;
 import io.undertow.security.handlers.AuthenticationConstraintHandler;
@@ -48,7 +64,9 @@ import io.undertow.security.idm.Account;
 import io.undertow.security.idm.Credential;
 import io.undertow.security.idm.IdentityManager;
 import io.undertow.security.idm.PasswordCredential;
+import io.undertow.security.idm.X509CertificateCredential;
 import io.undertow.security.impl.BasicAuthenticationMechanism;
+import io.undertow.security.impl.ClientCertAuthenticationMechanism;
 import io.undertow.server.DefaultByteBufferPool;
 import io.undertow.server.HttpHandler;
 import io.undertow.server.handlers.PathHandler;
@@ -59,15 +77,18 @@ import io.undertow.util.NetworkUtils;
  */
 public class HTTPTestServer extends BlockJUnit4ClassRunner {
 
-    protected static final MarshallerFactory marshallerFactory = new RiverMarshallerFactory();
-
     public static final int BUFFER_SIZE = Integer.getInteger("test.bufferSize", 8192 * 3);
     private static final PathHandler PATH_HANDLER = new PathHandler();
     private static final PathHandler SERVICES_HANDLER = new PathHandler();
-    public static final String SFSB_ID = "SFSB_ID";
     public static final String WILDFLY_SERVICES = "/wildfly-services";
     public static final String INITIAL_SESSION_AFFINITY = "initial-session-affinity";
-    public static final String LAZY_SESSION_AFFINITY = "lazy-session-affinity";
+
+    private static final String SERVER_KEY_STORE = "server.keystore";
+    private static final String SERVER_TRUST_STORE = "server.truststore";
+    public static final String CLIENT_KEY_STORE = "client.keystore";
+    public static final String CLIENT_TRUST_STORE = "client.truststore";
+    public static final char[] STORE_PASSWORD = "password".toCharArray();
+
     private static boolean first = true;
     private static Undertow undertow;
 
@@ -78,6 +99,10 @@ public class HTTPTestServer extends BlockJUnit4ClassRunner {
     private static final Set<String> registeredPaths = new HashSet<>();
     private static final Set<String> registeredServices = new HashSet<>();
 
+    static {
+        Security.addProvider(new WildFlyElytronProvider());
+    }
+
     /**
      * @return The base URL that can be used to make connections to this server
      */
@@ -87,6 +112,17 @@ public class HTTPTestServer extends BlockJUnit4ClassRunner {
 
     public static String getDefaultRootServerURL() {
         return "http://" + NetworkUtils.formatPossibleIpv6Address(getHostAddress()) + ":" + getHostPort();
+    }
+
+    public static String getDefaultSSLRootServerURL() {
+        return "https://" + NetworkUtils.formatPossibleIpv6Address(getHostAddress()) + ":" + getSSLHostPort();
+    }
+
+    /**
+     * @return The base URL that can be used to make connections to this server
+     */
+    public static String getDefaultSSLServerURL() {
+        return getDefaultSSLRootServerURL() + WILDFLY_SERVICES;
     }
 
     public HTTPTestServer(Class<?> klass) throws InitializationError {
@@ -130,6 +166,7 @@ public class HTTPTestServer extends BlockJUnit4ClassRunner {
         SERVICES_HANDLER.addPrefixPath(path, handler);
         registeredServices.add(path);
     }
+
     public static XnioWorker getWorker() {
         return worker;
     }
@@ -144,7 +181,9 @@ public class HTTPTestServer extends BlockJUnit4ClassRunner {
                 registerPaths(SERVICES_HANDLER);
                 undertow = Undertow.builder()
                         .addHttpListener(getHostPort(), getHostAddress())
+                        .addHttpsListener(getSSLHostPort(), getHostAddress(), createServerSslContext())
                         .setServerOption(UndertowOptions.REQUIRE_HOST_HTTP11, true)
+                        .setSocketOption(Options.SSL_CLIENT_AUTH_MODE, SslClientAuthMode.REQUIRED)
                         .setHandler(new SecurityInitialHandler(AuthenticationMode.PRO_ACTIVE, new IdentityManager() {
                             @Override
                             public Account verify(Account account) {
@@ -153,8 +192,8 @@ public class HTTPTestServer extends BlockJUnit4ClassRunner {
 
                             @Override
                             public Account verify(String id, Credential credential) {
-                                if(credential instanceof PasswordCredential) {
-                                    if(id.equals("administrator") && Arrays.equals(((PasswordCredential) credential).getPassword(), "password1!".toCharArray())) {
+                                if (credential instanceof PasswordCredential) {
+                                    if (id.equals("administrator") && Arrays.equals(((PasswordCredential) credential).getPassword(), "password1!".toCharArray())) {
                                         return new Account() {
                                             @Override
                                             public Principal getPrincipal() {
@@ -174,9 +213,20 @@ public class HTTPTestServer extends BlockJUnit4ClassRunner {
 
                             @Override
                             public Account verify(Credential credential) {
-                                return null;
+                                X509CertificateCredential cred = (X509CertificateCredential) credential;
+                                return new Account() {
+                                    @Override
+                                    public Principal getPrincipal() {
+                                        return cred.getCertificate().getSubjectX500Principal();
+                                    }
+
+                                    @Override
+                                    public Set<String> getRoles() {
+                                        return Collections.emptySet();
+                                    }
+                                };
                             }
-                        }, new AuthenticationConstraintHandler(new AuthenticationMechanismsHandler(new AuthenticationCallHandler(PATH_HANDLER), Collections.singletonList(new BasicAuthenticationMechanism("test"))))))
+                        }, new AuthenticationConstraintHandler(new AuthenticationMechanismsHandler(new AuthenticationCallHandler(PATH_HANDLER), Arrays.asList(new AuthenticationMechanism[]{new BasicAuthenticationMechanism("test"), new ClientCertAuthenticationMechanism(true)})))))
                         .build();
                 undertow.start();
                 notifier.addListener(new RunListener() {
@@ -188,6 +238,55 @@ public class HTTPTestServer extends BlockJUnit4ClassRunner {
             }
         } catch (Exception e) {
             throw new RuntimeException();
+        }
+    }
+
+    private SSLContext createServerSslContext() {
+        return createSSLContext(loadKeyStore(SERVER_KEY_STORE), loadKeyStore(SERVER_TRUST_STORE));
+    }
+
+    private static SSLContext createSSLContext(final KeyStore keyStore, final KeyStore trustStore) {
+        KeyManager[] keyManagers;
+        try {
+            KeyManagerFactory keyManagerFactory = KeyManagerFactory.getInstance(KeyManagerFactory.getDefaultAlgorithm());
+            keyManagerFactory.init(keyStore, STORE_PASSWORD);
+            keyManagers = keyManagerFactory.getKeyManagers();
+        } catch (NoSuchAlgorithmException | UnrecoverableKeyException | KeyStoreException e) {
+            throw new RuntimeException("Unable to initialise KeyManager[]", e);
+        }
+
+        TrustManager[] trustManagers = null;
+        try {
+            TrustManagerFactory trustManagerFactory = TrustManagerFactory.getInstance(KeyManagerFactory.getDefaultAlgorithm());
+            trustManagerFactory.init(trustStore);
+            trustManagers = trustManagerFactory.getTrustManagers();
+        } catch (NoSuchAlgorithmException | KeyStoreException e) {
+            throw new RuntimeException("Unable to initialise TrustManager[]", e);
+        }
+
+        try {
+            SSLContext sslContext = SSLContext.getInstance("TLS");
+            sslContext.init(keyManagers, trustManagers, null);
+            return sslContext;
+        } catch (NoSuchAlgorithmException | KeyManagementException e) {
+            throw new RuntimeException("Unable to create and initialise the SSLContext", e);
+        }
+    }
+
+    public static KeyStore loadKeyStore(final String name) {
+        final InputStream stream = HTTPTestServer.class.getClassLoader().getResourceAsStream(name);
+        if (stream == null) {
+            throw new RuntimeException("Could not load keystore");
+        }
+        try {
+            KeyStore loadedKeystore = KeyStore.getInstance("JKS");
+            loadedKeystore.load(stream, STORE_PASSWORD);
+
+            return loadedKeystore;
+        } catch (KeyStoreException | NoSuchAlgorithmException | IOException | CertificateException e) {
+            throw new RuntimeException(String.format("Unable to load KeyStore %s", name), e);
+        } finally {
+            IoUtils.safeClose(stream);
         }
     }
 
@@ -203,10 +302,7 @@ public class HTTPTestServer extends BlockJUnit4ClassRunner {
         return Integer.getInteger("server.port", 7788);
     }
 
-    private static String handleDash(String s) {
-        if (s.equals("-")) {
-            return "";
-        }
-        return s;
+    public static int getSSLHostPort() {
+        return getHostPort() + 1;
     }
 }
