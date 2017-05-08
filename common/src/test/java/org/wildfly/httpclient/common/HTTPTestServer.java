@@ -20,9 +20,11 @@ package org.wildfly.httpclient.common;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.nio.charset.StandardCharsets;
 import java.security.KeyManagementException;
 import java.security.KeyStore;
 import java.security.KeyStoreException;
+import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.security.Principal;
 import java.security.Security;
@@ -62,14 +64,17 @@ import io.undertow.security.handlers.AuthenticationMechanismsHandler;
 import io.undertow.security.handlers.SecurityInitialHandler;
 import io.undertow.security.idm.Account;
 import io.undertow.security.idm.Credential;
+import io.undertow.security.idm.DigestCredential;
 import io.undertow.security.idm.IdentityManager;
 import io.undertow.security.idm.PasswordCredential;
 import io.undertow.security.idm.X509CertificateCredential;
 import io.undertow.security.impl.BasicAuthenticationMechanism;
 import io.undertow.security.impl.ClientCertAuthenticationMechanism;
+import io.undertow.security.impl.DigestAuthenticationMechanism;
 import io.undertow.server.DefaultByteBufferPool;
 import io.undertow.server.HttpHandler;
 import io.undertow.server.handlers.PathHandler;
+import io.undertow.util.HexConverter;
 import io.undertow.util.NetworkUtils;
 
 /**
@@ -194,17 +199,28 @@ public class HTTPTestServer extends BlockJUnit4ClassRunner {
                             public Account verify(String id, Credential credential) {
                                 if (credential instanceof PasswordCredential) {
                                     if (id.equals("administrator") && Arrays.equals(((PasswordCredential) credential).getPassword(), "password1!".toCharArray())) {
-                                        return new Account() {
-                                            @Override
-                                            public Principal getPrincipal() {
-                                                return () -> "administrator";
-                                            }
+                                        return new TestAccount();
+                                    }
+                                } else if (credential instanceof DigestCredential) {
+                                    DigestCredential digCred = (DigestCredential) credential;
+                                    MessageDigest digest = null;
+                                    try {
+                                        digest = digCred.getAlgorithm().getMessageDigest();
 
-                                            @Override
-                                            public Set<String> getRoles() {
-                                                return Collections.emptySet();
-                                            }
-                                        };
+                                        digest.update(id.getBytes(StandardCharsets.UTF_8));
+                                        digest.update((byte) ':');
+                                        digest.update(digCred.getRealm().getBytes(StandardCharsets.UTF_8));
+                                        digest.update((byte) ':');
+                                        char[] expectedPassword = "password1!".toCharArray();
+                                        digest.update(new String(expectedPassword).getBytes(StandardCharsets.UTF_8));
+
+                                        if(digCred.verifyHA1(HexConverter.convertToHexBytes(digest.digest()))) {
+                                            return new TestAccount();
+                                        }
+                                    } catch (NoSuchAlgorithmException e) {
+                                        throw new IllegalStateException("Unsupported Algorithm", e);
+                                    } finally {
+                                        digest.reset();
                                     }
                                 }
                                 return null;
@@ -226,7 +242,7 @@ public class HTTPTestServer extends BlockJUnit4ClassRunner {
                                     }
                                 };
                             }
-                        }, new AuthenticationConstraintHandler(new AuthenticationMechanismsHandler(new AuthenticationCallHandler(PATH_HANDLER), Arrays.asList(new AuthenticationMechanism[]{new BasicAuthenticationMechanism("test"), new ClientCertAuthenticationMechanism(true)})))))
+                        }, new AuthenticationConstraintHandler(new AuthenticationMechanismsHandler(new AuthenticationCallHandler(PATH_HANDLER), Arrays.asList(new AuthenticationMechanism[]{new BasicAuthenticationMechanism("myRealm", "BASIC", true), new DigestAuthenticationMechanism("test", "localhost", "DIGEST"), new ClientCertAuthenticationMechanism(true)})))))
                         .build();
                 undertow.start();
                 notifier.addListener(new RunListener() {
@@ -304,5 +320,17 @@ public class HTTPTestServer extends BlockJUnit4ClassRunner {
 
     public static int getSSLHostPort() {
         return getHostPort() + 1;
+    }
+
+    private static class TestAccount implements Account {
+        @Override
+        public Principal getPrincipal() {
+            return () -> "administrator";
+        }
+
+        @Override
+        public Set<String> getRoles() {
+            return Collections.emptySet();
+        }
     }
 }

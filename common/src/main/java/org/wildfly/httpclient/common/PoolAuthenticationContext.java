@@ -20,11 +20,15 @@ package org.wildfly.httpclient.common;
 
 import java.io.IOException;
 import java.net.URI;
+import java.net.URISyntaxException;
 import java.nio.charset.StandardCharsets;
 import java.security.AccessController;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.security.Principal;
 import java.security.PrivilegedAction;
 import java.util.Locale;
+import java.util.Map;
 import javax.security.auth.callback.Callback;
 import javax.security.auth.callback.PasswordCallback;
 import javax.security.auth.callback.UnsupportedCallbackException;
@@ -35,8 +39,11 @@ import org.wildfly.security.auth.client.AuthenticationContextConfigurationClient
 import org.wildfly.security.auth.principal.AnonymousPrincipal;
 import io.undertow.client.ClientRequest;
 import io.undertow.client.ClientResponse;
+import io.undertow.security.impl.DigestWWWAuthenticateToken;
+import io.undertow.server.session.SecureRandomSessionIdGenerator;
 import io.undertow.util.FlexBase64;
 import io.undertow.util.Headers;
+import io.undertow.util.HexConverter;
 import io.undertow.util.StatusCodes;
 
 /**
@@ -53,6 +60,14 @@ class PoolAuthenticationContext {
     }
 
     private volatile Type current;
+    private String realm;
+    private String domain;
+    private String nonce;
+    private String opaque;
+    private String algorithm;
+    private String qop;
+    private int nccount = 1;
+    private static final SecureRandomSessionIdGenerator cnonceGenerator = new SecureRandomSessionIdGenerator();
 
     boolean handleResponse(ClientResponse response) {
         if (response.getResponseCode() != StatusCodes.UNAUTHORIZED) {
@@ -62,40 +77,155 @@ class PoolAuthenticationContext {
         if (authenticate == null) {
             return false;
         }
-        if (authenticate.toLowerCase(Locale.ENGLISH).startsWith("basic ")) {
+        String auth = authenticate.toLowerCase(Locale.ENGLISH);
+        if (auth.startsWith("basic ")) {
             current = Type.BASIC;
             return true;
         }
-        return false; //TODO: digest
+        if (auth.startsWith("digest ")) {
+            current = Type.DIGEST;
+
+            Map<DigestWWWAuthenticateToken, String> result = DigestWWWAuthenticateToken.parseHeader(authenticate.substring(7));
+
+            synchronized (this) {
+                domain = result.get(DigestWWWAuthenticateToken.DOMAIN);
+                nonce = result.get(DigestWWWAuthenticateToken.NONCE);
+                opaque = result.get(DigestWWWAuthenticateToken.OPAQUE);
+                algorithm = result.get(DigestWWWAuthenticateToken.ALGORITHM);
+                qop = result.get(DigestWWWAuthenticateToken.MESSAGE_QOP);
+                realm = result.get(DigestWWWAuthenticateToken.REALM);
+                nccount = 1;
+            }
+            return true;
+
+        }
+        return false;
     }
 
     boolean prepareRequest(URI uri, ClientRequest request, AuthenticationConfiguration authenticationConfiguration) {
+        if (current == Type.NONE) {
+            return false;
+        }
+        AuthenticationConfiguration config = authenticationConfiguration;
+        if (config == null) {
+            config = AUTH_CONTEXT_CLIENT.getAuthenticationConfiguration(uri, AuthenticationContext.captureCurrent());
+        }
+
+
+        Principal principal = AUTH_CONTEXT_CLIENT.getPrincipal(config);
+        if (principal instanceof AnonymousPrincipal) {
+            return false;
+        }
+        PasswordCallback callback = new PasswordCallback("password", false);
+        try {
+            AUTH_CONTEXT_CLIENT.getCallbackHandler(config).handle(new Callback[]{callback});
+        } catch (IOException | UnsupportedCallbackException e) {
+            return false;
+        }
+        char[] password = callback.getPassword();
+        if (password == null) {
+            return false;
+        }
         if (current == Type.BASIC) {
-            AuthenticationConfiguration config = authenticationConfiguration;
-            if(config == null) {
-                config = AUTH_CONTEXT_CLIENT.getAuthenticationConfiguration(uri, AuthenticationContext.captureCurrent());
-            }
-
-
-            Principal principal = AUTH_CONTEXT_CLIENT.getPrincipal(config);
-            if (principal instanceof AnonymousPrincipal) {
-                return false;
-            }
-            PasswordCallback callback = new PasswordCallback("password", false);
-            try {
-                AUTH_CONTEXT_CLIENT.getCallbackHandler(config).handle(new Callback[]{callback});
-            } catch (IOException | UnsupportedCallbackException e) {
-                return false;
-            }
-            char[] password = callback.getPassword();
-            if (password == null) {
-                return false;
-            }
             String challenge = principal.getName() + ":" + new String(password);
             request.getRequestHeaders().put(Headers.AUTHORIZATION, "Basic " + FlexBase64.encodeString(challenge.getBytes(StandardCharsets.UTF_8), false));
             return true;
+        } else if (current == Type.DIGEST) {
+            String cnonce = cnonceGenerator.createSessionId();
+            String digestUri = null;
+            try {
+                String path;
+                String query;
+                int pos = request.getPath().indexOf("?");
+                if (pos > 0) {
+                    path = request.getPath().substring(0, pos);
+                    query = request.getPath().substring(pos + 1);
+                } else {
+                    path = request.getPath();
+                    query = null;
+                }
+                digestUri = new URI(uri.getScheme(), uri.getUserInfo(), uri.getHost(), uri.getPort(), path, query, null).toString();
+            } catch (URISyntaxException e) {
+                throw new RuntimeException(e);
+            }
+            synchronized (this) {
+                StringBuilder sb = new StringBuilder("Digest username=\"");
+                sb.append(principal.getName());
+                sb.append("\", uri=\"");
+                sb.append(digestUri);
+                sb.append("\", realm=\"");
+                sb.append(realm);
+                sb.append("\", nc=");
+                String nonceCountString = Integer.toHexString(nccount++);
+                StringBuilder ncBuilder = new StringBuilder();
+                for (int i = nonceCountString.length(); i < 8; ++i) {
+                    ncBuilder.append("0"); //must be 8 digits long
+                }
+                ncBuilder.append(nonceCountString);
+                sb.append(ncBuilder.toString());
+                sb.append(", algorithm=");
+                sb.append(algorithm);
+                sb.append(", nonce=\"");
+                sb.append(nonce);
+                sb.append("\", cnonce=\"");
+                sb.append(cnonce);
+                sb.append("\", opaque=\"");
+                sb.append(opaque);
+                sb.append("\", qop=auth"); //TODO: fix this? What do we want to do about auth-int
+
+                //calculate the response
+                String a1 = principal.getName() + ":" + realm + ":" + new String(password);
+                String a2 = request.getMethod().toString() + ":" + digestUri;
+
+                try {
+                    MessageDigest digest = MessageDigest.getInstance(algorithm);
+                    digest.update(a1.getBytes(StandardCharsets.UTF_8));
+                    byte[] hashedA1 = HexConverter.convertToHexBytes(digest.digest());
+                    digest.reset();
+                    digest.update(a2.getBytes(StandardCharsets.UTF_8));
+                    String hashedA2 = HexConverter.convertToHexString(digest.digest());
+                    digest.reset();
+                    digest.update(hashedA1);
+                    digest.update((byte) ':');
+                    digest.update(nonce.getBytes(StandardCharsets.UTF_8));
+                    digest.update((byte) ':');
+                    digest.update(ncBuilder.toString().getBytes(StandardCharsets.UTF_8));
+                    digest.update((byte) ':');
+                    digest.update(cnonce.getBytes(StandardCharsets.UTF_8));
+                    digest.update((byte) ':');
+                    digest.update("auth".getBytes(StandardCharsets.UTF_8));
+                    digest.update((byte) ':');
+                    digest.update(hashedA2.getBytes(StandardCharsets.UTF_8));
+                    sb.append(", response=\"");
+                    sb.append(HexConverter.convertToHexString(digest.digest()));
+                    sb.append("\"");
+                    request.getRequestHeaders().put(Headers.AUTHORIZATION, sb.toString());
+                    return true;
+                } catch (NoSuchAlgorithmException e) {
+                    throw new RuntimeException(e);
+                }
+            }
         }
         return false;
+    }
+
+    boolean isStale(ClientResponse response) {
+        if (current != Type.DIGEST) {
+            return false;
+        }
+        if (response.getResponseCode() != StatusCodes.UNAUTHORIZED) {
+            return false;
+        }
+        String authenticate = response.getResponseHeaders().getFirst(Headers.WWW_AUTHENTICATE);
+        if (authenticate == null) {
+            return false;
+        }
+        String auth = authenticate.toLowerCase(Locale.ENGLISH);
+        if (!auth.startsWith("digest ")) {
+            return false;
+        }
+        Map<DigestWWWAuthenticateToken, String> result = DigestWWWAuthenticateToken.parseHeader(authenticate.substring(7));
+        return result.containsKey(DigestWWWAuthenticateToken.STALE);
     }
 
     enum Type {

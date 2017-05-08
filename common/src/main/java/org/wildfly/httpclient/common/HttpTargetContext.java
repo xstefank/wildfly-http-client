@@ -145,135 +145,164 @@ public class HttpTargetContext extends AbstractAttachable {
     }
 
     public void sendRequestInternal(final HttpConnectionPool.ConnectionHandle connection, ClientRequest request, AuthenticationConfiguration authenticationConfiguration, HttpMarshaller httpMarshaller, HttpResultHandler httpResultHandler, HttpFailureHandler failureHandler, ContentType expectedResponse, Runnable completedTask, boolean allowNoContent, boolean retry) {
-
-        final boolean authAdded = retry || connection.getAuthenticationContext().prepareRequest(connection.getUri(), request, authenticationConfiguration);
-        request.getRequestHeaders().put(Headers.HOST, connection.getUri().getHost());
-        if (request.getRequestHeaders().contains(Headers.CONTENT_TYPE)) {
-            request.getRequestHeaders().put(Headers.TRANSFER_ENCODING, Headers.CHUNKED.toString());
-        }
-        connection.getConnection().sendRequest(request, new ClientCallback<ClientExchange>() {
-            @Override
-            public void completed(ClientExchange result) {
-                result.setResponseListener(new ClientCallback<ClientExchange>() {
-                    @Override
-                    public void completed(ClientExchange result) {
-                        connection.getConnection().getWorker().execute(() -> {
-                            ClientResponse response = result.getResponse();
-                            if (!authAdded) {
-                                if (connection.getAuthenticationContext().handleResponse(response)) {
-                                    try {
-                                        Channels.drain(result.getResponseChannel(), Long.MAX_VALUE);
-                                    } catch (IOException e) {
-                                        failureHandler.handleFailure(e);
-                                    }
-                                    if (connection.getAuthenticationContext().prepareRequest(connection.getUri(), request, authenticationConfiguration)) {
-                                        //retry the invocation
-                                        sendRequestInternal(connection, request, authenticationConfiguration, httpMarshaller, httpResultHandler, failureHandler, expectedResponse, completedTask, allowNoContent, true);
-                                        return;
-                                    } else {
-                                        failureHandler.handleFailure(HttpClientMessages.MESSAGES.authenticationFailed());
-                                    }
-                                }
-                            }
-
-                            ContentType type = ContentType.parse(response.getResponseHeaders().getFirst(Headers.CONTENT_TYPE));
-                            final boolean ok;
-                            final boolean isException;
-                            if (type == null) {
-                                ok = expectedResponse == null || (allowNoContent && response.getResponseCode() == StatusCodes.NO_CONTENT);
-                                isException = false;
-                            } else {
-                                if (type.getType().equals(EXCEPTION_TYPE)) {
-                                    ok = true;
-                                    isException = true;
-                                } else if (expectedResponse == null) {
-                                    ok = false;
-                                    isException = false;
-                                } else {
-                                    ok = expectedResponse.getType().equals(type.getType()) && expectedResponse.getVersion() >= type.getVersion();
-                                    isException = false;
-                                }
-                            }
-
-                            if (!ok) {
-                                if (response.getResponseCode() >= 400) {
-                                    failureHandler.handleFailure(HttpClientMessages.MESSAGES.invalidResponseCode(response.getResponseCode(), response));
-                                } else {
-                                    failureHandler.handleFailure(HttpClientMessages.MESSAGES.invalidResponseType(type));
-                                }
-                                //close the connection to be safe
-                                connection.done(true);
-                                return;
-                            }
-                            try {
-                                //handle session affinity
-                                HeaderValues cookies = response.getResponseHeaders().get(Headers.SET_COOKIE);
-                                if (cookies != null) {
-                                    for (String cookie : cookies) {
-                                        Cookie c = Cookies.parseSetCookieHeader(cookie);
-                                        if (c.getName().equals(JSESSIONID)) {
-                                            setSessionId(c.getValue());
+        try {
+            final boolean authAdded = retry || connection.getAuthenticationContext().prepareRequest(connection.getUri(), request, authenticationConfiguration);
+            request.getRequestHeaders().put(Headers.HOST, connection.getUri().getHost());
+            if (request.getRequestHeaders().contains(Headers.CONTENT_TYPE)) {
+                request.getRequestHeaders().put(Headers.TRANSFER_ENCODING, Headers.CHUNKED.toString());
+            }
+            connection.getConnection().sendRequest(request, new ClientCallback<ClientExchange>() {
+                @Override
+                public void completed(ClientExchange result) {
+                    result.setResponseListener(new ClientCallback<ClientExchange>() {
+                        @Override
+                        public void completed(ClientExchange result) {
+                            connection.getConnection().getWorker().execute(() -> {
+                                ClientResponse response = result.getResponse();
+                                if (!authAdded || connection.getAuthenticationContext().isStale(response)) {
+                                    if (connection.getAuthenticationContext().handleResponse(response)) {
+                                        try {
+                                            Channels.drain(result.getResponseChannel(), Long.MAX_VALUE);
+                                        } catch (IOException e) {
+                                            failureHandler.handleFailure(e);
                                         }
-                                    }
-                                }
-
-                                if (isException) {
-                                    final MarshallingConfiguration marshallingConfiguration = createExceptionMarshallingConfig();
-                                    final Unmarshaller unmarshaller = MARSHALLER_FACTORY.createUnmarshaller(marshallingConfiguration);
-                                    try (ChannelInputStream inputStream = new ChannelInputStream(result.getResponseChannel())) {
-                                        InputStream in = inputStream;
-                                        String encoding = response.getResponseHeaders().getFirst(Headers.CONTENT_ENCODING);
-                                        if (encoding != null) {
-                                            String lowerEncoding = encoding.toLowerCase(Locale.ENGLISH);
-                                            if (Headers.GZIP.toString().equals(lowerEncoding)) {
-                                                in = new GZIPInputStream(in);
-                                            } else if (!lowerEncoding.equals(Headers.IDENTITY.toString())) {
-                                                throw HttpClientMessages.MESSAGES.invalidContentEncoding(encoding);
-                                            }
-                                        }
-                                        unmarshaller.start(new InputStreamByteInput(new BufferedInputStream(in)));
-                                        Throwable exception = (Throwable) unmarshaller.readObject();
-                                        Map<String, Object> attachments = readAttachments(unmarshaller);
-                                        if (inputStream.read() != -1) {
-                                            HttpClientMessages.MESSAGES.debugf("Unexpected data when reading exception from %s", response);
-                                            connection.done(true);
+                                        if (connection.getAuthenticationContext().prepareRequest(connection.getUri(), request, authenticationConfiguration)) {
+                                            //retry the invocation
+                                            sendRequestInternal(connection, request, authenticationConfiguration, httpMarshaller, httpResultHandler, failureHandler, expectedResponse, completedTask, allowNoContent, true);
+                                            return;
                                         } else {
-                                            connection.done(false);
+                                            failureHandler.handleFailure(HttpClientMessages.MESSAGES.authenticationFailed());
                                         }
-                                        failureHandler.handleFailure(exception);
                                     }
-                                } else if (response.getResponseCode() >= 400) {
-                                    //unknown error
-                                    failureHandler.handleFailure(HttpClientMessages.MESSAGES.invalidResponseCode(response.getResponseCode(), response));
+                                }
+
+                                ContentType type = ContentType.parse(response.getResponseHeaders().getFirst(Headers.CONTENT_TYPE));
+                                final boolean ok;
+                                final boolean isException;
+                                if (type == null) {
+                                    ok = expectedResponse == null || (allowNoContent && response.getResponseCode() == StatusCodes.NO_CONTENT);
+                                    isException = false;
+                                } else {
+                                    if (type.getType().equals(EXCEPTION_TYPE)) {
+                                        ok = true;
+                                        isException = true;
+                                    } else if (expectedResponse == null) {
+                                        ok = false;
+                                        isException = false;
+                                    } else {
+                                        ok = expectedResponse.getType().equals(type.getType()) && expectedResponse.getVersion() >= type.getVersion();
+                                        isException = false;
+                                    }
+                                }
+
+                                if (!ok) {
+                                    if (response.getResponseCode() >= 400) {
+                                        failureHandler.handleFailure(HttpClientMessages.MESSAGES.invalidResponseCode(response.getResponseCode(), response));
+                                    } else {
+                                        failureHandler.handleFailure(HttpClientMessages.MESSAGES.invalidResponseType(type));
+                                    }
                                     //close the connection to be safe
                                     connection.done(true);
+                                    return;
+                                }
+                                try {
+                                    //handle session affinity
+                                    HeaderValues cookies = response.getResponseHeaders().get(Headers.SET_COOKIE);
+                                    if (cookies != null) {
+                                        for (String cookie : cookies) {
+                                            Cookie c = Cookies.parseSetCookieHeader(cookie);
+                                            if (c.getName().equals(JSESSIONID)) {
+                                                setSessionId(c.getValue());
+                                            }
+                                        }
+                                    }
 
-                                } else {
-                                    if (httpResultHandler != null) {
-                                        if (response.getResponseCode() == StatusCodes.NO_CONTENT) {
-                                            Channels.drain(result.getResponseChannel(), Long.MAX_VALUE);
-                                            httpResultHandler.handleResult(null, response);
-                                        } else {
-                                            InputStream underlying = new ChannelInputStream(result.getResponseChannel());
-                                            InputStream inputStream = underlying;
+                                    if (isException) {
+                                        final MarshallingConfiguration marshallingConfiguration = createExceptionMarshallingConfig();
+                                        final Unmarshaller unmarshaller = MARSHALLER_FACTORY.createUnmarshaller(marshallingConfiguration);
+                                        try (ChannelInputStream inputStream = new ChannelInputStream(result.getResponseChannel())) {
+                                            InputStream in = inputStream;
                                             String encoding = response.getResponseHeaders().getFirst(Headers.CONTENT_ENCODING);
                                             if (encoding != null) {
                                                 String lowerEncoding = encoding.toLowerCase(Locale.ENGLISH);
                                                 if (Headers.GZIP.toString().equals(lowerEncoding)) {
-                                                    inputStream = new GZIPInputStream(inputStream);
+                                                    in = new GZIPInputStream(in);
                                                 } else if (!lowerEncoding.equals(Headers.IDENTITY.toString())) {
                                                     throw HttpClientMessages.MESSAGES.invalidContentEncoding(encoding);
                                                 }
                                             }
-                                            httpResultHandler.handleResult(new BufferedInputStream(inputStream), response);
+                                            unmarshaller.start(new InputStreamByteInput(new BufferedInputStream(in)));
+                                            Throwable exception = (Throwable) unmarshaller.readObject();
+                                            Map<String, Object> attachments = readAttachments(unmarshaller);
+                                            if (inputStream.read() != -1) {
+                                                HttpClientMessages.MESSAGES.debugf("Unexpected data when reading exception from %s", response);
+                                                connection.done(true);
+                                            } else {
+                                                connection.done(false);
+                                            }
+                                            failureHandler.handleFailure(exception);
                                         }
+                                    } else if (response.getResponseCode() >= 400) {
+                                        //unknown error
+                                        failureHandler.handleFailure(HttpClientMessages.MESSAGES.invalidResponseCode(response.getResponseCode(), response));
+                                        //close the connection to be safe
+                                        connection.done(true);
+
+                                    } else {
+                                        if (httpResultHandler != null) {
+                                            if (response.getResponseCode() == StatusCodes.NO_CONTENT) {
+                                                Channels.drain(result.getResponseChannel(), Long.MAX_VALUE);
+                                                httpResultHandler.handleResult(null, response);
+                                            } else {
+                                                InputStream underlying = new ChannelInputStream(result.getResponseChannel());
+                                                InputStream inputStream = underlying;
+                                                String encoding = response.getResponseHeaders().getFirst(Headers.CONTENT_ENCODING);
+                                                if (encoding != null) {
+                                                    String lowerEncoding = encoding.toLowerCase(Locale.ENGLISH);
+                                                    if (Headers.GZIP.toString().equals(lowerEncoding)) {
+                                                        inputStream = new GZIPInputStream(inputStream);
+                                                    } else if (!lowerEncoding.equals(Headers.IDENTITY.toString())) {
+                                                        throw HttpClientMessages.MESSAGES.invalidContentEncoding(encoding);
+                                                    }
+                                                }
+                                                httpResultHandler.handleResult(new BufferedInputStream(inputStream), response);
+                                            }
+                                        }
+                                        Channels.drain(result.getResponseChannel(), Long.MAX_VALUE);
+                                        if (completedTask != null) {
+                                            completedTask.run();
+                                        }
+                                        connection.done(false);
                                     }
-                                    Channels.drain(result.getResponseChannel(), Long.MAX_VALUE);
-                                    if (completedTask != null) {
-                                        completedTask.run();
+
+                                } catch (Exception e) {
+                                    try {
+                                        failureHandler.handleFailure(e);
+                                    } finally {
+                                        connection.done(true);
                                     }
-                                    connection.done(false);
                                 }
+                            });
+                        }
+
+                        @Override
+                        public void failed(IOException e) {
+                            try {
+                                failureHandler.handleFailure(e);
+                            } finally {
+                                connection.done(true);
+                            }
+                        }
+                    });
+
+                    if (httpMarshaller != null) {
+                        //marshalling is blocking, we need to delegate, otherwise we may need to buffer arbitrarily large requests
+                        connection.getConnection().getWorker().execute(() -> {
+                            try (OutputStream outputStream = new WildflyClientOutputStream(result.getRequestChannel(), result.getConnection().getBufferPool())) {
+
+                                // marshall the locator and method params
+                                // start the marshaller
+                                httpMarshaller.marshall(outputStream);
 
                             } catch (Exception e) {
                                 try {
@@ -284,46 +313,24 @@ public class HttpTargetContext extends AbstractAttachable {
                             }
                         });
                     }
+                }
 
-                    @Override
-                    public void failed(IOException e) {
-                        try {
-                            failureHandler.handleFailure(e);
-                        } finally {
-                            connection.done(true);
-                        }
+                @Override
+                public void failed(IOException e) {
+                    try {
+                        failureHandler.handleFailure(e);
+                    } finally {
+                        connection.done(true);
                     }
-                });
-
-                if (httpMarshaller != null) {
-                    //marshalling is blocking, we need to delegate, otherwise we may need to buffer arbitrarily large requests
-                    connection.getConnection().getWorker().execute(() -> {
-                        try (OutputStream outputStream = new WildflyClientOutputStream(result.getRequestChannel(), result.getConnection().getBufferPool())) {
-
-                            // marshall the locator and method params
-                            // start the marshaller
-                            httpMarshaller.marshall(outputStream);
-
-                        } catch (Exception e) {
-                            try {
-                                failureHandler.handleFailure(e);
-                            } finally {
-                                connection.done(true);
-                            }
-                        }
-                    });
                 }
+            });
+        } catch (Exception e) {
+            try {
+                failureHandler.handleFailure(e);
+            } finally {
+                connection.done(true);
             }
-
-            @Override
-            public void failed(IOException e) {
-                try {
-                    failureHandler.handleFailure(e);
-                } finally {
-                    connection.done(true);
-                }
-            }
-        });
+        }
     }
 
     /**
