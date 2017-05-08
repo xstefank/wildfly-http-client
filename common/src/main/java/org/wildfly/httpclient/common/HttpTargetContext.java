@@ -166,12 +166,16 @@ public class HttpTargetContext extends AbstractAttachable {
                                         } catch (IOException e) {
                                             failureHandler.handleFailure(e);
                                         }
-                                        if (connection.getAuthenticationContext().prepareRequest(connection.getUri(), request, authenticationConfiguration)) {
-                                            //retry the invocation
-                                            sendRequestInternal(connection, request, authenticationConfiguration, httpMarshaller, httpResultHandler, failureHandler, expectedResponse, completedTask, allowNoContent, true);
-                                            return;
-                                        } else {
-                                            failureHandler.handleFailure(HttpClientMessages.MESSAGES.authenticationFailed());
+                                        try {
+                                            if (connection.getAuthenticationContext().prepareRequest(connection.getUri(), request, authenticationConfiguration)) {
+                                                //retry the invocation
+                                                sendRequestInternal(connection, request, authenticationConfiguration, httpMarshaller, httpResultHandler, failureHandler, expectedResponse, completedTask, allowNoContent, true);
+                                                return;
+                                            } else {
+                                                failureHandler.handleFailure(HttpClientMessages.MESSAGES.authenticationFailed());
+                                            }
+                                        } catch (Throwable e) {
+                                            failureHandler.handleFailure(e);
                                         }
                                     }
                                 }
@@ -324,7 +328,7 @@ public class HttpTargetContext extends AbstractAttachable {
                     }
                 }
             });
-        } catch (Exception e) {
+        } catch (Throwable e) {
             try {
                 failureHandler.handleFailure(e);
             } finally {
