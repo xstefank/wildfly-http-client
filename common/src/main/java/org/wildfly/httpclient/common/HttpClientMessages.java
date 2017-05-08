@@ -56,4 +56,7 @@ interface HttpClientMessages extends BasicLogger {
 
     @Message(id = 8, value = "Authentication failed")
     SecurityException authenticationFailed();
+
+    @Message(id = 9, value = "Unsupported qop version in digest auth")
+    RuntimeException unsupportedQopInDigest();
 }

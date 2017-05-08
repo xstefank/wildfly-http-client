@@ -42,6 +42,7 @@ import io.undertow.client.ClientResponse;
 import io.undertow.security.impl.DigestWWWAuthenticateToken;
 import io.undertow.server.session.SecureRandomSessionIdGenerator;
 import io.undertow.util.FlexBase64;
+import io.undertow.util.HeaderValues;
 import io.undertow.util.Headers;
 import io.undertow.util.HexConverter;
 import io.undertow.util.StatusCodes;
@@ -92,9 +93,23 @@ class PoolAuthenticationContext {
                 nonce = result.get(DigestWWWAuthenticateToken.NONCE);
                 opaque = result.get(DigestWWWAuthenticateToken.OPAQUE);
                 algorithm = result.get(DigestWWWAuthenticateToken.ALGORITHM);
-                qop = result.get(DigestWWWAuthenticateToken.MESSAGE_QOP);
+                String s = result.get(DigestWWWAuthenticateToken.MESSAGE_QOP);
+                qop = null;
+                if(s != null) {
+                    for(String p : s.split(",")) {
+                        if(p.equals("auth")) {
+                            qop = p;
+                        }
+                    }
+                    if(qop == null) {
+                        throw HttpClientMessages.MESSAGES.unsupportedQopInDigest();
+                    }
+                }
                 realm = result.get(DigestWWWAuthenticateToken.REALM);
                 nccount = 1;
+                if(algorithm.startsWith("\"")) {
+                    algorithm = algorithm.substring(1, algorithm.length() - 1);
+                }
             }
             return true;
 
@@ -155,20 +170,25 @@ class PoolAuthenticationContext {
                 sb.append(digestUri);
                 sb.append("\", realm=\"");
                 sb.append(realm);
-                sb.append("\", nc=");
-                String nonceCountString = Integer.toHexString(nccount++);
+                sb.append("\"");
                 StringBuilder ncBuilder = new StringBuilder();
-                for (int i = nonceCountString.length(); i < 8; ++i) {
-                    ncBuilder.append("0"); //must be 8 digits long
+                if(qop != null) {
+                    sb.append(", nc=");
+                    String nonceCountString = Integer.toHexString(nccount++);
+                    for (int i = nonceCountString.length(); i < 8; ++i) {
+                        ncBuilder.append("0"); //must be 8 digits long
+                    }
+                    ncBuilder.append(nonceCountString);
+                    sb.append(ncBuilder.toString());
+
+                    sb.append(", cnonce=\"");
+                    sb.append(cnonce);
+                    sb.append("\"");
                 }
-                ncBuilder.append(nonceCountString);
-                sb.append(ncBuilder.toString());
                 sb.append(", algorithm=");
                 sb.append(algorithm);
                 sb.append(", nonce=\"");
                 sb.append(nonce);
-                sb.append("\", cnonce=\"");
-                sb.append(cnonce);
                 sb.append("\", opaque=\"");
                 sb.append(opaque);
                 sb.append("\", qop=auth"); //TODO: fix this? What do we want to do about auth-int
@@ -189,12 +209,14 @@ class PoolAuthenticationContext {
                     digest.update((byte) ':');
                     digest.update(nonce.getBytes(StandardCharsets.UTF_8));
                     digest.update((byte) ':');
-                    digest.update(ncBuilder.toString().getBytes(StandardCharsets.UTF_8));
-                    digest.update((byte) ':');
-                    digest.update(cnonce.getBytes(StandardCharsets.UTF_8));
-                    digest.update((byte) ':');
-                    digest.update("auth".getBytes(StandardCharsets.UTF_8));
-                    digest.update((byte) ':');
+                    if(qop != null) {
+                        digest.update(ncBuilder.toString().getBytes(StandardCharsets.UTF_8));
+                        digest.update((byte) ':');
+                        digest.update(cnonce.getBytes(StandardCharsets.UTF_8));
+                        digest.update((byte) ':');
+                        digest.update("auth".getBytes(StandardCharsets.UTF_8));
+                        digest.update((byte) ':');
+                    }
                     digest.update(hashedA2.getBytes(StandardCharsets.UTF_8));
                     sb.append(", response=\"");
                     sb.append(HexConverter.convertToHexString(digest.digest()));
@@ -216,16 +238,21 @@ class PoolAuthenticationContext {
         if (response.getResponseCode() != StatusCodes.UNAUTHORIZED) {
             return false;
         }
-        String authenticate = response.getResponseHeaders().getFirst(Headers.WWW_AUTHENTICATE);
-        if (authenticate == null) {
+        HeaderValues headers = response.getResponseHeaders().get(Headers.WWW_AUTHENTICATE);
+        if(headers == null) {
             return false;
         }
-        String auth = authenticate.toLowerCase(Locale.ENGLISH);
-        if (!auth.startsWith("digest ")) {
-            return false;
+        for(String authenticate : headers) {
+            String auth = authenticate.toLowerCase(Locale.ENGLISH);
+            if (!auth.startsWith("digest ")) {
+                break;
+            }
+            Map<DigestWWWAuthenticateToken, String> result = DigestWWWAuthenticateToken.parseHeader(authenticate.substring(7));
+            if(result.containsKey(DigestWWWAuthenticateToken.STALE)) {
+                return true;
+            }
         }
-        Map<DigestWWWAuthenticateToken, String> result = DigestWWWAuthenticateToken.parseHeader(authenticate.substring(7));
-        return result.containsKey(DigestWWWAuthenticateToken.STALE);
+        return false;
     }
 
     enum Type {
