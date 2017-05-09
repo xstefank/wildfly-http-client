@@ -245,7 +245,7 @@ class PoolAuthenticationContext {
         for(String authenticate : headers) {
             String auth = authenticate.toLowerCase(Locale.ENGLISH);
             if (!auth.startsWith("digest ")) {
-                break;
+                continue;
             }
             Map<DigestWWWAuthenticateToken, String> result = DigestWWWAuthenticateToken.parseHeader(authenticate.substring(7));
             if(result.containsKey(DigestWWWAuthenticateToken.STALE)) {
