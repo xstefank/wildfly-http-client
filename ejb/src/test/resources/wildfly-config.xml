@@ -42,7 +42,6 @@
         </authentication-rules>
         <authentication-configurations>
             <configuration name="administrator">
-                <use-service-loader-providers />
                 <set-user-name name="administrator" />
                 <credentials>
                     <clear-password password="password1!" />
