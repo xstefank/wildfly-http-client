@@ -55,10 +55,10 @@ public class HttpNamingProviderFactory implements NamingProviderFactory {
         URI providerUri = providerUris[0]; //TODO: FIX THIS
         AuthenticationContext captured = AuthenticationContext.captureCurrent();
         final AuthenticationContextConfigurationClient client = AUTH_CONFIGURATION_CLIENT;
-        AuthenticationConfiguration authenticationConfiguration = client.getAuthenticationConfiguration(providerUri, captured, -1, "jndi", "jboss", null);
+        AuthenticationConfiguration authenticationConfiguration = client.getAuthenticationConfiguration(providerUri, captured, -1, "jndi", "jboss");
         final SSLContext sslContext;
         try {
-            sslContext = client.getSSLContext(providerUri, captured, "jndi", "jboss", "connect");
+            sslContext = client.getSSLContext(providerUri, captured, "jndi", "jboss");
         } catch (GeneralSecurityException e) {
             throw Messages.log.failedToConfigureSslContext(e);
         }
