@@ -2,3 +2,10 @@
 .idea
 target
 *~
+# Eclipse Ignores
+.checkstyle
+.classpath
+.project
+.settings
+
+
