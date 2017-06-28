@@ -18,6 +18,8 @@
 
 package org.wildfly.httpclient.ejb;
 
+import static java.security.AccessController.doPrivileged;
+
 import java.io.DataOutput;
 import java.io.IOException;
 import java.io.ObjectInput;
@@ -47,10 +49,9 @@ import org.jboss.ejb.client.EJBClientInvocationContext;
 import org.jboss.ejb.client.EJBLocator;
 import org.jboss.ejb.client.EJBReceiver;
 import org.jboss.ejb.client.EJBReceiverInvocationContext;
+import org.jboss.ejb.client.EJBReceiverSessionCreationContext;
 import org.jboss.ejb.client.SessionID;
 import org.jboss.ejb.client.StatefulEJBLocator;
-import org.jboss.ejb.client.StatelessEJBLocator;
-import org.jboss.ejb.client.URIAffinity;
 import org.jboss.marshalling.ByteOutput;
 import org.jboss.marshalling.InputStreamByteInput;
 import org.jboss.marshalling.Marshaller;
@@ -61,6 +62,8 @@ import org.wildfly.httpclient.common.HttpTargetContext;
 import org.wildfly.httpclient.common.WildflyHttpContext;
 import org.wildfly.httpclient.transaction.XidProvider;
 import org.wildfly.security.auth.client.AuthenticationConfiguration;
+import org.wildfly.security.auth.client.AuthenticationContext;
+import org.wildfly.security.auth.client.AuthenticationContextConfigurationClient;
 import org.wildfly.transaction.client.ContextTransactionManager;
 import org.wildfly.transaction.client.LocalTransaction;
 import org.wildfly.transaction.client.RemoteTransaction;
@@ -93,13 +96,7 @@ class HttpEJBReceiver extends EJBReceiver {
         EJBClientInvocationContext clientInvocationContext = receiverContext.getClientInvocationContext();
         EJBLocator<?> locator = clientInvocationContext.getLocator();
 
-        Affinity affinity = locator.getAffinity();
-        URI uri;
-        if (affinity instanceof URIAffinity) {
-            uri = affinity.getUri();
-        } else {
-            throw EjbHttpClientMessages.MESSAGES.invalidAffinity(affinity);
-        }
+        URI uri = clientInvocationContext.getDestination();
         WildflyHttpContext current = WildflyHttpContext.getCurrent();
         HttpTargetContext targetContext = current.getTargetContext(uri);
         if (targetContext == null) {
@@ -154,7 +151,18 @@ class HttpEJBReceiver extends EJBReceiver {
         if (compressRequest) {
             request.getRequestHeaders().put(Headers.CONTENT_ENCODING, Headers.GZIP.toString());
         }
-        targetContext.sendRequest(request, receiverContext.getSSLContext(), receiverContext.getAuthenticationConfiguration(), (output -> {
+        SSLContext sslContext = receiverContext.getSSLContext();
+        AuthenticationConfiguration authenticationConfiguration = receiverContext.getAuthenticationConfiguration();
+        if (sslContext == null || authenticationConfiguration == null) {
+            final AuthenticationContext context = AuthenticationContext.captureCurrent();
+            if (sslContext == null) {
+                sslContext = CLIENT.getSSLContext(uri, context);
+            }
+            if (authenticationConfiguration == null) {
+                authenticationConfiguration = CLIENT.getAuthenticationConfiguration(uri, context);
+            }
+        }
+        targetContext.sendRequest(request, sslContext, authenticationConfiguration, (output -> {
                     OutputStream data = output;
                     if (compressRequest) {
                         data = new GZIPOutputStream(data);
@@ -203,13 +211,21 @@ class HttpEJBReceiver extends EJBReceiver {
                 (e) -> receiverContext.resultReady(new StaticResultProducer(e instanceof Exception ? (Exception) e : new RuntimeException(e), null)), EjbHeaders.EJB_RESPONSE_VERSION_ONE, null);
     }
 
-    protected <T> StatefulEJBLocator<T> createSession(final StatelessEJBLocator<T> locator, final AuthenticationConfiguration authenticationConfiguration, final SSLContext sslContext) throws Exception {
-        Affinity affinity = locator.getAffinity();
-        URI uri;
-        if (affinity instanceof URIAffinity) {
-            uri = affinity.getUri();
-        } else {
-            throw EjbHttpClientMessages.MESSAGES.invalidAffinity(affinity);
+    private static final AuthenticationContextConfigurationClient CLIENT = doPrivileged(AuthenticationContextConfigurationClient.ACTION);
+
+    protected StatefulEJBLocator<?> createSession(final EJBReceiverSessionCreationContext receiverContext) throws Exception {
+        final EJBLocator<?> locator = receiverContext.getClientInvocationContext().getLocator();
+        URI uri = receiverContext.getClientInvocationContext().getDestination();
+        SSLContext sslContext = receiverContext.getSSLContext();
+        AuthenticationConfiguration authenticationConfiguration = receiverContext.getAuthenticationConfiguration();
+        if (sslContext == null || authenticationConfiguration == null) {
+            final AuthenticationContext context = AuthenticationContext.captureCurrent();
+            if (sslContext == null) {
+                sslContext = CLIENT.getSSLContext(uri, context);
+            }
+            if (authenticationConfiguration == null) {
+                authenticationConfiguration = CLIENT.getAuthenticationConfiguration(uri, context);
+            }
         }
         WildflyHttpContext current = WildflyHttpContext.getCurrent();
         HttpTargetContext targetContext = current.getTargetContext(uri);
@@ -225,7 +241,7 @@ class HttpEJBReceiver extends EJBReceiver {
         }
 
         targetContext.awaitSessionId(true);
-        CompletableFuture<StatefulEJBLocator<T>> result = new CompletableFuture<>();
+        CompletableFuture<StatefulEJBLocator<?>> result = new CompletableFuture<>();
 
         HttpEJBInvocationBuilder builder = new HttpEJBInvocationBuilder()
                 .setInvocationType(HttpEJBInvocationBuilder.InvocationType.STATEFUL_CREATE)
@@ -248,7 +264,7 @@ class HttpEJBReceiver extends EJBReceiver {
                         result.completeExceptionally(EjbHttpClientMessages.MESSAGES.noSessionIdInResponse());
                     } else {
                         SessionID sessionID = SessionID.createSessionID(Base64.getUrlDecoder().decode(sessionId));
-                        result.complete(new StatefulEJBLocator<T>(locator, sessionID));
+                        result.complete(locator.withSession(sessionID));
                     }
                 })
                 , result::completeExceptionally, EjbHeaders.EJB_RESPONSE_NEW_SESSION, null);
@@ -263,13 +279,7 @@ class HttpEJBReceiver extends EJBReceiver {
         EJBLocator<?> locator = clientInvocationContext.getLocator();
 
         Affinity affinity = locator.getAffinity();
-        URI uri;
-        if (affinity instanceof URIAffinity) {
-            uri = affinity.getUri();
-        } else {
-            throw EjbHttpClientMessages.MESSAGES.invalidAffinity(affinity);
-        }
-
+        URI uri = clientInvocationContext.getDestination();
         WildflyHttpContext current = WildflyHttpContext.getCurrent();
         HttpTargetContext targetContext = current.getTargetContext(uri);
         if (targetContext == null) {

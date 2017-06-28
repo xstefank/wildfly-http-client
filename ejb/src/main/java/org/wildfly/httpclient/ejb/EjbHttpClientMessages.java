@@ -21,7 +21,6 @@ package org.wildfly.httpclient.ejb;
 import java.io.IOException;
 import javax.ejb.EJBException;
 
-import org.jboss.ejb.client.Affinity;
 import org.jboss.ejb.client.EJBLocator;
 import org.jboss.logging.BasicLogger;
 import org.jboss.logging.Logger;
@@ -45,8 +44,7 @@ interface EjbHttpClientMessages extends BasicLogger {
     @Message(id = 4, value = "Could create HTTP EJBReceiver for protocol %s")
     IllegalArgumentException couldNotCreateHttpEjbReceiverFor(String s);
 
-    @Message(id = 5, value = "Invalid affinity type %s, must be URIAffinity of NONE")
-    IllegalArgumentException invalidAffinity(Affinity affinity);
+    // id = 5
 
     @Message(id = 6, value = "EJB not stateful")
     IllegalArgumentException notStateful();
