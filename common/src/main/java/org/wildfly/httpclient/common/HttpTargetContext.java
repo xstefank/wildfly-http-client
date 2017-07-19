@@ -38,7 +38,10 @@ import org.jboss.marshalling.river.RiverMarshallerFactory;
 import org.wildfly.security.auth.client.AuthenticationConfiguration;
 import org.wildfly.security.auth.client.AuthenticationContext;
 import org.wildfly.security.auth.client.AuthenticationContextConfigurationClient;
+import org.xnio.ChannelListener;
+import org.xnio.ChannelListeners;
 import org.xnio.channels.Channels;
+import org.xnio.channels.StreamSourceChannel;
 import org.xnio.streams.ChannelInputStream;
 
 import javax.net.ssl.SSLContext;
@@ -161,22 +164,22 @@ public class HttpTargetContext extends AbstractAttachable {
                                 ClientResponse response = result.getResponse();
                                 if (!authAdded || connection.getAuthenticationContext().isStale(response)) {
                                     if (connection.getAuthenticationContext().handleResponse(response)) {
-                                        try {
-                                            Channels.drain(result.getResponseChannel(), Long.MAX_VALUE);
-                                        } catch (IOException e) {
-                                            failureHandler.handleFailure(e);
-                                        }
-                                        try {
+                                        final AtomicBoolean done = new AtomicBoolean();
+                                        ChannelListener<StreamSourceChannel> listener = ChannelListeners.drainListener(Long.MAX_VALUE, channel -> {
+                                            done.set(true);
                                             if (connection.getAuthenticationContext().prepareRequest(connection.getUri(), request, authenticationConfiguration)) {
                                                 //retry the invocation
                                                 sendRequestInternal(connection, request, authenticationConfiguration, httpMarshaller, httpResultHandler, failureHandler, expectedResponse, completedTask, allowNoContent, true);
-                                                return;
                                             } else {
                                                 failureHandler.handleFailure(HttpClientMessages.MESSAGES.authenticationFailed());
                                             }
-                                        } catch (Throwable e) {
-                                            failureHandler.handleFailure(e);
+                                        }, (channel, exception) -> failureHandler.handleFailure(exception));
+                                        listener.handleEvent(result.getResponseChannel());
+                                        if(!done.get()) {
+                                            result.getResponseChannel().getReadSetter().set(listener);
+                                            result.getResponseChannel().resumeReads();
                                         }
+                                        return;
                                     }
                                 }
 
