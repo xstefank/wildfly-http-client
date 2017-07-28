@@ -18,25 +18,27 @@
 
 package org.wildfly.httpclient.naming;
 
-import static java.security.AccessController.doPrivileged;
-
 import java.net.URI;
-import java.security.GeneralSecurityException;
+import java.util.ArrayList;
+import java.util.List;
+
 import javax.naming.NamingException;
-import javax.net.ssl.SSLContext;
 
 import org.wildfly.naming.client.NamingProvider;
+import org.wildfly.naming.client.NamingProvider.Location;
 import org.wildfly.naming.client.NamingProviderFactory;
-import org.wildfly.naming.client._private.Messages;
 import org.wildfly.naming.client.util.FastHashtable;
-import org.wildfly.security.auth.client.AuthenticationConfiguration;
-import org.wildfly.security.auth.client.AuthenticationContext;
-import org.wildfly.security.auth.client.AuthenticationContextConfigurationClient;
 
 /**
  * @author Stuart Douglas
  */
 public class HttpNamingProviderFactory implements NamingProviderFactory {
+    /**
+     * Construct a new instance.
+     */
+    public HttpNamingProviderFactory() {
+    }
+
     @Override
     public boolean supportsUriScheme(String providerScheme, FastHashtable<String, Object> env) {
         switch (providerScheme) {
@@ -52,19 +54,11 @@ public class HttpNamingProviderFactory implements NamingProviderFactory {
         if (providerUris.length == 0) {
             throw HttpNamingClientMessages.MESSAGES.atLeastOneUri();
         }
-        URI providerUri = providerUris[0]; //TODO: FIX THIS
-        AuthenticationContext captured = AuthenticationContext.captureCurrent();
-        final AuthenticationContextConfigurationClient client = AUTH_CONFIGURATION_CLIENT;
-        AuthenticationConfiguration authenticationConfiguration = client.getAuthenticationConfiguration(providerUri, captured, -1, "jndi", "jboss");
-        final SSLContext sslContext;
-        try {
-            sslContext = client.getSSLContext(providerUri, captured, "jndi", "jboss");
-        } catch (GeneralSecurityException e) {
-            throw Messages.log.failedToConfigureSslContext(e);
+        List<Location> locationList = new ArrayList<>();
+        for (URI uri : providerUris) {
+            locationList.add(Location.of(uri));
         }
-        return new HttpNamingProvider(providerUri, env, authenticationConfiguration, sslContext);
+        // TODO: examine env for security information to override invocation-time lookup
+        return new HttpNamingProvider(locationList, env);
     }
-
-    private static final AuthenticationContextConfigurationClient AUTH_CONFIGURATION_CLIENT = doPrivileged(AuthenticationContextConfigurationClient.ACTION);
-
 }
