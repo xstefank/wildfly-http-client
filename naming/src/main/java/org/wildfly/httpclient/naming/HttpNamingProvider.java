@@ -18,13 +18,12 @@
 
 package org.wildfly.httpclient.naming;
 
-import java.net.URI;
+import java.util.List;
+
 import javax.naming.NamingException;
-import javax.net.ssl.SSLContext;
 
 import org.wildfly.naming.client.NamingProvider;
 import org.wildfly.naming.client.util.FastHashtable;
-import org.wildfly.security.auth.client.AuthenticationConfiguration;
 import org.wildfly.security.auth.client.PeerIdentity;
 
 /**
@@ -32,36 +31,19 @@ import org.wildfly.security.auth.client.PeerIdentity;
  */
 public class HttpNamingProvider implements NamingProvider {
 
-    private final URI uri;
+    private final List<Location> locationList;
     private final FastHashtable<String, Object> env;
 
-    private final AuthenticationConfiguration authenticationConfiguration;
-    private final SSLContext sslContext;
-
-    public HttpNamingProvider(URI uri, FastHashtable<String, Object> env, AuthenticationConfiguration authenticationConfiguration, SSLContext sslContext) {
-        this.uri = uri;
+    HttpNamingProvider(final List<Location> locationList, final FastHashtable<String, Object> env) {
+        this.locationList = locationList;
         this.env = env;
-        this.authenticationConfiguration = authenticationConfiguration;
-        this.sslContext = sslContext;
     }
 
-    @Override
-    public URI getProviderUri() {
-        return uri;
+    public List<Location> getLocations() {
+        return locationList;
     }
 
-    @Override
-    public AuthenticationConfiguration getAuthenticationConfiguration() {
-        return authenticationConfiguration;
-    }
-
-    @Override
-    public SSLContext getSSLContext() {
-        return sslContext;
-    }
-
-    @Override
-    public PeerIdentity getPeerIdentityForNaming() throws NamingException {
-        return null;//TODO: all the auth side of things
+    public PeerIdentity getPeerIdentityForNaming(final Location location) throws NamingException {
+        return null;
     }
 }
