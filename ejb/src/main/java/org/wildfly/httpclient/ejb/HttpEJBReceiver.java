@@ -241,7 +241,7 @@ class HttpEJBReceiver extends EJBReceiver {
         }
 
         targetContext.awaitSessionId(true);
-        CompletableFuture<StatefulEJBLocator<?>> result = new CompletableFuture<>();
+        CompletableFuture<SessionID> result = new CompletableFuture<>();
 
         HttpEJBInvocationBuilder builder = new HttpEJBInvocationBuilder()
                 .setInvocationType(HttpEJBInvocationBuilder.InvocationType.STATEFUL_CREATE)
@@ -264,12 +264,12 @@ class HttpEJBReceiver extends EJBReceiver {
                         result.completeExceptionally(EjbHttpClientMessages.MESSAGES.noSessionIdInResponse());
                     } else {
                         SessionID sessionID = SessionID.createSessionID(Base64.getUrlDecoder().decode(sessionId));
-                        result.complete(locator.withSession(sessionID));
+                        result.complete(sessionID);
                     }
                 })
                 , result::completeExceptionally, EjbHeaders.EJB_RESPONSE_NEW_SESSION, null);
 
-        return result.get().getSessionId();
+        return result.get();
     }
 
     @Override

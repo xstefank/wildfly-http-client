@@ -51,19 +51,19 @@
         <!-- Versions -->
         <version.io.undertow>1.4.14.Final</version.io.undertow>
         <version.org.jboss.logging>1.2.0.Final</version.org.jboss.logging>
-        <version.org.junit>4.11</version.org.junit>
+        <version.org.junit>4.12</version.org.junit>
         <version.org.jboss.logmanager>1.5.3.Final</version.org.jboss.logmanager>
-        <version.xnio>3.5.0.Beta5</version.xnio>
+        <version.xnio>3.5.0.CR2</version.xnio>
         <version.org.jboss.ejb-client>4.0.0.CR7</version.org.jboss.ejb-client>
         <version.javax.ejb.api>1.0.0.Final</version.javax.ejb.api>
         <version.javax.transactions>1.0.1.Final</version.javax.transactions>
         <version.org.wildfly.checkstyle-config>1.0.4.Final</version.org.wildfly.checkstyle-config>
-        <version.org.jboss.marshalling>2.0.0.Beta6</version.org.jboss.marshalling>
-        <version.org.jboss.modules>1.6.0.Beta6</version.org.jboss.modules>
-        <version.org.wildfly.client-config>1.0.0.Beta4</version.org.wildfly.client-config>
-        <version.org.wildfly.common>1.2.0.Beta11</version.org.wildfly.common>
+        <version.org.jboss.marshalling>2.0.0.Final</version.org.jboss.marshalling>
+        <version.org.jboss.modules>1.6.0.Final</version.org.jboss.modules>
+        <version.org.wildfly.client-config>1.0.0.CR3</version.org.wildfly.client-config>
+        <version.org.wildfly.common>1.2.0.CR1</version.org.wildfly.common>
         <version.org.wildfly.naming.client>1.0.0.CR2</version.org.wildfly.naming.client>
-        <version.org.wildfly.elytron>1.1.0.Beta52</version.org.wildfly.elytron>
+        <version.org.wildfly.elytron>1.1.0.CR5</version.org.wildfly.elytron>
         <version.org.wildfly.transaction.client>1.0.0.CR4</version.org.wildfly.transaction.client>
     </properties>
 
