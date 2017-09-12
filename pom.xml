@@ -56,7 +56,7 @@
         <version.xnio>3.5.0.Final</version.xnio>
         <version.org.jboss.ejb-client>4.0.0.Final</version.org.jboss.ejb-client>
         <version.javax.ejb.api>1.0.0.Final</version.javax.ejb.api>
-        <version.javax.transactions>1.0.2.Final-SNAPSHOT</version.javax.transactions>
+        <version.javax.transactions>1.0.1.Final</version.javax.transactions>
         <version.org.wildfly.checkstyle-config>1.0.4.Final</version.org.wildfly.checkstyle-config>
         <version.org.jboss.marshalling>2.0.0.Final</version.org.jboss.marshalling>
         <version.org.jboss.modules>1.6.0.Final</version.org.jboss.modules>
