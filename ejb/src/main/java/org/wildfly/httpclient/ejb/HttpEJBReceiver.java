@@ -335,35 +335,18 @@ class HttpEJBReceiver extends EJBReceiver {
                 marshaller.writeObject(methodParam);
             }
         }
-        // write out the attachments
-        // we write out the private (a.k.a JBoss specific) attachments as well as public invocation context data
-        // (a.k.a user application specific data)
-        final Map<?, ?> privateAttachments = clientInvocationContext.getAttachments();
+        // write out the context data
         final Map<String, Object> contextData = clientInvocationContext.getContextData();
-        int privateAttachmentsSize = privateAttachments.size() - (privateAttachments.containsKey(INVOCATION_ID) ? 1 : 0);
         // no private or public data to write out
-        if (contextData == null && privateAttachmentsSize == 0) {
+        if (contextData == null) {
             marshaller.writeByte(0);
         } else {
-            // write the attachment count which is the sum of invocation context data + 1 (since we write
-            // out the private attachments under a single key with the value being the entire attachment map)
-            int totalAttachments = contextData.size();
-            if (privateAttachmentsSize > 0) {
-                totalAttachments++;
-            }
+            final int totalAttachments = contextData.size();
             PackedInteger.writePackedInteger(marshaller, totalAttachments);
             // write out public (application specific) context data
             for (Map.Entry<String, Object> invocationContextData : contextData.entrySet()) {
                 marshaller.writeObject(invocationContextData.getKey());
                 marshaller.writeObject(invocationContextData.getValue());
-            }
-            if (privateAttachmentsSize > 0) {
-                // now write out the JBoss specific attachments under a single key and the value will be the
-                // entire map of JBoss specific attachments
-                marshaller.writeObject(EJBClientInvocationContext.PRIVATE_ATTACHMENTS_KEY);
-                Map<?, ?> copy = new HashMap<>(privateAttachments);
-                copy.remove(INVOCATION_ID);
-                marshaller.writeObject(copy);
             }
         }
         // finish marshalling
