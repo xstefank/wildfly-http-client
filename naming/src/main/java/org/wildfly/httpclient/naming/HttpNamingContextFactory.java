@@ -23,6 +23,7 @@ import javax.naming.NamingException;
 
 import org.wildfly.naming.client.NamingContextFactory;
 import org.wildfly.naming.client.NamingProvider;
+import org.wildfly.naming.client.ProviderEnvironment;
 import org.wildfly.naming.client.util.FastHashtable;
 
 /**
@@ -35,7 +36,7 @@ public class HttpNamingContextFactory implements NamingContextFactory {
     }
 
     @Override
-    public Context createRootContext(NamingProvider namingProvider, String nameScheme, FastHashtable<String, Object> env) throws NamingException {
+    public Context createRootContext(NamingProvider namingProvider, String nameScheme, FastHashtable<String, Object> env, final ProviderEnvironment providerEnvironment) throws NamingException {
         return new HttpRootContext(env, (HttpNamingProvider) namingProvider, nameScheme);
     }
 }
