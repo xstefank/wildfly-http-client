@@ -225,6 +225,11 @@ public class SimpleTransactionOperationsTestCase {
             }
 
             @Override
+            public Object putResourceIfAbsent(@NotNull final Transaction transaction, @NotNull final Object key, final Object value) throws IllegalArgumentException {
+                return null;
+            }
+
+            @Override
             public boolean getRollbackOnly(@NotNull Transaction transaction) throws IllegalArgumentException {
                 return false;
             }
