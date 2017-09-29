@@ -29,6 +29,7 @@ import java.security.Principal;
 import java.security.PrivilegedAction;
 import java.util.Locale;
 import java.util.Map;
+import java.util.concurrent.LinkedBlockingDeque;
 import javax.security.auth.callback.Callback;
 import javax.security.auth.callback.CallbackHandler;
 import javax.security.auth.callback.NameCallback;
@@ -40,6 +41,7 @@ import org.wildfly.security.auth.client.AuthenticationContext;
 import org.wildfly.security.auth.client.AuthenticationContextConfigurationClient;
 import io.undertow.client.ClientRequest;
 import io.undertow.client.ClientResponse;
+import io.undertow.client.ClientExchange;
 import io.undertow.security.impl.DigestWWWAuthenticateToken;
 import io.undertow.server.session.SecureRandomSessionIdGenerator;
 import io.undertow.util.FlexBase64;
@@ -47,6 +49,7 @@ import io.undertow.util.HeaderValues;
 import io.undertow.util.Headers;
 import io.undertow.util.HexConverter;
 import io.undertow.util.StatusCodes;
+import io.undertow.util.AttachmentKey;
 import org.wildfly.security.auth.principal.NamePrincipal;
 
 /**
@@ -56,6 +59,8 @@ import org.wildfly.security.auth.principal.NamePrincipal;
  */
 class PoolAuthenticationContext {
 
+    private static final AttachmentKey<DigestImpl> DIGEST = AttachmentKey.create(DigestImpl.class);
+
     private static final AuthenticationContextConfigurationClient AUTH_CONTEXT_CLIENT;
 
     static {
@@ -63,13 +68,9 @@ class PoolAuthenticationContext {
     }
 
     private volatile Type current;
-    private String realm;
-    private String domain;
-    private String nonce;
-    private String opaque;
-    private String algorithm;
-    private String qop;
-    private int nccount = 1;
+
+    private static final LinkedBlockingDeque<DigestImpl> digestList = new LinkedBlockingDeque<>();
+
     private static final SecureRandomSessionIdGenerator cnonceGenerator = new SecureRandomSessionIdGenerator();
 
     boolean handleResponse(ClientResponse response) {
@@ -89,30 +90,29 @@ class PoolAuthenticationContext {
             current = Type.DIGEST;
 
             Map<DigestWWWAuthenticateToken, String> result = DigestWWWAuthenticateToken.parseHeader(authenticate.substring(7));
-
-            synchronized (this) {
-                domain = result.get(DigestWWWAuthenticateToken.DOMAIN);
-                nonce = result.get(DigestWWWAuthenticateToken.NONCE);
-                opaque = result.get(DigestWWWAuthenticateToken.OPAQUE);
-                algorithm = result.get(DigestWWWAuthenticateToken.ALGORITHM);
-                String s = result.get(DigestWWWAuthenticateToken.MESSAGE_QOP);
-                qop = null;
-                if(s != null) {
-                    for(String p : s.split(",")) {
-                        if(p.equals("auth")) {
-                            qop = p;
-                        }
-                    }
-                    if(qop == null) {
-                        throw HttpClientMessages.MESSAGES.unsupportedQopInDigest();
+            DigestImpl current = new DigestImpl();
+            current.domain = result.get(DigestWWWAuthenticateToken.DOMAIN);
+            current.nonce = result.get(DigestWWWAuthenticateToken.NONCE);
+            current.opaque = result.get(DigestWWWAuthenticateToken.OPAQUE);
+            current.algorithm = result.get(DigestWWWAuthenticateToken.ALGORITHM);
+            String s = result.get(DigestWWWAuthenticateToken.MESSAGE_QOP);
+            current.qop = null;
+            if (s != null) {
+                for (String p : s.split(",")) {
+                    if (p.equals("auth")) {
+                        current.qop = p;
                     }
                 }
-                realm = result.get(DigestWWWAuthenticateToken.REALM);
-                nccount = 1;
-                if(algorithm.startsWith("\"")) {
-                    algorithm = algorithm.substring(1, algorithm.length() - 1);
+                if (current.qop == null) {
+                    throw HttpClientMessages.MESSAGES.unsupportedQopInDigest();
                 }
             }
+            current.realm = result.get(DigestWWWAuthenticateToken.REALM);
+            current.nccount = 1;
+            if (current.algorithm.startsWith("\"")) {
+                current.algorithm = current.algorithm.substring(1, current.algorithm.length() - 1);
+            }
+            digestList.add(current);
             return true;
 
         }
@@ -134,7 +134,7 @@ class PoolAuthenticationContext {
         NameCallback nameCallback = new NameCallback("user name");
         PasswordCallback passwordCallback = new PasswordCallback("password", false);
         try {
-            callbackHandler.handle(new Callback[] { nameCallback, passwordCallback });
+            callbackHandler.handle(new Callback[]{nameCallback, passwordCallback});
         } catch (IOException | UnsupportedCallbackException e) {
             return false;
         }
@@ -152,6 +152,10 @@ class PoolAuthenticationContext {
             request.getRequestHeaders().put(Headers.AUTHORIZATION, "Basic " + FlexBase64.encodeString(challenge.getBytes(StandardCharsets.UTF_8), false));
             return true;
         } else if (current == Type.DIGEST) {
+            DigestImpl current = digestList.poll();
+            if (current == null) {
+                return false;
+            }
             String cnonce = cnonceGenerator.createSessionId();
             String digestUri = null;
             try {
@@ -169,92 +173,96 @@ class PoolAuthenticationContext {
             } catch (URISyntaxException e) {
                 throw new RuntimeException(e);
             }
-            synchronized (this) {
-                StringBuilder sb = new StringBuilder("Digest username=\"");
-                sb.append(principal.getName());
-                sb.append("\", uri=\"");
-                sb.append(digestUri);
-                sb.append("\", realm=\"");
-                sb.append(realm);
+            request.putAttachment(DIGEST, current);
+            StringBuilder sb = new StringBuilder("Digest username=\"");
+            sb.append(principal.getName());
+            sb.append("\", uri=\"");
+            sb.append(digestUri);
+            sb.append("\", realm=\"");
+            sb.append(current.realm);
+            sb.append("\"");
+            StringBuilder ncBuilder = new StringBuilder();
+            if (current.qop != null) {
+                sb.append(", nc=");
+                String nonceCountString = Integer.toHexString(current.nccount++);
+                for (int i = nonceCountString.length(); i < 8; ++i) {
+                    ncBuilder.append("0"); //must be 8 digits long
+                }
+                ncBuilder.append(nonceCountString);
+                sb.append(ncBuilder.toString());
+
+                sb.append(", cnonce=\"");
+                sb.append(cnonce);
                 sb.append("\"");
-                StringBuilder ncBuilder = new StringBuilder();
-                if(qop != null) {
-                    sb.append(", nc=");
-                    String nonceCountString = Integer.toHexString(nccount++);
-                    for (int i = nonceCountString.length(); i < 8; ++i) {
-                        ncBuilder.append("0"); //must be 8 digits long
-                    }
-                    ncBuilder.append(nonceCountString);
-                    sb.append(ncBuilder.toString());
+            }
+            sb.append(", algorithm=");
+            sb.append(current.algorithm);
+            sb.append(", nonce=\"");
+            sb.append(current.nonce);
+            sb.append("\", opaque=\"");
+            sb.append(current.opaque);
+            sb.append("\", qop=auth"); //TODO: fix this? What do we want to do about auth-int
 
-                    sb.append(", cnonce=\"");
-                    sb.append(cnonce);
-                    sb.append("\"");
-                }
-                sb.append(", algorithm=");
-                sb.append(algorithm);
-                sb.append(", nonce=\"");
-                sb.append(nonce);
-                sb.append("\", opaque=\"");
-                sb.append(opaque);
-                sb.append("\", qop=auth"); //TODO: fix this? What do we want to do about auth-int
+            //calculate the response
+            String a1 = principal.getName() + ":" + current.realm + ":" + new String(password);
+            String a2 = request.getMethod().toString() + ":" + digestUri;
 
-                //calculate the response
-                String a1 = principal.getName() + ":" + realm + ":" + new String(password);
-                String a2 = request.getMethod().toString() + ":" + digestUri;
-
-                try {
-                    MessageDigest digest = MessageDigest.getInstance(algorithm);
-                    digest.update(a1.getBytes(StandardCharsets.UTF_8));
-                    byte[] hashedA1 = HexConverter.convertToHexBytes(digest.digest());
-                    digest.reset();
-                    digest.update(a2.getBytes(StandardCharsets.UTF_8));
-                    String hashedA2 = HexConverter.convertToHexString(digest.digest());
-                    digest.reset();
-                    digest.update(hashedA1);
+            try {
+                MessageDigest digest = MessageDigest.getInstance(current.algorithm);
+                digest.update(a1.getBytes(StandardCharsets.UTF_8));
+                byte[] hashedA1 = HexConverter.convertToHexBytes(digest.digest());
+                digest.reset();
+                digest.update(a2.getBytes(StandardCharsets.UTF_8));
+                String hashedA2 = HexConverter.convertToHexString(digest.digest());
+                digest.reset();
+                digest.update(hashedA1);
+                digest.update((byte) ':');
+                digest.update(current.nonce.getBytes(StandardCharsets.UTF_8));
+                digest.update((byte) ':');
+                if (current.qop != null) {
+                    digest.update(ncBuilder.toString().getBytes(StandardCharsets.UTF_8));
                     digest.update((byte) ':');
-                    digest.update(nonce.getBytes(StandardCharsets.UTF_8));
+                    digest.update(cnonce.getBytes(StandardCharsets.UTF_8));
                     digest.update((byte) ':');
-                    if(qop != null) {
-                        digest.update(ncBuilder.toString().getBytes(StandardCharsets.UTF_8));
-                        digest.update((byte) ':');
-                        digest.update(cnonce.getBytes(StandardCharsets.UTF_8));
-                        digest.update((byte) ':');
-                        digest.update("auth".getBytes(StandardCharsets.UTF_8));
-                        digest.update((byte) ':');
-                    }
-                    digest.update(hashedA2.getBytes(StandardCharsets.UTF_8));
-                    sb.append(", response=\"");
-                    sb.append(HexConverter.convertToHexString(digest.digest()));
-                    sb.append("\"");
-                    request.getRequestHeaders().put(Headers.AUTHORIZATION, sb.toString());
-                    return true;
-                } catch (NoSuchAlgorithmException e) {
-                    throw new RuntimeException(e);
+                    digest.update("auth".getBytes(StandardCharsets.UTF_8));
+                    digest.update((byte) ':');
                 }
+                digest.update(hashedA2.getBytes(StandardCharsets.UTF_8));
+                sb.append(", response=\"");
+                sb.append(HexConverter.convertToHexString(digest.digest()));
+                sb.append("\"");
+                request.getRequestHeaders().put(Headers.AUTHORIZATION, sb.toString());
+                return true;
+            } catch (NoSuchAlgorithmException e) {
+                throw new RuntimeException(e);
             }
         }
         return false;
     }
 
-    boolean isStale(ClientResponse response) {
+    boolean isStale(ClientExchange exchange) {
         if (current != Type.DIGEST) {
             return false;
         }
+        ClientResponse response = exchange.getResponse();
         if (response.getResponseCode() != StatusCodes.UNAUTHORIZED) {
+            DigestImpl digest = exchange.getRequest().getAttachment(DIGEST);
+            if(digest != null) {
+                digestList.add(digest);
+            }
             return false;
         }
         HeaderValues headers = response.getResponseHeaders().get(Headers.WWW_AUTHENTICATE);
-        if(headers == null) {
+        if (headers == null) {
             return false;
         }
-        for(String authenticate : headers) {
+        for (String authenticate : headers) {
             String auth = authenticate.toLowerCase(Locale.ENGLISH);
             if (!auth.startsWith("digest ")) {
                 continue;
             }
             Map<DigestWWWAuthenticateToken, String> result = DigestWWWAuthenticateToken.parseHeader(authenticate.substring(7));
-            if(result.containsKey(DigestWWWAuthenticateToken.STALE)) {
+            if (result.containsKey(DigestWWWAuthenticateToken.STALE)) {
                 return true;
             }
         }
@@ -265,6 +273,17 @@ class PoolAuthenticationContext {
         NONE,
         BASIC,
         DIGEST
+    }
+
+    private static final class DigestImpl {
+
+        private String realm;
+        private String domain;
+        private String nonce;
+        private String opaque;
+        private String algorithm;
+        private String qop;
+        private int nccount = 1;
     }
 
 }

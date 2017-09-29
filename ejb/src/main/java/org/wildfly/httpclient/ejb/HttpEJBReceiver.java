@@ -361,7 +361,6 @@ class HttpEJBReceiver extends EJBReceiver {
             return null;
         } else if (transaction instanceof RemoteTransaction) {
             final RemoteTransaction remoteTransaction = (RemoteTransaction) transaction;
-            remoteTransaction.setLocation(uri);
             final XidProvider ir = remoteTransaction.getProviderInterface(XidProvider.class);
             if (ir == null) throw EjbHttpClientMessages.MESSAGES.cannotEnlistTx();
             Xid xid = ir.getXid();

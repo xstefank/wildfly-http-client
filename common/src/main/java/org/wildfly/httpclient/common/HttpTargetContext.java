@@ -162,7 +162,7 @@ public class HttpTargetContext extends AbstractAttachable {
                         public void completed(ClientExchange result) {
                             connection.getConnection().getWorker().execute(() -> {
                                 ClientResponse response = result.getResponse();
-                                if (!authAdded || connection.getAuthenticationContext().isStale(response)) {
+                                if (!authAdded || connection.getAuthenticationContext().isStale(result)) {
                                     if (connection.getAuthenticationContext().handleResponse(response)) {
                                         final AtomicBoolean done = new AtomicBoolean();
                                         ChannelListener<StreamSourceChannel> listener = ChannelListeners.drainListener(Long.MAX_VALUE, channel -> {
