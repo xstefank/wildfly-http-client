@@ -42,6 +42,7 @@ import org.wildfly.security.auth.client.AuthenticationContextConfigurationClient
 import io.undertow.client.ClientRequest;
 import io.undertow.client.ClientResponse;
 import io.undertow.client.ClientExchange;
+import io.undertow.security.impl.AuthenticationInfoToken;
 import io.undertow.security.impl.DigestWWWAuthenticateToken;
 import io.undertow.server.session.SecureRandomSessionIdGenerator;
 import io.undertow.util.FlexBase64;
@@ -248,6 +249,18 @@ class PoolAuthenticationContext {
         if (response.getResponseCode() != StatusCodes.UNAUTHORIZED) {
             DigestImpl digest = exchange.getRequest().getAttachment(DIGEST);
             if(digest != null) {
+                String authInfo = response.getResponseHeaders().getFirst(Headers.AUTHENTICATION_INFO);
+                if(authInfo != null) {
+                    try {
+                        Map<AuthenticationInfoToken, String> result = AuthenticationInfoToken.parseHeader(authInfo);
+                        String next = result.get(AuthenticationInfoToken.NEXT_NONCE);
+                        if (next != null) {
+                            digest.nonce = next;
+                        }
+                    } catch (Exception e) {
+                        HttpClientMessages.MESSAGES.failedToParseAuthenticationInfo(e);
+                    }
+                }
                 digestList.add(digest);
             }
             return false;

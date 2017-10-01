@@ -59,4 +59,8 @@ interface HttpClientMessages extends BasicLogger {
 
     @Message(id = 9, value = "Unsupported qop version in digest auth")
     RuntimeException unsupportedQopInDigest();
+
+    @LogMessage(level = Logger.Level.ERROR)
+    @Message(id = 10, value = "Error parsing authentication-info header")
+    void failedToParseAuthenticationInfo(@Cause Exception e);
 }
