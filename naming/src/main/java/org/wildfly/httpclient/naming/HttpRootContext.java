@@ -26,7 +26,9 @@ import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.security.GeneralSecurityException;
 import java.util.Collection;
+import java.util.Iterator;
 import java.util.List;
+import java.util.ServiceLoader;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ThreadLocalRandom;
@@ -72,6 +74,18 @@ public class HttpRootContext extends AbstractContext {
 
     private final HttpNamingProvider httpNamingProvider;
     private final String scheme;
+
+    private static final HttpNamingEjbObjectResolverHelper helper;
+
+    static {
+        HttpNamingEjbObjectResolverHelper h = null;
+        ServiceLoader<HttpNamingEjbObjectResolverHelper> sl = ServiceLoader.load(HttpNamingEjbObjectResolverHelper.class);
+        for (Iterator<HttpNamingEjbObjectResolverHelper> it = sl.iterator(); it.hasNext(); ) {
+            h = it.next();
+            break;
+        }
+        helper = h;
+    }
 
     protected HttpRootContext(FastHashtable<String, Object> environment, HttpNamingProvider httpNamingProvider, String scheme) {
         super(environment);
@@ -176,9 +190,12 @@ public class HttpRootContext extends AbstractContext {
         }
     }
 
-    private MarshallingConfiguration createMarshallingConfig() {
+    private static MarshallingConfiguration createMarshallingConfig(URI uri) {
         final MarshallingConfiguration marshallingConfiguration = new MarshallingConfiguration();
         marshallingConfiguration.setVersion(2);
+        if(helper != null) {
+            marshallingConfiguration.setObjectResolver(helper.getObjectResolver(uri));
+        }
         return marshallingConfiguration;
     }
 
@@ -231,7 +248,7 @@ public class HttpRootContext extends AbstractContext {
             Object returned = null;
             try {
 
-                final MarshallingConfiguration marshallingConfiguration = createMarshallingConfig();
+                final MarshallingConfiguration marshallingConfiguration = createMarshallingConfig(providerUri);
                 final Unmarshaller unmarshaller = targetContext.createUnmarshaller(marshallingConfiguration);
                 unmarshaller.start(new InputStreamByteInput(input));
                 returned = unmarshaller.readObject();
@@ -307,7 +324,7 @@ public class HttpRootContext extends AbstractContext {
         }
         targetContext.sendRequest(clientRequest, sslContext, authenticationConfiguration, output -> {
             if (object != null) {
-                Marshaller marshaller = targetContext.createMarshaller(createMarshallingConfig());
+                Marshaller marshaller = targetContext.createMarshaller(createMarshallingConfig(providerUri));
                 marshaller.start(Marshalling.createByteOutput(output));
                 marshaller.writeObject(object);
                 marshaller.finish();
