@@ -201,17 +201,19 @@ class HttpEJBReceiver extends EJBReceiver {
                         unmarshaller.finish();
 
                         if (response.getResponseCode() >= 400) {
-                            receiverContext.resultReady(new StaticResultProducer((Exception) returned, null));
+                            receiverContext.requestFailed((Exception)returned);
                             return;
                         }
                     } catch (Exception e) {
                         exception = e;
                     }
-                    final Object ret = returned;
-                    final Exception ex = exception;
-                    receiverContext.resultReady(new StaticResultProducer(ex, ret));
+                    if(exception != null) {
+                        receiverContext.requestFailed(exception);
+                    } else {
+                        receiverContext.resultReady(new StaticResultProducer(returned));
+                    }
                 }),
-                (e) -> receiverContext.resultReady(new StaticResultProducer(e instanceof Exception ? (Exception) e : new RuntimeException(e), null)), EjbHeaders.EJB_RESPONSE_VERSION_ONE, null);
+                (e) -> receiverContext.requestFailed(e instanceof Exception ? (Exception) e : new RuntimeException(e)), EjbHeaders.EJB_RESPONSE_VERSION_ONE, null);
     }
 
     private static final AuthenticationContextConfigurationClient CLIENT = doPrivileged(AuthenticationContextConfigurationClient.ACTION);
@@ -418,19 +420,14 @@ class HttpEJBReceiver extends EJBReceiver {
     }
 
     private static class StaticResultProducer implements EJBReceiverInvocationContext.ResultProducer {
-        private final Exception ex;
         private final Object ret;
 
-        public StaticResultProducer(Exception ex, Object ret) {
-            this.ex = ex;
+        public StaticResultProducer(Object ret) {
             this.ret = ret;
         }
 
         @Override
         public Object getResult() throws Exception {
-            if (ex != null) {
-                throw ex;
-            }
             return ret;
         }
 
