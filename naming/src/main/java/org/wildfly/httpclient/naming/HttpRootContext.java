@@ -57,6 +57,7 @@ import org.wildfly.security.auth.client.AuthenticationConfiguration;
 import org.wildfly.security.auth.client.AuthenticationContext;
 import org.wildfly.security.auth.client.AuthenticationContextConfigurationClient;
 import org.xnio.IoUtils;
+
 import io.undertow.client.ClientRequest;
 import io.undertow.util.Headers;
 import io.undertow.util.HttpString;
@@ -244,31 +245,36 @@ public class HttpRootContext extends AbstractContext {
                 return;
             }
 
-            Exception exception = null;
-            Object returned = null;
-            try {
+            httpNamingProvider.performExceptionAction((a, b) -> {
 
-                final MarshallingConfiguration marshallingConfiguration = createMarshallingConfig(providerUri);
-                final Unmarshaller unmarshaller = targetContext.createUnmarshaller(marshallingConfiguration);
-                unmarshaller.start(new InputStreamByteInput(input));
-                returned = unmarshaller.readObject();
-                // finish unmarshalling
-                if (unmarshaller.read() != -1) {
-                    exception = HttpNamingClientMessages.MESSAGES.unexpectedDataInResponse();
-                }
-                unmarshaller.finish();
+                Exception exception = null;
+                Object returned = null;
+                try {
+                    final MarshallingConfiguration marshallingConfiguration = createMarshallingConfig(providerUri);
+                    final Unmarshaller unmarshaller = targetContext.createUnmarshaller(marshallingConfiguration);
+                    unmarshaller.start(new InputStreamByteInput(input));
+                    returned = unmarshaller.readObject();
+                    // finish unmarshalling
+                    if (unmarshaller.read() != -1) {
+                        exception = HttpNamingClientMessages.MESSAGES.unexpectedDataInResponse();
+                    }
+                    unmarshaller.finish();
 
-                if (response.getResponseCode() >= 400) {
-                    exception = (Exception) returned;
+                    if (response.getResponseCode() >= 400) {
+                        exception = (Exception) returned;
+                    }
+
+                } catch (Exception e) {
+                    exception = e;
                 }
-            } catch (Exception e) {
-                exception = e;
-            }
-            if (exception != null) {
-                result.completeExceptionally(exception);
-            } else {
-                result.complete(returned);
-            }
+                if (exception != null) {
+                    result.completeExceptionally(exception);
+                } else {
+                    result.complete(returned);
+                }
+                return null;
+            }, null, null);
+
         }, result::completeExceptionally, VALUE_TYPE, null, true);
 
         try {
