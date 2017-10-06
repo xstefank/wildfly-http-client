@@ -40,7 +40,7 @@ public class AcquireAffinityTestCase {
 
         AuthenticationContext cc = AuthenticationContext.captureCurrent();
         HttpTargetContext context = WildflyHttpContext.getCurrent().getTargetContext(new URI(HTTPTestServer.getDefaultServerURL()));
-        Assert.assertEquals("foo", context.awaitSessionId(false));
+        Assert.assertEquals("foo", context.awaitSessionId(false, null));
 
     }
 }

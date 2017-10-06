@@ -26,7 +26,9 @@ import java.io.ObjectInput;
 import java.io.OutputStream;
 import java.lang.reflect.Method;
 import java.net.URI;
+import java.security.AccessController;
 import java.security.GeneralSecurityException;
+import java.security.PrivilegedAction;
 import java.util.Base64;
 import java.util.Collections;
 import java.util.HashMap;
@@ -81,6 +83,12 @@ import io.undertow.util.StatusCodes;
  */
 class HttpEJBReceiver extends EJBReceiver {
 
+    private static final AuthenticationContextConfigurationClient AUTH_CONTEXT_CLIENT;
+
+    static {
+        AUTH_CONTEXT_CLIENT = AccessController.doPrivileged((PrivilegedAction<AuthenticationContextConfigurationClient>) () -> new AuthenticationContextConfigurationClient());
+    }
+
     private final AttachmentKey<EjbContextData> EJB_CONTEXT_DATA = AttachmentKey.create(EjbContextData.class);
     private final org.jboss.ejb.client.AttachmentKey<String> INVOCATION_ID = new org.jboss.ejb.client.AttachmentKey<>();
     private final RemoteTransactionContext transactionContext;
@@ -110,7 +118,7 @@ class HttpEJBReceiver extends EJBReceiver {
                 }
             }
         }
-        targetContext.awaitSessionId(false);
+        targetContext.awaitSessionId(false, AUTH_CONTEXT_CLIENT.getAuthenticationConfiguration(targetContext.getUri(), receiverContext.getAuthenticationContext()));
 
 
         EjbContextData ejbData = targetContext.getAttachment(EJB_CONTEXT_DATA);
@@ -229,7 +237,7 @@ class HttpEJBReceiver extends EJBReceiver {
             }
         }
 
-        targetContext.awaitSessionId(true);
+        targetContext.awaitSessionId(true, authenticationConfiguration);
         CompletableFuture<SessionID> result = new CompletableFuture<>();
 
         HttpEJBInvocationBuilder builder = new HttpEJBInvocationBuilder()
@@ -292,7 +300,7 @@ class HttpEJBReceiver extends EJBReceiver {
                 }
             }
         }
-        targetContext.awaitSessionId(false);
+        targetContext.awaitSessionId(false, authenticationConfiguration);
         HttpEJBInvocationBuilder builder = new HttpEJBInvocationBuilder()
                 .setInvocationType(HttpEJBInvocationBuilder.InvocationType.CANCEL)
                 .setAppName(locator.getAppName())

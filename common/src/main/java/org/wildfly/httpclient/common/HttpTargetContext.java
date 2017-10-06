@@ -95,18 +95,18 @@ public class HttpTargetContext extends AbstractAttachable {
 
     void init() {
         if (eagerlyAcquireAffinity) {
-            acquireAffinitiy();
+            acquireAffinitiy(AUTH_CONTEXT_CLIENT.getAuthenticationConfiguration(uri, AuthenticationContext.captureCurrent()));
         }
     }
 
-    private void acquireAffinitiy() {
+    private void acquireAffinitiy(AuthenticationConfiguration authenticationConfiguration) {
         if (affinityRequestSent.compareAndSet(false, true)) {
-            acquireSessionAffinity(sessionAffinityLatch);
+            acquireSessionAffinity(sessionAffinityLatch, authenticationConfiguration);
         }
     }
 
 
-    private void acquireSessionAffinity(CountDownLatch latch) {
+    private void acquireSessionAffinity(CountDownLatch latch, AuthenticationConfiguration authenticationConfiguration) {
         ClientRequest clientRequest = new ClientRequest();
         clientRequest.setMethod(Methods.GET);
         clientRequest.setPath(uri.getPath() + "/common/v1/affinity");
@@ -119,7 +119,7 @@ public class HttpTargetContext extends AbstractAttachable {
             HttpClientMessages.MESSAGES.failedToAcquireSession(e);
             return;
         }
-        sendRequest(clientRequest, sslContext, AUTH_CONTEXT_CLIENT.getAuthenticationConfiguration(uri, context), null, null, (e) -> {
+        sendRequest(clientRequest, sslContext, authenticationConfiguration, null, null, (e) -> {
             latch.countDown();
             HttpClientMessages.MESSAGES.failedToAcquireSession(e);
         }, null, latch::countDown);
@@ -384,7 +384,7 @@ public class HttpTargetContext extends AbstractAttachable {
     }
 
     public void clearSessionId() {
-        awaitSessionId(true); //to prevent a race make sure we have one before we clear it
+        awaitSessionId(true, null); //to prevent a race make sure we have one before we clear it
         synchronized (this) {
             CountDownLatch old = sessionAffinityLatch;
             sessionAffinityLatch = new CountDownLatch(1);
@@ -394,9 +394,9 @@ public class HttpTargetContext extends AbstractAttachable {
         }
     }
 
-    public String awaitSessionId(boolean required) {
+    public String awaitSessionId(boolean required, AuthenticationConfiguration authConfig) {
         if (required) {
-            acquireAffinitiy();
+            acquireAffinitiy(authConfig);
         }
         if (affinityRequestSent.get()) {
             try {
