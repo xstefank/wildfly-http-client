@@ -46,6 +46,7 @@ import org.xnio.streams.ChannelInputStream;
 
 import javax.net.ssl.SSLContext;
 import java.io.BufferedInputStream;
+import java.io.Closeable;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.ObjectInput;
@@ -257,12 +258,18 @@ public class HttpTargetContext extends AbstractAttachable {
 
                                     } else {
                                         if (httpResultHandler != null) {
+                                            Closeable doneCallback = () -> {
+                                                Channels.drain(result.getResponseChannel(), Long.MAX_VALUE);
+                                                if (completedTask != null) {
+                                                    completedTask.run();
+                                                }
+                                                connection.done(false);
+                                            };
                                             if (response.getResponseCode() == StatusCodes.NO_CONTENT) {
                                                 Channels.drain(result.getResponseChannel(), Long.MAX_VALUE);
-                                                httpResultHandler.handleResult(null, response);
+                                                httpResultHandler.handleResult(null, response, doneCallback);
                                             } else {
-                                                InputStream underlying = new ChannelInputStream(result.getResponseChannel());
-                                                InputStream inputStream = underlying;
+                                                InputStream inputStream = new ChannelInputStream(result.getResponseChannel());
                                                 String encoding = response.getResponseHeaders().getFirst(Headers.CONTENT_ENCODING);
                                                 if (encoding != null) {
                                                     String lowerEncoding = encoding.toLowerCase(Locale.ENGLISH);
@@ -272,14 +279,15 @@ public class HttpTargetContext extends AbstractAttachable {
                                                         throw HttpClientMessages.MESSAGES.invalidContentEncoding(encoding);
                                                     }
                                                 }
-                                                httpResultHandler.handleResult(new BufferedInputStream(inputStream), response);
+                                                httpResultHandler.handleResult(new BufferedInputStream(inputStream), response, doneCallback);
                                             }
+                                        } else {
+                                            Channels.drain(result.getResponseChannel(), Long.MAX_VALUE);
+                                            if (completedTask != null) {
+                                                completedTask.run();
+                                            }
+                                            connection.done(false);
                                         }
-                                        Channels.drain(result.getResponseChannel(), Long.MAX_VALUE);
-                                        if (completedTask != null) {
-                                            completedTask.run();
-                                        }
-                                        connection.done(false);
                                     }
 
                                 } catch (Exception e) {
@@ -413,7 +421,7 @@ public class HttpTargetContext extends AbstractAttachable {
     }
 
     public interface HttpResultHandler {
-        void handleResult(InputStream result, ClientResponse response);
+        void handleResult(InputStream result, ClientResponse response, Closeable doneCallback);
     }
 
     public interface HttpFailureHandler {

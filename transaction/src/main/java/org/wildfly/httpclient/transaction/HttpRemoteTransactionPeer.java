@@ -34,6 +34,8 @@ import org.wildfly.transaction.client.SimpleXid;
 import org.wildfly.transaction.client.spi.RemoteTransactionPeer;
 import org.wildfly.transaction.client.spi.SimpleTransactionControl;
 import org.wildfly.transaction.client.spi.SubordinateTransactionControl;
+import org.xnio.IoUtils;
+
 import io.undertow.client.ClientRequest;
 import io.undertow.util.Headers;
 import io.undertow.util.Methods;
@@ -68,7 +70,7 @@ public class HttpRemoteTransactionPeer implements RemoteTransactionPeer {
         cr.getRequestHeaders().put(TransactionConstants.RECOVERY_PARENT_NAME, parentName);
         cr.getRequestHeaders().put(TransactionConstants.RECOVERY_FLAGS, Integer.toString(flag));
 
-        targetContext.sendRequest(cr,  sslContext, authenticationConfiguration,null, (result, response) -> {
+        targetContext.sendRequest(cr,  sslContext, authenticationConfiguration,null, (result, response, closeable) -> {
             try {
                 Unmarshaller unmarshaller = targetContext.createUnmarshaller(createMarshallingConf());
                 unmarshaller.start(new InputStreamByteInput(result));
@@ -88,6 +90,8 @@ public class HttpRemoteTransactionPeer implements RemoteTransactionPeer {
                 unmarshaller.finish();
             } catch (Exception e) {
                 xidList.completeExceptionally(e);
+            } finally {
+                IoUtils.safeClose(closeable);
             }
         }, xidList::completeExceptionally, TransactionConstants.NEW_TRANSACTION, null);
         try {
@@ -117,7 +121,7 @@ public class HttpRemoteTransactionPeer implements RemoteTransactionPeer {
         cr.getRequestHeaders().put(TransactionConstants.TIMEOUT, timeout);
 
 
-        targetContext.sendRequest(cr, sslContext, authenticationConfiguration, null, (result, response) -> {
+        targetContext.sendRequest(cr, sslContext, authenticationConfiguration, null, (result, response, closeable) -> {
             try {
                 Unmarshaller unmarshaller = targetContext.createUnmarshaller(createMarshallingConf());
                 unmarshaller.start(new InputStreamByteInput(result));
@@ -133,6 +137,8 @@ public class HttpRemoteTransactionPeer implements RemoteTransactionPeer {
                 unmarshaller.finish();
             } catch (Exception e) {
                 beginXid.completeExceptionally(e);
+            } finally {
+                IoUtils.safeClose(closeable);
             }
         }, beginXid::completeExceptionally, TransactionConstants.NEW_TRANSACTION, null);
         try {

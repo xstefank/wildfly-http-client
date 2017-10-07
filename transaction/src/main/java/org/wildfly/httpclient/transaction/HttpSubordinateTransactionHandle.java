@@ -35,6 +35,8 @@ import org.jboss.marshalling.Marshalling;
 import org.wildfly.httpclient.common.HttpTargetContext;
 import org.wildfly.security.auth.client.AuthenticationConfiguration;
 import org.wildfly.transaction.client.spi.SubordinateTransactionControl;
+import org.xnio.IoUtils;
+
 import io.undertow.client.ClientRequest;
 import io.undertow.client.ClientResponse;
 import io.undertow.util.Headers;
@@ -119,8 +121,12 @@ class HttpSubordinateTransactionHandle implements SubordinateTransactionControl 
             marshaller.write(bq);
             marshaller.finish();
             output.close();
-        }, (input, response) -> {
-            result.complete(resultFunction != null ? resultFunction.apply(response) : null);
+        }, (input, response, closeable) -> {
+            try {
+                result.complete(resultFunction != null ? resultFunction.apply(response) : null);
+            } finally {
+                IoUtils.safeClose(closeable);
+            }
         }, result::completeExceptionally, null, null);
 
         try {

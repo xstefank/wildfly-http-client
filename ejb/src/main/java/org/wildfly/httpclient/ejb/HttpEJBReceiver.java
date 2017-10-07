@@ -40,6 +40,7 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.zip.GZIPOutputStream;
+
 import javax.ejb.Asynchronous;
 import javax.net.ssl.SSLContext;
 import javax.transaction.RollbackException;
@@ -73,6 +74,7 @@ import org.wildfly.transaction.client.RemoteTransaction;
 import org.wildfly.transaction.client.RemoteTransactionContext;
 import org.wildfly.transaction.client.XAOutflowHandle;
 import org.xnio.IoUtils;
+
 import io.undertow.client.ClientRequest;
 import io.undertow.util.AttachmentKey;
 import io.undertow.util.Headers;
@@ -177,40 +179,45 @@ class HttpEJBReceiver extends EJBReceiver {
                     }
                 }),
 
-                ((input, response) -> {
-                    if (response.getResponseCode() == StatusCodes.ACCEPTED && clientInvocationContext.getInvokedMethod().getReturnType() == void.class) {
-                        ejbData.asyncMethods.add(clientInvocationContext.getInvokedMethod());
-                    }
-
-                    Exception exception = null;
-                    Object returned = null;
+                ((input, response, closeable) -> {
                     try {
-
-                        final MarshallingConfiguration marshallingConfiguration = createMarshallingConfig(targetContext.getUri());
-                        final Unmarshaller unmarshaller = targetContext.createUnmarshaller(marshallingConfiguration);
-
-                        unmarshaller.start(new InputStreamByteInput(input));
-                        returned = unmarshaller.readObject();
-                        // read the attachments
-                        //TODO: do we need attachments?
-                        final Map<String, Object> attachments = readAttachments(unmarshaller);
-                        // finish unmarshalling
-                        if (unmarshaller.read() != -1) {
-                            exception = EjbHttpClientMessages.MESSAGES.unexpectedDataInResponse();
+                        if (response.getResponseCode() == StatusCodes.ACCEPTED && clientInvocationContext.getInvokedMethod().getReturnType() == void.class) {
+                            ejbData.asyncMethods.add(clientInvocationContext.getInvokedMethod());
                         }
-                        unmarshaller.finish();
 
-                        if (response.getResponseCode() >= 400) {
-                            receiverContext.requestFailed((Exception)returned);
-                            return;
+                        Exception exception = null;
+                        Object returned = null;
+                        try {
+
+                            final MarshallingConfiguration marshallingConfiguration = createMarshallingConfig(targetContext.getUri());
+                            final Unmarshaller unmarshaller = targetContext.createUnmarshaller(marshallingConfiguration);
+
+                            unmarshaller.start(new InputStreamByteInput(input));
+                            returned = unmarshaller.readObject();
+                            // read the attachments
+                            //TODO: do we need attachments?
+                            final Map<String, Object> attachments = readAttachments(unmarshaller);
+                            // finish unmarshalling
+                            if (unmarshaller.read() != -1) {
+                                exception = EjbHttpClientMessages.MESSAGES.unexpectedDataInResponse();
+                            }
+                            unmarshaller.finish();
+
+                            if (response.getResponseCode() >= 400) {
+                                receiverContext.requestFailed((Exception) returned);
+                                return;
+                            }
+                        } catch (Exception e) {
+                            exception = e;
                         }
-                    } catch (Exception e) {
-                        exception = e;
-                    }
-                    if(exception != null) {
-                        receiverContext.requestFailed(exception);
-                    } else {
-                        receiverContext.resultReady(new StaticResultProducer(returned));
+                        if (exception != null) {
+                            receiverContext.requestFailed(exception);
+                        } else {
+                            receiverContext.resultReady(new StaticResultProducer(returned));
+                        }
+
+                    } finally {
+                        IoUtils.safeClose(closeable);
                     }
                 }),
                 (e) -> receiverContext.requestFailed(e instanceof Exception ? (Exception) e : new RuntimeException(e)), EjbHeaders.EJB_RESPONSE_VERSION_ONE, null);
@@ -257,13 +264,17 @@ class HttpEJBReceiver extends EJBReceiver {
                     writeTransaction(ContextTransactionManager.getInstance().getTransaction(), marshaller, targetContext.getUri());
                     marshaller.finish();
                 },
-                ((unmarshaller, response) -> {
-                    String sessionId = response.getResponseHeaders().getFirst(EjbHeaders.EJB_SESSION_ID);
-                    if (sessionId == null) {
-                        result.completeExceptionally(EjbHttpClientMessages.MESSAGES.noSessionIdInResponse());
-                    } else {
-                        SessionID sessionID = SessionID.createSessionID(Base64.getUrlDecoder().decode(sessionId));
-                        result.complete(sessionID);
+                ((unmarshaller, response, c) -> {
+                    try {
+                        String sessionId = response.getResponseHeaders().getFirst(EjbHeaders.EJB_SESSION_ID);
+                        if (sessionId == null) {
+                            result.completeExceptionally(EjbHttpClientMessages.MESSAGES.noSessionIdInResponse());
+                        } else {
+                            SessionID sessionID = SessionID.createSessionID(Base64.getUrlDecoder().decode(sessionId));
+                            result.complete(sessionID);
+                        }
+                    } finally {
+                        IoUtils.safeClose(c);
                     }
                 })
                 , result::completeExceptionally, EjbHeaders.EJB_RESPONSE_NEW_SESSION, null);
@@ -312,9 +323,13 @@ class HttpEJBReceiver extends EJBReceiver {
                 .setInvocationId(receiverContext.getClientInvocationContext().getAttachment(INVOCATION_ID))
                 .setBeanName(locator.getBeanName());
         final CompletableFuture<Boolean> result = new CompletableFuture<>();
-        targetContext.sendRequest(builder.createRequest(targetContext.getUri().getPath()), sslContext, authenticationConfiguration, null, (stream, response) -> {
-            result.complete(true);
-            IoUtils.safeClose(stream);
+        targetContext.sendRequest(builder.createRequest(targetContext.getUri().getPath()), sslContext, authenticationConfiguration, null, (stream, response, closeable) -> {
+            try {
+                result.complete(true);
+                IoUtils.safeClose(stream);
+            } finally {
+                IoUtils.safeClose(closeable);
+            }
         }, throwable -> result.complete(false), null, null);
         try {
             return result.get();

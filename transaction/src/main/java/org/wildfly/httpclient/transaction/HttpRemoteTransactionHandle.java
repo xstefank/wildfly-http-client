@@ -34,6 +34,8 @@ import org.jboss.marshalling.Marshalling;
 import org.wildfly.httpclient.common.HttpTargetContext;
 import org.wildfly.security.auth.client.AuthenticationConfiguration;
 import org.wildfly.transaction.client.spi.SimpleTransactionControl;
+import org.xnio.IoUtils;
+
 import io.undertow.client.ClientRequest;
 import io.undertow.util.Headers;
 import io.undertow.util.Methods;
@@ -94,7 +96,13 @@ class HttpRemoteTransactionHandle implements SimpleTransactionControl {
                 marshaller.write(bq);
                 marshaller.finish();
                 output.close();
-            }, (input, response) -> result.complete(null), result::completeExceptionally, null, null);
+            }, (input, response, closable) -> {
+                try {
+                    result.complete(null);
+                } finally {
+                    IoUtils.safeClose(closable);
+                }
+            }, result::completeExceptionally, null, null);
 
             try {
                 result.get();
@@ -157,7 +165,13 @@ class HttpRemoteTransactionHandle implements SimpleTransactionControl {
                 marshaller.write(bq);
                 marshaller.finish();
                 output.close();
-            }, (input, response) -> result.complete(null), result::completeExceptionally, null, null);
+            }, (input, response, closeable) -> {
+                try {
+                    result.complete(null);
+                } finally {
+                    IoUtils.safeClose(closeable);
+                }
+            }, result::completeExceptionally, null, null);
 
             try {
                 result.get();
