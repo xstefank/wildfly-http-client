@@ -47,6 +47,9 @@ class WildflyClientInputStream extends InputStream {
         @Override
         public void handleEvent(StreamSourceChannel streamSourceChannel) {
             synchronized (lock) {
+                if(pooledByteBuffer != null) {
+                    return;
+                }
                 boolean free = true;
                 final PooledByteBuffer pooled = bufferPool.allocate();
                 try {

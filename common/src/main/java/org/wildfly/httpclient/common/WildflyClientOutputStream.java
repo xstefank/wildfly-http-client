@@ -101,6 +101,7 @@ class WildflyClientOutputStream extends OutputStream implements ByteOutput {
                         pooledBuffer.close();
                         pooledBuffer = null;
                     }
+                    state &= ~FLAG_WRITING;
                     ioException = e;
                     lock.notifyAll();
                 }
@@ -144,7 +145,7 @@ class WildflyClientOutputStream extends OutputStream implements ByteOutput {
         int currentLen = len;
         synchronized (lock) {
             for (; ; ) {
-                while (anyAreSet(state, FLAG_WRITING)) {
+                while (anyAreSet(state, FLAG_WRITING) && ioException == null) {
                     try {
                         lock.wait();
                     } catch (InterruptedException e) {
@@ -205,7 +206,7 @@ class WildflyClientOutputStream extends OutputStream implements ByteOutput {
             if (anyAreSet(state, FLAG_CLOSED)) return;
             state |= FLAG_CLOSED;
             runWriteTask();
-            while (allAreClear(state, FLAG_DONE) || ioException != null) {
+            while (allAreClear(state, FLAG_DONE) && ioException != null) {
                 try {
                     lock.wait();
                 } catch (InterruptedException e) {
