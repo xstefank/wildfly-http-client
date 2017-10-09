@@ -183,7 +183,7 @@ class WildflyClientOutputStream extends OutputStream implements ByteOutput {
         }
         state |= FLAG_WRITING;
         channel.getWriteSetter().set(channelListener);
-        channel.resumeWrites();
+        channel.wakeupWrites();
     }
 
     /**
