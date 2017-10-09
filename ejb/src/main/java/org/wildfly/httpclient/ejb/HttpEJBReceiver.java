@@ -180,45 +180,51 @@ class HttpEJBReceiver extends EJBReceiver {
                 }),
 
                 ((input, response, closeable) -> {
-                    try {
                         if (response.getResponseCode() == StatusCodes.ACCEPTED && clientInvocationContext.getInvokedMethod().getReturnType() == void.class) {
                             ejbData.asyncMethods.add(clientInvocationContext.getInvokedMethod());
                         }
+                        receiverContext.resultReady(new EJBReceiverInvocationContext.ResultProducer() {
+                            @Override
+                            public Object getResult() throws Exception {
 
-                        Exception exception = null;
-                        Object returned = null;
-                        try {
+                                Exception exception = null;
+                                Object returned = null;
+                                try {
 
-                            final MarshallingConfiguration marshallingConfiguration = createMarshallingConfig(targetContext.getUri());
-                            final Unmarshaller unmarshaller = targetContext.createUnmarshaller(marshallingConfiguration);
+                                    final MarshallingConfiguration marshallingConfiguration = createMarshallingConfig(targetContext.getUri());
+                                    final Unmarshaller unmarshaller = targetContext.createUnmarshaller(marshallingConfiguration);
 
-                            unmarshaller.start(new InputStreamByteInput(input));
-                            returned = unmarshaller.readObject();
-                            // read the attachments
-                            //TODO: do we need attachments?
-                            final Map<String, Object> attachments = readAttachments(unmarshaller);
-                            // finish unmarshalling
-                            if (unmarshaller.read() != -1) {
-                                exception = EjbHttpClientMessages.MESSAGES.unexpectedDataInResponse();
+                                    unmarshaller.start(new InputStreamByteInput(input));
+                                    returned = unmarshaller.readObject();
+                                    // read the attachments
+                                    //TODO: do we need attachments?
+                                    final Map<String, Object> attachments = readAttachments(unmarshaller);
+                                    // finish unmarshalling
+                                    if (unmarshaller.read() != -1) {
+                                        exception = EjbHttpClientMessages.MESSAGES.unexpectedDataInResponse();
+                                    }
+                                    unmarshaller.finish();
+
+                                    if (response.getResponseCode() >= 400) {
+                                        throw (Exception) returned;
+                                    }
+                                } catch (Exception e) {
+                                    exception = e;
+                                } finally {
+                                    IoUtils.safeClose(closeable);
+                                }
+                                if (exception != null) {
+                                    throw exception;
+                                } else {
+                                    return returned;
+                                }
                             }
-                            unmarshaller.finish();
 
-                            if (response.getResponseCode() >= 400) {
-                                receiverContext.requestFailed((Exception) returned);
-                                return;
+                            @Override
+                            public void discardResult() {
+                                IoUtils.safeClose(closeable);
                             }
-                        } catch (Exception e) {
-                            exception = e;
-                        }
-                        if (exception != null) {
-                            receiverContext.requestFailed(exception);
-                        } else {
-                            receiverContext.resultReady(new StaticResultProducer(returned));
-                        }
-
-                    } finally {
-                        IoUtils.safeClose(closeable);
-                    }
+                        });
                 }),
                 (e) -> receiverContext.requestFailed(e instanceof Exception ? (Exception) e : new RuntimeException(e)), EjbHeaders.EJB_RESPONSE_VERSION_ONE, null);
     }

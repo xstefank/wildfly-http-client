@@ -42,10 +42,8 @@ import org.xnio.ChannelListener;
 import org.xnio.ChannelListeners;
 import org.xnio.channels.Channels;
 import org.xnio.channels.StreamSourceChannel;
-import org.xnio.streams.ChannelInputStream;
 
 import javax.net.ssl.SSLContext;
-import java.io.BufferedInputStream;
 import java.io.Closeable;
 import java.io.IOException;
 import java.io.InputStream;
@@ -228,7 +226,7 @@ public class HttpTargetContext extends AbstractAttachable {
                                     if (isException) {
                                         final MarshallingConfiguration marshallingConfiguration = createExceptionMarshallingConfig();
                                         final Unmarshaller unmarshaller = MARSHALLER_FACTORY.createUnmarshaller(marshallingConfiguration);
-                                        try (ChannelInputStream inputStream = new ChannelInputStream(result.getResponseChannel())) {
+                                        try (WildflyClientInputStream inputStream = new WildflyClientInputStream(result.getConnection().getBufferPool(), result.getResponseChannel())) {
                                             InputStream in = inputStream;
                                             String encoding = response.getResponseHeaders().getFirst(Headers.CONTENT_ENCODING);
                                             if (encoding != null) {
@@ -239,10 +237,11 @@ public class HttpTargetContext extends AbstractAttachable {
                                                     throw HttpClientMessages.MESSAGES.invalidContentEncoding(encoding);
                                                 }
                                             }
-                                            unmarshaller.start(new InputStreamByteInput(new BufferedInputStream(in)));
+                                            unmarshaller.start(new InputStreamByteInput(in));
                                             Throwable exception = (Throwable) unmarshaller.readObject();
                                             Map<String, Object> attachments = readAttachments(unmarshaller);
-                                            if (inputStream.read() != -1) {
+                                            int read = in.read();
+                                            if (read != -1) {
                                                 HttpClientMessages.MESSAGES.debugf("Unexpected data when reading exception from %s", response);
                                                 connection.done(true);
                                             } else {
@@ -269,7 +268,7 @@ public class HttpTargetContext extends AbstractAttachable {
                                                 Channels.drain(result.getResponseChannel(), Long.MAX_VALUE);
                                                 httpResultHandler.handleResult(null, response, doneCallback);
                                             } else {
-                                                InputStream inputStream = new ChannelInputStream(result.getResponseChannel());
+                                                InputStream inputStream = new WildflyClientInputStream(result.getConnection().getBufferPool(), result.getResponseChannel());
                                                 String encoding = response.getResponseHeaders().getFirst(Headers.CONTENT_ENCODING);
                                                 if (encoding != null) {
                                                     String lowerEncoding = encoding.toLowerCase(Locale.ENGLISH);
@@ -279,7 +278,7 @@ public class HttpTargetContext extends AbstractAttachable {
                                                         throw HttpClientMessages.MESSAGES.invalidContentEncoding(encoding);
                                                     }
                                                 }
-                                                httpResultHandler.handleResult(new BufferedInputStream(inputStream), response, doneCallback);
+                                                httpResultHandler.handleResult(inputStream, response, doneCallback);
                                             }
                                         } else {
                                             Channels.drain(result.getResponseChannel(), Long.MAX_VALUE);

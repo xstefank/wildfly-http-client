@@ -18,18 +18,21 @@
 
 package org.wildfly.httpclient.common;
 
-import io.undertow.UndertowMessages;
-import io.undertow.connector.ByteBufferPool;
-import io.undertow.connector.PooledByteBuffer;
-import org.jboss.marshalling.ByteOutput;
-import org.xnio.channels.Channels;
-import org.xnio.channels.StreamSinkChannel;
+import static org.xnio.Bits.allAreClear;
+import static org.xnio.Bits.anyAreSet;
 
 import java.io.IOException;
+import java.io.InterruptedIOException;
 import java.io.OutputStream;
 import java.nio.ByteBuffer;
 
-import static org.xnio.Bits.anyAreSet;
+import org.jboss.marshalling.ByteOutput;
+import org.wildfly.common.Assert;
+import org.xnio.ChannelListener;
+import org.xnio.channels.StreamSinkChannel;
+
+import io.undertow.connector.ByteBufferPool;
+import io.undertow.connector.PooledByteBuffer;
 
 /**
  * Buffering output stream that wraps a channel.
@@ -41,16 +44,69 @@ import static org.xnio.Bits.anyAreSet;
  */
 public class WildflyClientOutputStream extends OutputStream implements ByteOutput {
 
-    private ByteBuffer buffer;
+    private final Object lock = new Object();
+
     private PooledByteBuffer pooledBuffer;
+    private IOException ioException;
     private final StreamSinkChannel channel;
     private final ByteBufferPool bufferPool;
     private int state;
 
     private static final int FLAG_CLOSED = 1;
-    private static final int FLAG_WRITE_STARTED = 1 << 1;
+    private static final int FLAG_WRITING = 1 << 1;
+    private static final int FLAG_DONE = 1 << 2;
 
-    private static final int MAX_BUFFERS_TO_ALLOCATE = 10;
+    private final ChannelListener<StreamSinkChannel> channelListener = new ChannelListener<StreamSinkChannel>() {
+        @Override
+        public void handleEvent(StreamSinkChannel streamSinkChannel) {
+            synchronized (lock) {
+                try {
+                    boolean closed = anyAreSet(state, FLAG_CLOSED);
+                    if (closed && (pooledBuffer == null || !pooledBuffer.getBuffer().hasRemaining())) {
+                        if (pooledBuffer != null) {
+                            pooledBuffer.close();
+                            pooledBuffer = null;
+                        }
+                        //if we are just flushing the data
+                        if (streamSinkChannel.flush()) {
+                            state |= FLAG_DONE;
+                            state &= ~FLAG_WRITING;
+                            lock.notifyAll();
+                        }
+                    } else {
+                        while (pooledBuffer.getBuffer().hasRemaining()) {
+                            int res;
+                            if (closed) {
+                                res = streamSinkChannel.writeFinal(pooledBuffer.getBuffer());
+                            } else {
+                                res = streamSinkChannel.write(pooledBuffer.getBuffer());
+                            }
+                            if (res == 0) {
+                                return;
+                            }
+                        }
+                        lock.notifyAll();
+                        streamSinkChannel.suspendWrites();
+                        state &= ~FLAG_WRITING;
+                        pooledBuffer.close();
+                        pooledBuffer = null;
+                        if (closed) {
+                            if (streamSinkChannel.flush()) {
+                                state |= FLAG_DONE;
+                            }
+                        }
+                    }
+                } catch (IOException e) {
+                    if (pooledBuffer != null) {
+                        pooledBuffer.close();
+                        pooledBuffer = null;
+                    }
+                    ioException = e;
+                    lock.notifyAll();
+                }
+            }
+        }
+    };
 
     public WildflyClientOutputStream(StreamSinkChannel channel, ByteBufferPool byteBufferPool) {
         this.channel = channel;
@@ -79,89 +135,54 @@ public class WildflyClientOutputStream extends OutputStream implements ByteOutpu
             return;
         }
         if (Thread.currentThread() == channel.getIoThread()) {
-            throw UndertowMessages.MESSAGES.blockingIoFromIOThread();
+            throw HttpClientMessages.MESSAGES.blockingIoFromIOThread();
         }
         if (anyAreSet(state, FLAG_CLOSED)) {
-            throw UndertowMessages.MESSAGES.streamIsClosed();
+            throw HttpClientMessages.MESSAGES.streamIsClosed();
         }
-        //if this is the last of the content
-        ByteBuffer buffer = buffer();
-        if (buffer.remaining() < len) {
-
-            //so what we have will not fit.
-            //We allocate multiple buffers up to MAX_BUFFERS_TO_ALLOCATE
-            //and put it in them
-            //if it still dopes not fit we loop, re-using these buffers
-
-            StreamSinkChannel channel = this.channel;
-            final ByteBufferPool bufferPool = this.bufferPool;
-            ByteBuffer[] buffers = new ByteBuffer[MAX_BUFFERS_TO_ALLOCATE + 1];
-            PooledByteBuffer[] pooledBuffers = new PooledByteBuffer[MAX_BUFFERS_TO_ALLOCATE];
-            try {
-                buffers[0] = buffer;
-                int bytesWritten = 0;
-                int rem = buffer.remaining();
-                buffer.put(b, bytesWritten + off, rem);
-                buffer.flip();
-                bytesWritten += rem;
-                int bufferCount = 1;
-                for (int i = 0; i < MAX_BUFFERS_TO_ALLOCATE; ++i) {
-                    PooledByteBuffer pooled = bufferPool.allocate();
-                    pooledBuffers[bufferCount - 1] = pooled;
-                    buffers[bufferCount++] = pooled.getBuffer();
-                    ByteBuffer cb = pooled.getBuffer();
-                    int toWrite = len - bytesWritten;
-                    if (toWrite > cb.remaining()) {
-                        rem = cb.remaining();
-                        cb.put(b, bytesWritten + off, rem);
-                        cb.flip();
-                        bytesWritten += rem;
-                    } else {
-                        cb.put(b, bytesWritten + off, len - bytesWritten);
-                        bytesWritten = len;
-                        cb.flip();
-                        break;
+        int currentOff = off;
+        int currentLen = len;
+        synchronized (lock) {
+            for (; ; ) {
+                while (anyAreSet(state, FLAG_WRITING)) {
+                    try {
+                        lock.wait();
+                    } catch (InterruptedException e) {
+                        throw new InterruptedIOException(e.getMessage());
                     }
                 }
-                Channels.writeBlocking(channel, buffers, 0, bufferCount);
-                while (bytesWritten < len) {
-                    //ok, it did not fit, loop and loop and loop until it is done
-                    bufferCount = 0;
-                    for (int i = 0; i < MAX_BUFFERS_TO_ALLOCATE + 1; ++i) {
-                        ByteBuffer cb = buffers[i];
-                        cb.clear();
-                        bufferCount++;
-                        int toWrite = len - bytesWritten;
-                        if (toWrite > cb.remaining()) {
-                            rem = cb.remaining();
-                            cb.put(b, bytesWritten + off, rem);
-                            cb.flip();
-                            bytesWritten += rem;
-                        } else {
-                            cb.put(b, bytesWritten + off, len - bytesWritten);
-                            bytesWritten = len;
-                            cb.flip();
-                            break;
-                        }
-                    }
-                    Channels.writeBlocking(channel, buffers, 0, bufferCount);
+                if (ioException != null) {
+                    throw new IOException(ioException);
                 }
-                buffer.clear();
-            } finally {
-                for (int i = 0; i < pooledBuffers.length; ++i) {
-                    PooledByteBuffer p = pooledBuffers[i];
-                    if (p == null) {
-                        break;
+
+                ByteBuffer buffer = buffer();
+                if (buffer.remaining() < currentLen) {
+                    int put = buffer.remaining();
+                    buffer.put(b, currentOff, buffer.remaining());
+                    currentOff += put;
+                    currentLen -= put;
+                    runWriteTask();
+                } else {
+                    buffer.put(b, currentOff, currentLen);
+                    if (buffer.remaining() == 0) {
+                        runWriteTask();
                     }
-                    p.close();
+                    return;
                 }
             }
-        } else {
-            buffer.put(b, off, len);
-            if (buffer.remaining() == 0) {
-                writeBufferBlocking(false);
-            }
+
+
         }
+    }
+
+    private void runWriteTask() {
+        Assert.assertHoldsLock(lock);
+        if (pooledBuffer != null) {
+            pooledBuffer.getBuffer().flip();
+        }
+        state |= FLAG_WRITING;
+        channel.getWriteSetter().set(channelListener);
+        channel.resumeWrites();
     }
 
     /**
@@ -169,61 +190,41 @@ public class WildflyClientOutputStream extends OutputStream implements ByteOutpu
      */
     public void flush() throws IOException {
         if (anyAreSet(state, FLAG_CLOSED)) {
-            throw UndertowMessages.MESSAGES.streamIsClosed();
+            throw HttpClientMessages.MESSAGES.streamIsClosed();
         }
-    }
-
-    private void writeBufferBlocking(final boolean writeFinal) throws IOException {
-        buffer.flip();
-
-        while (buffer.hasRemaining()) {
-            if (writeFinal) {
-                channel.writeFinal(buffer);
-            } else {
-                channel.write(buffer);
-            }
-            if (buffer.hasRemaining()) {
-                channel.awaitWritable();
-            }
-        }
-        buffer.clear();
-        state |= FLAG_WRITE_STARTED;
     }
 
     /**
      * {@inheritDoc}
      */
     public void close() throws IOException {
-        if (anyAreSet(state, FLAG_CLOSED)) return;
-        try {
+        synchronized (lock) {
+            if (ioException != null) {
+                throw new IOException(ioException);
+            }
+            if (anyAreSet(state, FLAG_CLOSED)) return;
             state |= FLAG_CLOSED;
-            if (buffer != null) {
-                writeBufferBlocking(true);
+            runWriteTask();
+            while (allAreClear(state, FLAG_DONE) || ioException != null) {
+                try {
+                    lock.wait();
+                } catch (InterruptedException e) {
+                    throw new InterruptedIOException(e.getMessage());
+                }
             }
-            if (channel == null) {
-                return;
-            }
-            StreamSinkChannel channel = this.channel;
-            channel.shutdownWrites();
-            Channels.flushBlocking(channel);
-        } finally {
-            if (pooledBuffer != null) {
-                pooledBuffer.close();
-                buffer = null;
-            } else {
-                buffer = null;
+            if (ioException != null) {
+                throw new IOException(ioException);
             }
         }
     }
 
     private ByteBuffer buffer() {
-        ByteBuffer buffer = this.buffer;
+        PooledByteBuffer buffer = this.pooledBuffer;
         if (buffer != null) {
-            return buffer;
+            return buffer.getBuffer();
         }
         this.pooledBuffer = bufferPool.allocate();
-        this.buffer = pooledBuffer.getBuffer();
-        return this.buffer;
+        return pooledBuffer.getBuffer();
     }
 
 }

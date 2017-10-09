@@ -63,4 +63,10 @@ interface HttpClientMessages extends BasicLogger {
     @LogMessage(level = Logger.Level.ERROR)
     @Message(id = 10, value = "Error parsing authentication-info header")
     void failedToParseAuthenticationInfo(@Cause Exception e);
+
+    @Message(id = 11, value = "Stream is closed")
+    IOException streamIsClosed();
+
+    @Message(id = 12, value = "Attempted to do blocking IO from the IO thread. This is prohibited as it may result in deadlocks")
+    IllegalStateException blockingIoFromIOThread();
 }
