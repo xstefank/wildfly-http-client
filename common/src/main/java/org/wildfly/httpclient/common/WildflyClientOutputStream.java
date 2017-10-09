@@ -19,6 +19,7 @@
 package org.wildfly.httpclient.common;
 
 import static org.xnio.Bits.allAreClear;
+import static org.xnio.Bits.anyAreClear;
 import static org.xnio.Bits.anyAreSet;
 
 import java.io.IOException;
@@ -60,6 +61,9 @@ class WildflyClientOutputStream extends OutputStream implements ByteOutput {
         @Override
         public void handleEvent(StreamSinkChannel streamSinkChannel) {
             synchronized (lock) {
+                if(anyAreClear(state, FLAG_WRITING)) {
+                    return;
+                }
                 try {
                     boolean closed = anyAreSet(state, FLAG_CLOSED);
                     if (closed && (pooledBuffer == null || !pooledBuffer.getBuffer().hasRemaining())) {

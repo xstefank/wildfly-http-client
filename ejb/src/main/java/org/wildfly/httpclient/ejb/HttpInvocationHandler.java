@@ -174,7 +174,8 @@ class HttpInvocationHandler extends RemoteHTTPHandler {
                         if (attachementCount > 0) {
                             contextData = new HashMap<>();
                             for (int i = 0; i < attachementCount - 1; ++i) {
-                                String key = (String) unmarshaller.readObject();
+                                Object o = unmarshaller.readObject();
+                                String key = (String) o;
                                 Object value = unmarshaller.readObject();
                                 contextData.put(key, value);
                             }
