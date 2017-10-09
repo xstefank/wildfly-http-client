@@ -46,9 +46,16 @@ public class SimpleInvocationTestCase {
     public static final String MODULE = "wildfly-ejb-remote-server-side";
     public static final String BEAN = "EchoBean";
 
+    private String largeMessage;
+
     @Before
     public void before() {
         EJBTestServer.registerServicesHandler("common/v1/affinity", httpServerExchange -> httpServerExchange.getResponseHeaders().put(Headers.SET_COOKIE, "JSESSIONID=" + EJBTestServer.INITIAL_SESSION_AFFINITY));
+        StringBuilder sb = new StringBuilder();
+        for(int i = 0; i < 10000; ++i) {
+            sb.append("Hello World ");
+        }
+        largeMessage = sb.toString();
     }
 
     @Test
@@ -65,8 +72,10 @@ public class SimpleInvocationTestCase {
         final EchoRemote proxy = EJBClient.createProxy(statelessEJBLocator);
         final String message = "Hello World!!!";
         EJBClient.setStrongAffinity(proxy, URIAffinity.forUri(new URI(EJBTestServer.getDefaultServerURL())));
-        final String echo = proxy.echo(message);
+        String echo = proxy.echo(message);
         Assert.assertEquals("Unexpected echo message", message, echo);
+        echo = proxy.echo(largeMessage);
+        Assert.assertEquals("Unexpected echo message", largeMessage, echo);
 
         String m = proxy.message();
         Assert.assertEquals("a message", m);
@@ -86,8 +95,10 @@ public class SimpleInvocationTestCase {
         final EchoRemote proxy = EJBClient.createProxy(statelessEJBLocator);
         final String message = "Hello World!!!";
         EJBClient.setStrongAffinity(proxy, URIAffinity.forUri(new URI(EJBTestServer.getDefaultSSLServerURL())));
-        final String echo = proxy.echo(message);
+        String echo = proxy.echo(message);
         Assert.assertEquals("Unexpected echo message", message, echo);
+        echo = proxy.echo(largeMessage);
+        Assert.assertEquals("Unexpected echo message", largeMessage, echo);
 
         String m = proxy.message();
         Assert.assertEquals("a message", m);
