@@ -42,7 +42,7 @@ import io.undertow.connector.PooledByteBuffer;
  *
  * @author Stuart Douglas
  */
-public class WildflyClientOutputStream extends OutputStream implements ByteOutput {
+class WildflyClientOutputStream extends OutputStream implements ByteOutput {
 
     private final Object lock = new Object();
 
@@ -108,7 +108,7 @@ public class WildflyClientOutputStream extends OutputStream implements ByteOutpu
         }
     };
 
-    public WildflyClientOutputStream(StreamSinkChannel channel, ByteBufferPool byteBufferPool) {
+    WildflyClientOutputStream(StreamSinkChannel channel, ByteBufferPool byteBufferPool) {
         this.channel = channel;
         this.bufferPool = byteBufferPool;
     }

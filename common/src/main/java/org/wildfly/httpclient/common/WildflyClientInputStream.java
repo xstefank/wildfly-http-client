@@ -23,8 +23,6 @@ import static org.xnio.Bits.anyAreSet;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InterruptedIOException;
-import java.util.List;
-import java.util.concurrent.CopyOnWriteArrayList;
 
 import org.wildfly.common.Assert;
 import org.xnio.ChannelListener;
@@ -34,10 +32,7 @@ import org.xnio.channels.StreamSourceChannel;
 import io.undertow.connector.ByteBufferPool;
 import io.undertow.connector.PooledByteBuffer;
 
-public class WildflyClientInputStream extends InputStream {
-
-    public static List<WildflyClientInputStream> LIST = new CopyOnWriteArrayList<>();
-
+class WildflyClientInputStream extends InputStream {
     private final Object lock = new Object();
     private final ByteBufferPool bufferPool;
     private final StreamSourceChannel channel;
@@ -55,11 +50,11 @@ public class WildflyClientInputStream extends InputStream {
                 boolean free = true;
                 final PooledByteBuffer pooled = bufferPool.allocate();
                 try {
-                    for(;;) {
+                    for (; ; ) {
                         int res = streamSourceChannel.read(pooled.getBuffer());
                         if (res == 0) {
                             pooled.getBuffer().flip();
-                            if(pooled.getBuffer().hasRemaining()) {
+                            if (pooled.getBuffer().hasRemaining()) {
                                 pooledByteBuffer = pooled;
                                 free = false;
                                 lock.notifyAll();
@@ -69,7 +64,7 @@ public class WildflyClientInputStream extends InputStream {
                         }
                         if (res == -1) {
                             pooled.getBuffer().flip();
-                            if(pooled.getBuffer().hasRemaining()) {
+                            if (pooled.getBuffer().hasRemaining()) {
                                 pooledByteBuffer = pooled;
                                 free = false;
                                 lock.notifyAll();
@@ -78,7 +73,7 @@ public class WildflyClientInputStream extends InputStream {
                             state |= FLAG_MINUS_ONE_READ;
                             lock.notifyAll();
                             return;
-                        } else if(!pooled.getBuffer().hasRemaining()) {
+                        } else if (!pooled.getBuffer().hasRemaining()) {
                             pooled.getBuffer().flip();
                             pooledByteBuffer = pooled;
                             free = false;
@@ -95,7 +90,7 @@ public class WildflyClientInputStream extends InputStream {
                     }
                     lock.notifyAll();
                 } finally {
-                    if(free) {
+                    if (free) {
                         pooled.close();
                     }
                 }
@@ -104,10 +99,9 @@ public class WildflyClientInputStream extends InputStream {
     };
 
 
-    public WildflyClientInputStream(ByteBufferPool bufferPool, StreamSourceChannel channel) {
+    WildflyClientInputStream(ByteBufferPool bufferPool, StreamSourceChannel channel) {
         this.bufferPool = bufferPool;
         this.channel = channel;
-        LIST.add(this);
     }
 
     @Override
