@@ -21,7 +21,7 @@ package org.wildfly.httpclient.ejb;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.util.Base64;
-import java.util.Map;
+
 import javax.ejb.ApplicationException;
 
 import org.jboss.ejb.client.EJBClient;
@@ -34,6 +34,7 @@ import org.junit.Ignore;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.wildfly.httpclient.common.WildflyHttpContext;
+
 import io.undertow.util.Headers;
 
 /**
@@ -45,6 +46,7 @@ public class SimpleInvocationTestCase {
     public static final String APP = "wildfly-app";
     public static final String MODULE = "wildfly-ejb-remote-server-side";
     public static final String BEAN = "EchoBean";
+    public static final int RETRIES = 10;
 
     private String largeMessage;
 
@@ -52,7 +54,7 @@ public class SimpleInvocationTestCase {
     public void before() {
         EJBTestServer.registerServicesHandler("common/v1/affinity", httpServerExchange -> httpServerExchange.getResponseHeaders().put(Headers.SET_COOKIE, "JSESSIONID=" + EJBTestServer.INITIAL_SESSION_AFFINITY));
         StringBuilder sb = new StringBuilder();
-        for(int i = 0; i < 10000; ++i) {
+        for (int i = 0; i < 10000; ++i) {
             sb.append("Hello World ");
         }
         largeMessage = sb.toString();
@@ -60,7 +62,7 @@ public class SimpleInvocationTestCase {
 
     @Test
     public void testSimpleInvocationViaURLAffinity() throws Exception {
-        for(int i = 0; i< 10; ++i) {
+        for (int i = 0; i < RETRIES; ++i) {
             clearSessionId();
             EJBTestServer.setHandler((invocation, affinity, out, method, handle, attachments) -> {
                 if (invocation.getParameters().length == 0) {
@@ -85,7 +87,7 @@ public class SimpleInvocationTestCase {
 
     @Test
     public void testSimpleSSLInvocationViaURLAffinity() throws Exception {
-        for(int i = 0; i< 10; ++i) {
+        for (int i = 0; i < RETRIES; ++i) {
             clearSessionId();
             EJBTestServer.setHandler((invocation, affinity, out, method, handle, attachments) -> {
                 if (invocation.getParameters().length == 0) {
@@ -107,102 +109,120 @@ public class SimpleInvocationTestCase {
             Assert.assertEquals("a message", m);
         }
     }
+
     @Test
     public void testCompressedInvocation() throws Exception {
-        clearSessionId();
-        EJBTestServer.setHandler((invocation, affinity, out, method, handle, attachments) -> "a message");
-        final StatelessEJBLocator<EchoRemote> statelessEJBLocator = new StatelessEJBLocator<>(EchoRemote.class, APP, MODULE, "CalculatorBean", "");
-        final EchoRemote proxy = EJBClient.createProxy(statelessEJBLocator);
-        EJBClient.setStrongAffinity(proxy, URIAffinity.forUri(new URI(EJBTestServer.getDefaultServerURL())));
-        String m = proxy.compressMessage();
-        Assert.assertEquals("a message", m);
+        for (int i = 0; i < RETRIES; ++i) {
+            clearSessionId();
+            EJBTestServer.setHandler((invocation, affinity, out, method, handle, attachments) -> "a message");
+            final StatelessEJBLocator<EchoRemote> statelessEJBLocator = new StatelessEJBLocator<>(EchoRemote.class, APP, MODULE, "CalculatorBean", "");
+            final EchoRemote proxy = EJBClient.createProxy(statelessEJBLocator);
+            EJBClient.setStrongAffinity(proxy, URIAffinity.forUri(new URI(EJBTestServer.getDefaultServerURL())));
+            String m = proxy.compressMessage();
+            Assert.assertEquals("a message", m);
+        }
     }
 
     @Test
     public void testFailedCompressedInvocation() throws Exception {
-        clearSessionId();
-        EJBTestServer.setHandler((invocation, affinity, out, method, handle, attachments) -> {throw new RuntimeException("a message");});
-        final StatelessEJBLocator<EchoRemote> statelessEJBLocator = new StatelessEJBLocator<>(EchoRemote.class, APP, MODULE, "CalculatorBean", "");
-        final EchoRemote proxy = EJBClient.createProxy(statelessEJBLocator);
-        EJBClient.setStrongAffinity(proxy, URIAffinity.forUri(new URI(EJBTestServer.getDefaultServerURL())));
-        try {
-            proxy.compressMessage();
-        } catch (RuntimeException e) {
-            Assert.assertEquals("a message", e.getMessage());
+        for (int i = 0; i < RETRIES; ++i) {
+            clearSessionId();
+            EJBTestServer.setHandler((invocation, affinity, out, method, handle, attachments) -> {
+                throw new RuntimeException("a message");
+            });
+            final StatelessEJBLocator<EchoRemote> statelessEJBLocator = new StatelessEJBLocator<>(EchoRemote.class, APP, MODULE, "CalculatorBean", "");
+            final EchoRemote proxy = EJBClient.createProxy(statelessEJBLocator);
+            EJBClient.setStrongAffinity(proxy, URIAffinity.forUri(new URI(EJBTestServer.getDefaultServerURL())));
+            try {
+                proxy.compressMessage();
+            } catch (RuntimeException e) {
+                Assert.assertEquals("a message", e.getMessage());
+            }
         }
     }
 
     @Test
     public void testSimpleInvocationViaDiscovery() throws Exception {
-        clearSessionId();
-        EJBTestServer.setHandler((invocation, affinity, out, method, handle, attachments) -> invocation.getParameters()[0]);
-        final StatelessEJBLocator<EchoRemote> statelessEJBLocator = new StatelessEJBLocator<>(EchoRemote.class, APP, MODULE, "CalculatorBean", "");
-        final EchoRemote proxy = EJBClient.createProxy(statelessEJBLocator);
-        final String message = "Hello World!!!";
-        final String echo = proxy.echo(message);
-        Assert.assertEquals("Unexpected echo message", message, echo);
+        for (int i = 0; i < RETRIES; ++i) {
+            clearSessionId();
+            EJBTestServer.setHandler((invocation, affinity, out, method, handle, attachments) -> invocation.getParameters()[0]);
+            final StatelessEJBLocator<EchoRemote> statelessEJBLocator = new StatelessEJBLocator<>(EchoRemote.class, APP, MODULE, "CalculatorBean", "");
+            final EchoRemote proxy = EJBClient.createProxy(statelessEJBLocator);
+            final String message = "Hello World!!!";
+            final String echo = proxy.echo(message);
+            Assert.assertEquals("Unexpected echo message", message, echo);
+        }
     }
 
 
     @Test(expected = TestException.class)
     public void testSimpleFailedInvocation() throws Exception {
-        clearSessionId();
-        EJBTestServer.setHandler((invocation, affinity, out, method, handle, attachments) -> {
-            throw new TestException(invocation.getParameters()[0].toString());
-        });
-        final StatelessEJBLocator<EchoRemote> statelessEJBLocator = new StatelessEJBLocator<EchoRemote>(EchoRemote.class, APP, MODULE, BEAN, "");
-        final EchoRemote proxy = EJBClient.createProxy(statelessEJBLocator);
-        final String message = "Hello World!!!";
-        for (int i = 0; i < 10; ++i) {
-            String echo = proxy.echo(message);
-            Assert.assertEquals("Unexpected echo message", message, echo);
+        for (int i = 0; i < RETRIES; ++i) {
+            clearSessionId();
+            EJBTestServer.setHandler((invocation, affinity, out, method, handle, attachments) -> {
+                throw new TestException(invocation.getParameters()[0].toString());
+            });
+            final StatelessEJBLocator<EchoRemote> statelessEJBLocator = new StatelessEJBLocator<EchoRemote>(EchoRemote.class, APP, MODULE, BEAN, "");
+            final EchoRemote proxy = EJBClient.createProxy(statelessEJBLocator);
+            final String message = "Hello World!!!";
+            for (int j = 0; j < 10; ++j) {
+                String echo = proxy.echo(message);
+                Assert.assertEquals("Unexpected echo message", message, echo);
+            }
         }
     }
 
     @Test
     public void testInvocationAffinity() throws Exception {
-        clearSessionId();
-        EJBTestServer.setHandler((invocation, affinity, out, method, handle, attachments) -> {
-            out.setSessionAffinity("foo");
-            return affinity;
-        });
-        final StatelessEJBLocator<EchoRemote> statelessEJBLocator = new StatelessEJBLocator<>(EchoRemote.class, APP, MODULE, BEAN, "");
-        final EchoRemote proxy = EJBClient.createProxy(statelessEJBLocator);
+        for (int i = 0; i < RETRIES; ++i) {
+            clearSessionId();
+            EJBTestServer.setHandler((invocation, affinity, out, method, handle, attachments) -> {
+                out.setSessionAffinity("foo");
+                return affinity;
+            });
+            final StatelessEJBLocator<EchoRemote> statelessEJBLocator = new StatelessEJBLocator<>(EchoRemote.class, APP, MODULE, BEAN, "");
+            final EchoRemote proxy = EJBClient.createProxy(statelessEJBLocator);
 
-        String echo = proxy.echo("");
-        Assert.assertEquals("Unexpected echo message", EJBTestServer.INITIAL_SESSION_AFFINITY, echo);
-        echo = proxy.echo("");
-        Assert.assertEquals("Unexpected echo message", "foo", echo);
+            String echo = proxy.echo("");
+            Assert.assertEquals("Unexpected echo message", EJBTestServer.INITIAL_SESSION_AFFINITY, echo);
+            echo = proxy.echo("");
+            Assert.assertEquals("Unexpected echo message", "foo", echo);
+        }
 
     }
 
 
     @Test
     public void testSessionOpen() throws Exception {
-        clearSessionId();
-        EJBTestServer.setHandler((invocation, affinity, out, method, handle, attachments) -> {
-            StatefulEJBLocator<?> ejbLocator = (StatefulEJBLocator<?>) invocation.getEJBLocator();
-            return new String(ejbLocator.getSessionId().getEncodedForm());
-        });
-        StatefulEJBLocator<EchoRemote> locator = EJBClient.createSession(EchoRemote.class, APP, MODULE, BEAN, "");
-        EchoRemote proxy = EJBClient.createProxy(locator);
-        final String message = "Hello World!!!";
-        final String echo = proxy.echo(message);
-        Assert.assertEquals("Unexpected echo message", "SFSB_ID", echo);
+        for (int i = 0; i < RETRIES; ++i) {
+            clearSessionId();
+            EJBTestServer.setHandler((invocation, affinity, out, method, handle, attachments) -> {
+                StatefulEJBLocator<?> ejbLocator = (StatefulEJBLocator<?>) invocation.getEJBLocator();
+                return new String(ejbLocator.getSessionId().getEncodedForm());
+            });
+            StatefulEJBLocator<EchoRemote> locator = EJBClient.createSession(EchoRemote.class, APP, MODULE, BEAN, "");
+            EchoRemote proxy = EJBClient.createProxy(locator);
+            final String message = "Hello World!!!";
+            final String echo = proxy.echo(message);
+            Assert.assertEquals("Unexpected echo message", "SFSB_ID", echo);
+        }
 
     }
 
     @Test
     @Ignore
     public void testSessionOpenLazyAffinity() throws Exception {
-        clearSessionId();
-        EJBTestServer.setHandler((invocation, affinity, out, method, handle, attachments) -> new String(Base64.getDecoder().decode(invocation.getEJBLocator().asStateful().getSessionId().getEncodedForm())) + "-" + affinity);
 
-        StatefulEJBLocator<EchoRemote> locator = EJBClient.createSession(EchoRemote.class, APP, MODULE, BEAN, "");
-        EchoRemote proxy = EJBClient.createProxy(locator);
-        final String message = "Hello World!!!";
-        final String echo = proxy.echo(message);
-        Assert.assertEquals("Unexpected echo message", "SFSB_ID-lazy-session-affinity", echo);
+        for (int i = 0; i < RETRIES; ++i) {
+            clearSessionId();
+            EJBTestServer.setHandler((invocation, affinity, out, method, handle, attachments) -> new String(Base64.getDecoder().decode(invocation.getEJBLocator().asStateful().getSessionId().getEncodedForm())) + "-" + affinity);
+
+            StatefulEJBLocator<EchoRemote> locator = EJBClient.createSession(EchoRemote.class, APP, MODULE, BEAN, "");
+            EchoRemote proxy = EJBClient.createProxy(locator);
+            final String message = "Hello World!!!";
+            final String echo = proxy.echo(message);
+            Assert.assertEquals("Unexpected echo message", "SFSB_ID-lazy-session-affinity", echo);
+        }
     }
 
     private void clearSessionId() throws URISyntaxException {

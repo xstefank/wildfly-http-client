@@ -18,6 +18,7 @@
 
 package org.wildfly.httpclient.common;
 
+import static org.xnio.Bits.allAreClear;
 import static org.xnio.Bits.anyAreSet;
 
 import java.io.IOException;
@@ -47,7 +48,7 @@ class WildflyClientInputStream extends InputStream {
         @Override
         public void handleEvent(StreamSourceChannel streamSourceChannel) {
             synchronized (lock) {
-                if(pooledByteBuffer != null) {
+                if (pooledByteBuffer != null) {
                     return;
                 }
                 boolean free = true;
@@ -131,7 +132,7 @@ class WildflyClientInputStream extends InputStream {
             if (Thread.currentThread() == channel.getIoThread()) {
                 throw HttpClientMessages.MESSAGES.blockingIoFromIOThread();
             }
-            if (anyAreSet(state, FLAG_CLOSED)) {
+            if (anyAreSet(state, FLAG_CLOSED) && !anyAreSet(state, FLAG_MINUS_ONE_READ)) {
                 throw HttpClientMessages.MESSAGES.streamIsClosed();
             }
             if (ioException != null) {
@@ -181,6 +182,18 @@ class WildflyClientInputStream extends InputStream {
         if (anyAreSet(state, FLAG_CLOSED)) {
             return;
         }
-        IoUtils.safeClose(pooledByteBuffer, channel);
+        synchronized (lock) {
+            while (allAreClear(state, FLAG_MINUS_ONE_READ) && ioException == null) {
+                runReadTask();
+                try {
+                    lock.wait();
+                } catch (InterruptedException e) {
+                    IoUtils.safeClose(pooledByteBuffer, channel);
+                    throw new InterruptedIOException(e.getMessage());
+                }
+                IoUtils.safeClose(pooledByteBuffer);
+                pooledByteBuffer = null;
+            }
+        }
     }
 }

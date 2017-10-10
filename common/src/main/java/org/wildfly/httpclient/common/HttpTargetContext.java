@@ -40,7 +40,7 @@ import org.wildfly.security.auth.client.AuthenticationContext;
 import org.wildfly.security.auth.client.AuthenticationContextConfigurationClient;
 import org.xnio.ChannelListener;
 import org.xnio.ChannelListeners;
-import org.xnio.channels.Channels;
+import org.xnio.IoUtils;
 import org.xnio.channels.StreamSourceChannel;
 
 import javax.net.ssl.SSLContext;
@@ -245,6 +245,7 @@ public class HttpTargetContext extends AbstractAttachable {
                                                 HttpClientMessages.MESSAGES.debugf("Unexpected data when reading exception from %s", response);
                                                 connection.done(true);
                                             } else {
+                                                IoUtils.safeClose(inputStream);
                                                 connection.done(false);
                                             }
                                             failureHandler.handleFailure(exception);
@@ -257,18 +258,19 @@ public class HttpTargetContext extends AbstractAttachable {
 
                                     } else {
                                         if (httpResultHandler != null) {
+                                            final InputStream in = new WildflyClientInputStream(result.getConnection().getBufferPool(), result.getResponseChannel());
+                                            InputStream inputStream = in;
                                             Closeable doneCallback = () -> {
-                                                Channels.drain(result.getResponseChannel(), Long.MAX_VALUE);
+                                                IoUtils.safeClose(in);
                                                 if (completedTask != null) {
                                                     completedTask.run();
                                                 }
                                                 connection.done(false);
                                             };
                                             if (response.getResponseCode() == StatusCodes.NO_CONTENT) {
-                                                Channels.drain(result.getResponseChannel(), Long.MAX_VALUE);
+                                                IoUtils.safeClose(in);
                                                 httpResultHandler.handleResult(null, response, doneCallback);
                                             } else {
-                                                InputStream inputStream = new WildflyClientInputStream(result.getConnection().getBufferPool(), result.getResponseChannel());
                                                 String encoding = response.getResponseHeaders().getFirst(Headers.CONTENT_ENCODING);
                                                 if (encoding != null) {
                                                     String lowerEncoding = encoding.toLowerCase(Locale.ENGLISH);
@@ -281,7 +283,8 @@ public class HttpTargetContext extends AbstractAttachable {
                                                 httpResultHandler.handleResult(inputStream, response, doneCallback);
                                             }
                                         } else {
-                                            Channels.drain(result.getResponseChannel(), Long.MAX_VALUE);
+                                            final InputStream in = new WildflyClientInputStream(result.getConnection().getBufferPool(), result.getResponseChannel());
+                                            IoUtils.safeClose(in);
                                             if (completedTask != null) {
                                                 completedTask.run();
                                             }
