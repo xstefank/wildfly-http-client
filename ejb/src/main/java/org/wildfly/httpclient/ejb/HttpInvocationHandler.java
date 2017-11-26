@@ -50,6 +50,7 @@ import org.jboss.marshalling.InputStreamByteInput;
 import org.jboss.marshalling.Marshaller;
 import org.jboss.marshalling.Marshalling;
 import org.jboss.marshalling.MarshallingConfiguration;
+import org.jboss.marshalling.SimpleClassResolver;
 import org.jboss.marshalling.Unmarshaller;
 import org.wildfly.common.annotation.NotNull;
 import org.wildfly.httpclient.common.ContentType;
@@ -140,14 +141,15 @@ class HttpInvocationHandler extends RemoteHTTPHandler {
                 }
 
                 @Override
-                public Resolved getRequestContent(ClassLoader classLoader) throws IOException, ClassNotFoundException {
+                public Resolved getRequestContent(final ClassLoader classLoader) throws IOException, ClassNotFoundException {
 
                     Object[] methodParams = new Object[parameterTypeNames.length];
                     final Class<?> view = Class.forName(viewName, false, classLoader);
                     final MarshallingConfiguration marshallingConfiguration = new MarshallingConfiguration();
                     marshallingConfiguration.setObjectTable(HttpProtocolV1ObjectTable.INSTANCE);
                     marshallingConfiguration.setVersion(2);
-                    Unmarshaller unmarshaller = HttpServerHelper.RIVER_MARSHALLER_FACTORY.createUnmarshaller(marshallingConfiguration);
+                    marshallingConfiguration.setClassResolver(new SimpleClassResolver(classLoader));
+                    final Unmarshaller unmarshaller = HttpServerHelper.RIVER_MARSHALLER_FACTORY.createUnmarshaller(marshallingConfiguration);
 
                     try (InputStream inputStream = exchange.getInputStream()) {
                         unmarshaller.start(new InputStreamByteInput(inputStream));
