@@ -127,6 +127,9 @@ public class HttpConnectionPool implements Closeable {
             if (existingConnection == null) {
                 break;
             }
+            if(!existingConnection.connection.isOpen()) {
+                continue;
+            }
             if (existingConnection.tryAcquire()) {
                 next.connectionListener.done(existingConnection);
                 return;

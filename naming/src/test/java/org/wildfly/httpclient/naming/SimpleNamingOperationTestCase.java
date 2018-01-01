@@ -227,6 +227,17 @@ public class SimpleNamingOperationTestCase {
     }
 
     @Test
+    public void testJNDIlookupTimeoutTestCase() throws NamingException, InterruptedException {
+        InitialContext ic = createContext();
+        Object result = ic.lookup("test");
+        Assert.assertEquals("test value", result);
+        result = ic.lookup("comp/UserTransaction");
+        Assert.assertEquals("transaction", result);
+        Thread.sleep(1500);
+        result = ic.lookup("comp/UserTransaction");
+        Assert.assertEquals("transaction", result);
+    }
+    @Test
     public void testJNDIBindings() throws NamingException {
         InitialContext ic = createContext();
         try {
