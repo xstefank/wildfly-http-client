@@ -254,7 +254,7 @@ public class HTTPTestServer extends BlockJUnit4ClassRunner {
                 });
             }
         } catch (Exception e) {
-            throw new RuntimeException();
+            throw new RuntimeException(e);
         }
     }
 
