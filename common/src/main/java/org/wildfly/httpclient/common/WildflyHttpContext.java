@@ -138,7 +138,7 @@ public class WildflyHttpContext implements Contextual<WildflyHttpContext> {
 
     static class Builder {
         private InetSocketAddress defaultBindAddress;
-        private long idleTimeout;
+        private long idleTimeout = 50000; //the server defaults to an idle timeout of 60 seconds, we default ours to 50 to prevent possible races
         private int maxConnections;
         private int maxStreamsPerConnection;
         private Boolean eagerlyAcquireSession;
