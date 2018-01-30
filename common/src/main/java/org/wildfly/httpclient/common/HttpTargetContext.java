@@ -152,7 +152,9 @@ public class HttpTargetContext extends AbstractAttachable {
 
             String host;
             int port = connection.getUri().getPort();
-            if (port == -1) {
+            if (port == -1 ||
+                    (connection.getUri().getScheme().equals("http") && port == 80) ||
+                    (connection.getUri().getScheme().equals("https") && port == 443)) {
                 host = connection.getUri().getHost();
             } else {
                 host = connection.getUri().getHost() + ":" + port;
