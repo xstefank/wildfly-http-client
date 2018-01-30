@@ -149,7 +149,16 @@ public class HttpTargetContext extends AbstractAttachable {
     public void sendRequestInternal(final HttpConnectionPool.ConnectionHandle connection, ClientRequest request, AuthenticationConfiguration authenticationConfiguration, HttpMarshaller httpMarshaller, HttpResultHandler httpResultHandler, HttpFailureHandler failureHandler, ContentType expectedResponse, Runnable completedTask, boolean allowNoContent, boolean retry) {
         try {
             final boolean authAdded = retry || connection.getAuthenticationContext().prepareRequest(connection.getUri(), request, authenticationConfiguration);
-            request.getRequestHeaders().put(Headers.HOST, connection.getUri().getHost());
+
+            String host;
+            int port = connection.getUri().getPort();
+            if (port == -1) {
+                host = connection.getUri().getHost();
+            } else {
+                host = connection.getUri().getHost() + ":" + port;
+            }
+            request.getRequestHeaders().put(Headers.HOST, host);
+
             if (request.getRequestHeaders().contains(Headers.CONTENT_TYPE)) {
                 request.getRequestHeaders().put(Headers.TRANSFER_ENCODING, Headers.CHUNKED.toString());
             }
