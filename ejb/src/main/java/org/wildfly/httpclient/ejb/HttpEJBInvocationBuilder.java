@@ -18,11 +18,14 @@
 
 package org.wildfly.httpclient.ejb;
 
-import java.lang.reflect.Method;
-
 import io.undertow.client.ClientRequest;
 import io.undertow.util.Headers;
 import io.undertow.util.Methods;
+
+import java.io.UnsupportedEncodingException;
+import java.lang.reflect.Method;
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
 
 
 /**
@@ -172,6 +175,7 @@ class HttpEJBInvocationBuilder {
         sb.append(Boolean.toString(cancelIfRunning));
         return sb.toString();
     }
+
     /**
      * Constructs an EJB invocation path
      *
@@ -196,9 +200,9 @@ class HttpEJBInvocationBuilder {
         sb.append(view);
         sb.append("/");
         sb.append(method.getName());
-        for (Class<?> param : method.getParameterTypes()) {
+        for (final Class<?> param : method.getParameterTypes()) {
             sb.append("/");
-            sb.append(param.getName());
+            sb.append(encodeUrlPart(param.getName()));
         }
         return sb.toString();
     }
@@ -206,7 +210,7 @@ class HttpEJBInvocationBuilder {
     private void buildBeanPath(String mountPoint, String type, String appName, String moduleName, String distinctName, String beanName, StringBuilder sb) {
         buildModulePath(mountPoint, type, appName, moduleName, distinctName, sb);
         sb.append("/");
-        sb.append(beanName);
+        sb.append(encodeUrlPart(beanName));
     }
 
     private void buildModulePath(String mountPoint, String type, String appName, String moduleName, String distinctName, StringBuilder sb) {
@@ -221,19 +225,27 @@ class HttpEJBInvocationBuilder {
         if (appName == null || appName.isEmpty()) {
             sb.append("-");
         } else {
-            sb.append(appName);
+            sb.append(encodeUrlPart(appName));
         }
         sb.append("/");
         if (moduleName == null || moduleName.isEmpty()) {
             sb.append("-");
         } else {
-            sb.append(moduleName);
+            sb.append(encodeUrlPart(moduleName));
         }
         sb.append("/");
         if (distinctName == null || distinctName.isEmpty()) {
             sb.append("-");
         } else {
-            sb.append(distinctName);
+            sb.append(encodeUrlPart(distinctName));
+        }
+    }
+
+    private static String encodeUrlPart(final String part) {
+        try {
+            return URLEncoder.encode(part, StandardCharsets.UTF_8.name());
+        } catch (UnsupportedEncodingException e) {
+            throw new RuntimeException(e);
         }
     }
 

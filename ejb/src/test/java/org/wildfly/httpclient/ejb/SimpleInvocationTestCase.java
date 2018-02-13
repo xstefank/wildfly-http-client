@@ -18,6 +18,7 @@
 
 package org.wildfly.httpclient.ejb;
 
+import java.lang.reflect.Method;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.util.Base64;
@@ -83,6 +84,46 @@ public class SimpleInvocationTestCase {
             String m = proxy.message();
             Assert.assertEquals("a message", m);
         }
+    }
+
+    /**
+     * Tests that when a URL path that's constructed out of user configurable (like app-name, module-name,
+     * bean-name, distinct-name etc...) parts and/or if the method being invoked consists of parameter type(s)
+     * that can potentially contain characters which need to be encoded, then the path thus constructed
+     * by this EJB HTTP client library is indeed encoded correctly, resulting in a proper invocation result
+     * from the target EJB.
+     *
+     * @see <a href="https://issues.jboss.org/browse/WFLY-9788">WFLY-9788</a> for more details
+     *
+     * @throws Exception
+     */
+    @Test
+    public void testSimpleInvocationWithURLNeedingEncoding() throws Exception {
+        EJBTestServer.setHandler((invocation, affinity, out, methodLocator, handle, attachments) -> {
+            // check the invoked method and make sure it maps correctly to the view interface's method
+            final Method viewMethod = EchoRemote.class.getDeclaredMethod("echo", new Class[] {String[].class});
+            if (!methodLocator.getMethodName().equals(viewMethod.getName())) {
+                throw new RuntimeException("Unexpected method " + methodLocator.getMethodName());
+            }
+            if (methodLocator.getParameterCount() != viewMethod.getParameterCount()) {
+                throw new RuntimeException("Unexpected method parameter count for method " + methodLocator.getMethodName());
+            }
+            final Class<?>[] expectedViewMethodParamTypes = viewMethod.getParameterTypes();
+            for (int i = 0; i < expectedViewMethodParamTypes.length; i++) {
+                if (!expectedViewMethodParamTypes[i].getName().equals(methodLocator.getParameterTypeName(i))) {
+                    throw new RuntimeException("Unexpected method parameter type " + methodLocator.getParameterTypeName(i) + " expected " + expectedViewMethodParamTypes[i].getName());
+                }
+            }
+            return invocation.getParameters()[0];
+        });
+        // locate a EJB through some "fancy" (yet valid) app/module/bean names
+        final StatelessEJBLocator<EchoRemote> statelessEJBLocator = new StatelessEJBLocator<>(EchoRemote.class, "foo:", "bar:hello;world", "Calculator;Bean", "");
+        final EchoRemote proxy = EJBClient.createProxy(statelessEJBLocator);
+        final String[] messages = new String[]{"Hello World!!!", "2018"};
+        EJBClient.setStrongAffinity(proxy, URIAffinity.forUri(new URI(EJBTestServer.getDefaultServerURL())));
+        // invoke on a method which accepts array types
+        final String[] echoes = proxy.echo(messages);
+        Assert.assertArrayEquals("Unexpected echo message", messages, echoes);
     }
 
     @Test
