@@ -170,21 +170,18 @@ class HttpInvocationHandler extends RemoteHTTPHandler {
                         for (int i = 0; i < parameterTypeNames.length; ++i) {
                             methodParams[i] = unmarshaller.readObject();
                         }
-                        final Map<String, Object> privateAttachments;
                         final Map<String, Object> contextData;
-                        int attachementCount = PackedInteger.readPackedInteger(unmarshaller);
+                        final int attachementCount = PackedInteger.readPackedInteger(unmarshaller);
                         if (attachementCount > 0) {
                             contextData = new HashMap<>();
-                            for (int i = 0; i < attachementCount - 1; ++i) {
+                            for (int i = 0; i < attachementCount; ++i) {
                                 Object o = unmarshaller.readObject();
                                 String key = (String) o;
                                 Object value = unmarshaller.readObject();
                                 contextData.put(key, value);
                             }
-                            privateAttachments = new HashMap<>((Map<String, Object>) unmarshaller.readObject());
                         } else {
                             contextData = Collections.emptyMap();
-                            privateAttachments = new HashMap<>();
                         }
 
                         unmarshaller.finish();
@@ -199,7 +196,7 @@ class HttpInvocationHandler extends RemoteHTTPHandler {
                             locator = new StatelessEJBLocator<>(view, app, module, bean, distinct, Affinity.LOCAL);
                         }
 
-                        return new ResolvedInvocation(privateAttachments, methodParams, locator, exchange, marshallingConfiguration, sessionAffinity, transaction, identifier);
+                        return new ResolvedInvocation(contextData, methodParams, locator, exchange, marshallingConfiguration, sessionAffinity, transaction, identifier);
                     } catch (IOException | ClassNotFoundException e) {
                         throw e;
                     } catch (Throwable e) {
@@ -312,7 +309,7 @@ class HttpInvocationHandler extends RemoteHTTPHandler {
     }
 
     class ResolvedInvocation implements InvocationRequest.Resolved {
-        private final Map<String, Object> privateAttachments;
+        private final Map<String, Object> contextData;
         private final Object[] methodParams;
         private final EJBLocator<?> locator;
         private final HttpServerExchange exchange;
@@ -321,8 +318,8 @@ class HttpInvocationHandler extends RemoteHTTPHandler {
         private final Transaction transaction;
         private final InvocationIdentifier identifier;
 
-        public ResolvedInvocation(Map<String, Object> privateAttachments, Object[] methodParams, EJBLocator<?> locator, HttpServerExchange exchange, MarshallingConfiguration marshallingConfiguration, String sessionAffinity, Transaction transaction, final InvocationIdentifier identifier) {
-            this.privateAttachments = privateAttachments;
+        public ResolvedInvocation(Map<String, Object> contextData, Object[] methodParams, EJBLocator<?> locator, HttpServerExchange exchange, MarshallingConfiguration marshallingConfiguration, String sessionAffinity, Transaction transaction, final InvocationIdentifier identifier) {
+            this.contextData = contextData;
             this.methodParams = methodParams;
             this.locator = locator;
             this.exchange = exchange;
@@ -334,7 +331,7 @@ class HttpInvocationHandler extends RemoteHTTPHandler {
 
         @Override
         public Map<String, Object> getAttachments() {
-            return privateAttachments;
+            return contextData;
         }
 
         @Override
@@ -381,8 +378,9 @@ class HttpInvocationHandler extends RemoteHTTPHandler {
                 // start the marshaller
                 marshaller.start(byteOutput);
                 marshaller.writeObject(result);
-                PackedInteger.writePackedInteger(marshaller, privateAttachments.size());
-                for(Map.Entry<String, Object> entry : privateAttachments.entrySet()) {
+                // TODO: Do we really need to send this back?
+                PackedInteger.writePackedInteger(marshaller, contextData.size());
+                for(Map.Entry<String, Object> entry : contextData.entrySet()) {
                     marshaller.writeObject(entry.getKey());
                     marshaller.writeObject(entry.getValue());
                 }

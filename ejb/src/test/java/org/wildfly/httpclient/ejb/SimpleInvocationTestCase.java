@@ -18,14 +18,10 @@
 
 package org.wildfly.httpclient.ejb;
 
-import java.lang.reflect.Method;
-import java.net.URI;
-import java.net.URISyntaxException;
-import java.util.Base64;
-
-import javax.ejb.ApplicationException;
-
+import io.undertow.util.Headers;
 import org.jboss.ejb.client.EJBClient;
+import org.jboss.ejb.client.EJBClientContext;
+import org.jboss.ejb.client.EJBClientInvocationContext;
 import org.jboss.ejb.client.StatefulEJBLocator;
 import org.jboss.ejb.client.StatelessEJBLocator;
 import org.jboss.ejb.client.URIAffinity;
@@ -36,7 +32,11 @@ import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.wildfly.httpclient.common.WildflyHttpContext;
 
-import io.undertow.util.Headers;
+import javax.ejb.ApplicationException;
+import java.lang.reflect.Method;
+import java.net.URI;
+import java.net.URISyntaxException;
+import java.util.Base64;
 
 /**
  * @author Stuart Douglas
@@ -93,15 +93,14 @@ public class SimpleInvocationTestCase {
      * by this EJB HTTP client library is indeed encoded correctly, resulting in a proper invocation result
      * from the target EJB.
      *
-     * @see <a href="https://issues.jboss.org/browse/WFLY-9788">WFLY-9788</a> for more details
-     *
      * @throws Exception
+     * @see <a href="https://issues.jboss.org/browse/WFLY-9788">WFLY-9788</a> for more details
      */
     @Test
     public void testSimpleInvocationWithURLNeedingEncoding() throws Exception {
         EJBTestServer.setHandler((invocation, affinity, out, methodLocator, handle, attachments) -> {
             // check the invoked method and make sure it maps correctly to the view interface's method
-            final Method viewMethod = EchoRemote.class.getDeclaredMethod("echo", new Class[] {String[].class});
+            final Method viewMethod = EchoRemote.class.getDeclaredMethod("echo", new Class[]{String[].class});
             if (!methodLocator.getMethodName().equals(viewMethod.getName())) {
                 throw new RuntimeException("Unexpected method " + methodLocator.getMethodName());
             }
@@ -124,6 +123,42 @@ public class SimpleInvocationTestCase {
         // invoke on a method which accepts array types
         final String[] echoes = proxy.echo(messages);
         Assert.assertArrayEquals("Unexpected echo message", messages, echoes);
+    }
+
+
+    /**
+     * Tests that when some {@link EJBClientInvocationContext#getContextData() context data} is attached and
+     * passed during the invocation, the data is parsed correctly and then is made available to the target EJB
+     *
+     * @throws Exception
+     * @see <a href="https://issues.jboss.org/browse/WFLY-9788">WFLY-9788</a> and
+     * <a href="https://issues.jboss.org/browse/WEJBHTTP-1">WEJBHTTP-1</a> for more details
+     */
+    @Test
+    public void testContextData() throws Exception {
+        EJBTestServer.setHandler((invocation, affinity, out, method, handle, attachments) -> {
+            final Integer contextDataValue = (Integer) attachments.get(SimpleEJBInterceptor.KEY);
+            if (!SimpleEJBInterceptor.VALUE.equals(contextDataValue)) {
+                throw new RuntimeException("Unexpected context data value " + contextDataValue);
+            }
+            return invocation.getParameters()[0];
+        });
+        final StatelessEJBLocator<EchoRemote> statelessEJBLocator = new StatelessEJBLocator<>(EchoRemote.class, APP, MODULE, "CalculatorBean", "");
+        final EchoRemote proxy = EJBClient.createProxy(statelessEJBLocator);
+        EJBClient.setStrongAffinity(proxy, URIAffinity.forUri(new URI(EJBTestServer.getDefaultServerURL())));
+
+        final EJBClientContext previousContext = EJBClientContext.getContextManager().getThreadDefault();
+        try {
+            final EJBClientContext clientContext = EJBClientContext.getCurrent().withAddedInterceptors(new SimpleEJBInterceptor());
+            // switch the EJBClientContext to use the one which is backed by our client interceptor
+            EJBClientContext.getContextManager().setThreadDefault(clientContext);
+            final String message = "Hello World!!!";
+            final String echo = proxy.echo(message);
+            Assert.assertEquals("Unexpected echo message", message, echo);
+        } finally {
+            // switch back to original
+            EJBClientContext.getContextManager().setThreadDefault(previousContext);
+        }
     }
 
     @Test
