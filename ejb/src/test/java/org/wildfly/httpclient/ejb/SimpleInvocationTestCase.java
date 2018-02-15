@@ -18,13 +18,10 @@
 
 package org.wildfly.httpclient.ejb;
 
-import java.net.URI;
-import java.net.URISyntaxException;
-import java.util.Base64;
-
-import javax.ejb.ApplicationException;
-
+import io.undertow.util.Headers;
 import org.jboss.ejb.client.EJBClient;
+import org.jboss.ejb.client.EJBClientContext;
+import org.jboss.ejb.client.EJBClientInvocationContext;
 import org.jboss.ejb.client.StatefulEJBLocator;
 import org.jboss.ejb.client.StatelessEJBLocator;
 import org.jboss.ejb.client.URIAffinity;
@@ -35,7 +32,11 @@ import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.wildfly.httpclient.common.WildflyHttpContext;
 
-import io.undertow.util.Headers;
+import javax.ejb.ApplicationException;
+import java.lang.reflect.Method;
+import java.net.URI;
+import java.net.URISyntaxException;
+import java.util.Base64;
 
 /**
  * @author Stuart Douglas
@@ -82,6 +83,81 @@ public class SimpleInvocationTestCase {
 
             String m = proxy.message();
             Assert.assertEquals("a message", m);
+        }
+    }
+
+    /**
+     * Tests that when a URL path that's constructed out of user configurable (like app-name, module-name,
+     * bean-name, distinct-name etc...) parts and/or if the method being invoked consists of parameter type(s)
+     * that can potentially contain characters which need to be encoded, then the path thus constructed
+     * by this EJB HTTP client library is indeed encoded correctly, resulting in a proper invocation result
+     * from the target EJB.
+     *
+     * @throws Exception
+     * @see <a href="https://issues.jboss.org/browse/WFLY-9788">WFLY-9788</a> for more details
+     */
+    @Test
+    public void testSimpleInvocationWithURLNeedingEncoding() throws Exception {
+        EJBTestServer.setHandler((invocation, affinity, out, methodLocator, handle, attachments) -> {
+            // check the invoked method and make sure it maps correctly to the view interface's method
+            final Method viewMethod = EchoRemote.class.getDeclaredMethod("echo", new Class[]{String[].class});
+            if (!methodLocator.getMethodName().equals(viewMethod.getName())) {
+                throw new RuntimeException("Unexpected method " + methodLocator.getMethodName());
+            }
+            if (methodLocator.getParameterCount() != viewMethod.getParameterCount()) {
+                throw new RuntimeException("Unexpected method parameter count for method " + methodLocator.getMethodName());
+            }
+            final Class<?>[] expectedViewMethodParamTypes = viewMethod.getParameterTypes();
+            for (int i = 0; i < expectedViewMethodParamTypes.length; i++) {
+                if (!expectedViewMethodParamTypes[i].getName().equals(methodLocator.getParameterTypeName(i))) {
+                    throw new RuntimeException("Unexpected method parameter type " + methodLocator.getParameterTypeName(i) + " expected " + expectedViewMethodParamTypes[i].getName());
+                }
+            }
+            return invocation.getParameters()[0];
+        });
+        // locate a EJB through some "fancy" (yet valid) app/module/bean names
+        final StatelessEJBLocator<EchoRemote> statelessEJBLocator = new StatelessEJBLocator<>(EchoRemote.class, "foo:", "bar:hello;world", "Calculator;Bean", "");
+        final EchoRemote proxy = EJBClient.createProxy(statelessEJBLocator);
+        final String[] messages = new String[]{"Hello World!!!", "2018"};
+        EJBClient.setStrongAffinity(proxy, URIAffinity.forUri(new URI(EJBTestServer.getDefaultServerURL())));
+        // invoke on a method which accepts array types
+        final String[] echoes = proxy.echo(messages);
+        Assert.assertArrayEquals("Unexpected echo message", messages, echoes);
+    }
+
+
+    /**
+     * Tests that when some {@link EJBClientInvocationContext#getContextData() context data} is attached and
+     * passed during the invocation, the data is parsed correctly and then is made available to the target EJB
+     *
+     * @throws Exception
+     * @see <a href="https://issues.jboss.org/browse/WFLY-9788">WFLY-9788</a> and
+     * <a href="https://issues.jboss.org/browse/WEJBHTTP-1">WEJBHTTP-1</a> for more details
+     */
+    @Test
+    public void testContextData() throws Exception {
+        EJBTestServer.setHandler((invocation, affinity, out, method, handle, attachments) -> {
+            final Integer contextDataValue = (Integer) attachments.get(SimpleEJBInterceptor.KEY);
+            if (!SimpleEJBInterceptor.VALUE.equals(contextDataValue)) {
+                throw new RuntimeException("Unexpected context data value " + contextDataValue);
+            }
+            return invocation.getParameters()[0];
+        });
+        final StatelessEJBLocator<EchoRemote> statelessEJBLocator = new StatelessEJBLocator<>(EchoRemote.class, APP, MODULE, "CalculatorBean", "");
+        final EchoRemote proxy = EJBClient.createProxy(statelessEJBLocator);
+        EJBClient.setStrongAffinity(proxy, URIAffinity.forUri(new URI(EJBTestServer.getDefaultServerURL())));
+
+        final EJBClientContext previousContext = EJBClientContext.getContextManager().getThreadDefault();
+        try {
+            final EJBClientContext clientContext = EJBClientContext.getCurrent().withAddedInterceptors(new SimpleEJBInterceptor());
+            // switch the EJBClientContext to use the one which is backed by our client interceptor
+            EJBClientContext.getContextManager().setThreadDefault(clientContext);
+            final String message = "Hello World!!!";
+            final String echo = proxy.echo(message);
+            Assert.assertEquals("Unexpected echo message", message, echo);
+        } finally {
+            // switch back to original
+            EJBClientContext.getContextManager().setThreadDefault(previousContext);
         }
     }
 

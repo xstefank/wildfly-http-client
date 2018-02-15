@@ -29,6 +29,8 @@ public interface EchoRemote {
 
     String echo(String msg) throws Exception;
 
+    String[] echo(String[] msgs);
+
     String message() throws Exception;
 
     Future<String> asyncMessage();
