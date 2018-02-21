@@ -17,6 +17,7 @@ import org.junit.runner.RunWith;
 import org.wildfly.security.auth.client.AuthenticationConfiguration;
 import io.undertow.client.ClientRequest;
 import io.undertow.client.ClientResponse;
+import io.undertow.util.Headers;
 import io.undertow.util.Methods;
 
 @RunWith(HTTPTestServer.class)
@@ -28,7 +29,7 @@ public class ClientHostHeaderTestCase {
     public void hostHeaderIncludesPortTest() throws URISyntaxException, InterruptedException {
         final List<String> hosts = new ArrayList<>();
         String path = "/host";
-        HTTPTestServer.registerPathHandler(path, exchange -> hosts.add(exchange.getRequestHeaders().getFirst("Host")));
+        HTTPTestServer.registerPathHandler(path, exchange -> hosts.add(exchange.getRequestHeaders().getFirst(Headers.HOST)));
         ClientRequest request = new ClientRequest().setMethod(Methods.GET).setPath(path);
         doClientRequest(request);
 
@@ -36,6 +37,22 @@ public class ClientHostHeaderTestCase {
                 .as("Check Host header includes also port")
                 .containsExactly(HTTPTestServer.getHostAddress() + ":" + HTTPTestServer.getHostPort());
     }
+
+    @Test
+    public void hostHeaderIsNotOverridenIfProvided() throws URISyntaxException, InterruptedException {
+        final List<String> hosts = new ArrayList<>();
+        String path = "/host";
+        HTTPTestServer.registerPathHandler(path, exchange -> hosts.add(exchange.getRequestHeaders().getFirst(Headers.HOST)));
+        String myHostHeader = "127.0.0.2";
+        ClientRequest request = new ClientRequest().setMethod(Methods.GET).setPath(path);
+        request.getRequestHeaders().put(Headers.HOST, myHostHeader);
+        doClientRequest(request);
+
+        Assertions.assertThat(hosts)
+                .as("Check Host header includes also port")
+                .containsExactly(myHostHeader);
+    }
+
 
     private void doClientRequest(ClientRequest request) throws URISyntaxException, InterruptedException {
         ClientAuthUtils.setupBasicAuth(request, new URI(HTTPTestServer.getDefaultServerURL() + request.getPath()));
