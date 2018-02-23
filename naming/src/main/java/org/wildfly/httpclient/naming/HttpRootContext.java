@@ -25,7 +25,9 @@ import java.io.UnsupportedEncodingException;
 import java.net.URI;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
+import java.security.AccessController;
 import java.security.GeneralSecurityException;
+import java.security.PrivilegedAction;
 import java.util.Collection;
 import java.util.Iterator;
 import java.util.ServiceLoader;
@@ -76,6 +78,12 @@ public class HttpRootContext extends AbstractContext {
     private static final int MAX_NOT_FOUND_RETRY = Integer.getInteger("org.wildfly.httpclient.naming.max-retries", 8);
 
     private static final AuthenticationContextConfigurationClient CLIENT = doPrivileged(AuthenticationContextConfigurationClient.ACTION);
+    private static final PrivilegedAction<ClassLoader> GET_TCCL_ACTION = new PrivilegedAction<ClassLoader>() {
+        @Override
+        public ClassLoader run() {
+            return Thread.currentThread().getContextClassLoader();
+        }
+    };
     private final String ACCEPT_VALUE = "application/x-wf-jndi-jbmar-value;version=1,application/x-wf-jbmar-exception;version=1";
     private final ContentType VALUE_TYPE = new ContentType("application/x-wf-jndi-jbmar-value", 1);
 
@@ -280,6 +288,7 @@ public class HttpRootContext extends AbstractContext {
             e2.initCause(e);
             throw e2;
         }
+        final ClassLoader tccl = getContextClassLoader();
         targetContext.sendRequest(clientRequest, sslContext, authenticationConfiguration, null, (input, response, closeable) -> {
             try {
                 if (response.getResponseCode() == StatusCodes.NO_CONTENT) {
@@ -292,6 +301,7 @@ public class HttpRootContext extends AbstractContext {
 
                     Exception exception = null;
                     Object returned = null;
+                    ClassLoader old = setContextClassLoader(tccl);
                     try {
                         final MarshallingConfiguration marshallingConfiguration = createMarshallingConfig(providerUri);
                         final Unmarshaller unmarshaller = targetContext.createUnmarshaller(marshallingConfiguration);
@@ -309,6 +319,8 @@ public class HttpRootContext extends AbstractContext {
 
                     } catch (Exception e) {
                         exception = e;
+                    } finally {
+                        setContextClassLoader(old);
                     }
                     if (exception != null) {
                         result.completeExceptionally(exception);
@@ -442,5 +454,31 @@ public class HttpRootContext extends AbstractContext {
     public String getNameInNamespace() throws NamingException {
         final String scheme = this.scheme;
         return scheme == null || scheme.isEmpty() ? "" : scheme + ":";
+    }
+
+    static ClassLoader getContextClassLoader() {
+        if(System.getSecurityManager() == null) {
+            return Thread.currentThread().getContextClassLoader();
+        } else {
+            return AccessController.doPrivileged(GET_TCCL_ACTION);
+        }
+    }
+
+    static ClassLoader setContextClassLoader(final ClassLoader cl) {
+
+        if(System.getSecurityManager() == null) {
+            ClassLoader old = Thread.currentThread().getContextClassLoader();
+            Thread.currentThread().setContextClassLoader(cl);
+            return old;
+        } else {
+            return AccessController.doPrivileged(new PrivilegedAction<ClassLoader>() {
+                @Override
+                public ClassLoader run() {
+                    ClassLoader old = Thread.currentThread().getContextClassLoader();
+                    Thread.currentThread().setContextClassLoader(cl);
+                    return old;
+                }
+            });
+        }
     }
 }
