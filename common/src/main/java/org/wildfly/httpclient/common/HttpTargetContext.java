@@ -18,32 +18,6 @@
 
 package org.wildfly.httpclient.common;
 
-import io.undertow.client.ClientCallback;
-import io.undertow.client.ClientExchange;
-import io.undertow.client.ClientRequest;
-import io.undertow.client.ClientResponse;
-import io.undertow.server.handlers.Cookie;
-import io.undertow.util.AbstractAttachable;
-import io.undertow.util.Cookies;
-import io.undertow.util.HeaderValues;
-import io.undertow.util.Headers;
-import io.undertow.util.Methods;
-import io.undertow.util.StatusCodes;
-import org.jboss.marshalling.InputStreamByteInput;
-import org.jboss.marshalling.Marshaller;
-import org.jboss.marshalling.MarshallerFactory;
-import org.jboss.marshalling.MarshallingConfiguration;
-import org.jboss.marshalling.Unmarshaller;
-import org.jboss.marshalling.river.RiverMarshallerFactory;
-import org.wildfly.security.auth.client.AuthenticationConfiguration;
-import org.wildfly.security.auth.client.AuthenticationContext;
-import org.wildfly.security.auth.client.AuthenticationContextConfigurationClient;
-import org.xnio.ChannelListener;
-import org.xnio.ChannelListeners;
-import org.xnio.IoUtils;
-import org.xnio.channels.StreamSourceChannel;
-
-import javax.net.ssl.SSLContext;
 import java.io.Closeable;
 import java.io.IOException;
 import java.io.InputStream;
@@ -59,6 +33,32 @@ import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.zip.GZIPInputStream;
+import javax.net.ssl.SSLContext;
+
+import org.jboss.marshalling.InputStreamByteInput;
+import org.jboss.marshalling.Marshaller;
+import org.jboss.marshalling.MarshallerFactory;
+import org.jboss.marshalling.MarshallingConfiguration;
+import org.jboss.marshalling.Unmarshaller;
+import org.jboss.marshalling.river.RiverMarshallerFactory;
+import org.wildfly.security.auth.client.AuthenticationConfiguration;
+import org.wildfly.security.auth.client.AuthenticationContext;
+import org.wildfly.security.auth.client.AuthenticationContextConfigurationClient;
+import org.xnio.ChannelListener;
+import org.xnio.ChannelListeners;
+import org.xnio.IoUtils;
+import org.xnio.channels.StreamSourceChannel;
+import io.undertow.client.ClientCallback;
+import io.undertow.client.ClientExchange;
+import io.undertow.client.ClientRequest;
+import io.undertow.client.ClientResponse;
+import io.undertow.server.handlers.Cookie;
+import io.undertow.util.AbstractAttachable;
+import io.undertow.util.Cookies;
+import io.undertow.util.HeaderValues;
+import io.undertow.util.Headers;
+import io.undertow.util.Methods;
+import io.undertow.util.StatusCodes;
 
 /**
  * @author Stuart Douglas
@@ -150,14 +150,16 @@ public class HttpTargetContext extends AbstractAttachable {
         try {
             final boolean authAdded = retry || connection.getAuthenticationContext().prepareRequest(connection.getUri(), request, authenticationConfiguration);
 
-            String host;
-            int port = connection.getUri().getPort();
-            if (port == -1) {
-                host = connection.getUri().getHost();
-            } else {
-                host = connection.getUri().getHost() + ":" + port;
+            if (!request.getRequestHeaders().contains(Headers.HOST)) {
+                String host;
+                int port = connection.getUri().getPort();
+                if (port == -1) {
+                    host = connection.getUri().getHost();
+                } else {
+                    host = connection.getUri().getHost() + ":" + port;
+                }
+                request.getRequestHeaders().put(Headers.HOST, host);
             }
-            request.getRequestHeaders().put(Headers.HOST, host);
 
             if (request.getRequestHeaders().contains(Headers.CONTENT_TYPE)) {
                 request.getRequestHeaders().put(Headers.TRANSFER_ENCODING, Headers.CHUNKED.toString());
