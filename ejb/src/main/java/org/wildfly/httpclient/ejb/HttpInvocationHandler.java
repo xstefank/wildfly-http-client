@@ -181,7 +181,7 @@ class HttpInvocationHandler extends RemoteHTTPHandler {
                                 contextData.put(key, value);
                             }
                         } else {
-                            contextData = Collections.emptyMap();
+                            contextData = new HashMap<>();
                         }
 
                         unmarshaller.finish();
