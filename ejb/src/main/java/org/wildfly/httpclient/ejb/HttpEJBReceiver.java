@@ -98,7 +98,16 @@ class HttpEJBReceiver extends EJBReceiver {
     private static final AtomicLong invocationIdGenerator = new AtomicLong();
 
     HttpEJBReceiver() {
-        transactionContext = RemoteTransactionContext.getInstance();
+        if(System.getSecurityManager() == null) {
+            transactionContext = RemoteTransactionContext.getInstance();
+        } else {
+            transactionContext = AccessController.doPrivileged(new PrivilegedAction<RemoteTransactionContext>() {
+                @Override
+                public RemoteTransactionContext run() {
+                    return RemoteTransactionContext.getInstance();
+                }
+            });
+        }
     }
 
     @Override
