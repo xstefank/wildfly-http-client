@@ -94,7 +94,8 @@ public class HttpRootContext extends AbstractContext {
 
     static {
         HttpNamingEjbObjectResolverHelper h = null;
-        ServiceLoader<HttpNamingEjbObjectResolverHelper> sl = ServiceLoader.load(HttpNamingEjbObjectResolverHelper.class);
+        ServiceLoader<HttpNamingEjbObjectResolverHelper> sl = doPrivileged((PrivilegedAction<ServiceLoader<HttpNamingEjbObjectResolverHelper>>)
+                () -> ServiceLoader.load(HttpNamingEjbObjectResolverHelper.class));
         for (Iterator<HttpNamingEjbObjectResolverHelper> it = sl.iterator(); it.hasNext(); ) {
             h = it.next();
             break;
