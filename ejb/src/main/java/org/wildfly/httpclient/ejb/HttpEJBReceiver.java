@@ -206,13 +206,21 @@ class HttpEJBReceiver extends EJBReceiver {
                                     unmarshaller.start(new InputStreamByteInput(input));
                                     returned = unmarshaller.readObject();
                                     // read the attachments
-                                    //TODO: do we need attachments?
                                     final Map<String, Object> attachments = readAttachments(unmarshaller);
                                     // finish unmarshalling
                                     if (unmarshaller.read() != -1) {
                                         exception = EjbHttpClientMessages.MESSAGES.unexpectedDataInResponse();
                                     }
                                     unmarshaller.finish();
+
+                                    // If there are any attachments, add them to the client invocation's context data
+                                    if (attachments != null) {
+                                        for (Map.Entry<String, Object> entry : attachments.entrySet()) {
+                                            if (entry.getValue() != null) {
+                                                clientInvocationContext.getContextData().put(entry.getKey(), entry.getValue());
+                                            }
+                                        }
+                                    }
 
                                     if (response.getResponseCode() >= 400) {
                                         throw (Exception) returned;
