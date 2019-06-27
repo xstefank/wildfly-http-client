@@ -82,6 +82,7 @@ public class HttpTargetContext extends AbstractAttachable {
     private volatile CountDownLatch sessionAffinityLatch = new CountDownLatch(1);
     private volatile String sessionId;
     private final URI uri;
+    private final AuthenticationContext initAuthenticationContext;
 
     private final AtomicBoolean affinityRequestSent = new AtomicBoolean();
 
@@ -90,6 +91,7 @@ public class HttpTargetContext extends AbstractAttachable {
         this.connectionPool = connectionPool;
         this.eagerlyAcquireAffinity = eagerlyAcquireAffinity;
         this.uri = uri;
+        this.initAuthenticationContext = AuthenticationContext.captureCurrent();
     }
 
     void init() {
@@ -161,6 +163,13 @@ public class HttpTargetContext extends AbstractAttachable {
                 request.getRequestHeaders().put(Headers.HOST, host);
             }
 
+            final SSLContext finalSslContext = (sslContext == null) ?
+                AUTH_CONTEXT_CLIENT.getSSLContext(uri, initAuthenticationContext)
+                : sslContext;
+            final AuthenticationConfiguration finalAuthenticationConfiguration = (authenticationConfiguration == null) ?
+                AUTH_CONTEXT_CLIENT.getAuthenticationConfiguration(uri, initAuthenticationContext)
+                : authenticationConfiguration;
+
             if (request.getRequestHeaders().contains(Headers.CONTENT_TYPE)) {
                 request.getRequestHeaders().put(Headers.TRANSFER_ENCODING, Headers.CHUNKED.toString());
             }
@@ -180,13 +189,13 @@ public class HttpTargetContext extends AbstractAttachable {
                                         ChannelListener<StreamSourceChannel> listener = ChannelListeners.drainListener(Long.MAX_VALUE, channel -> {
                                             done.set(true);
                                             connectionPool.getConnection((connection) -> {
-                                                if (connection.getAuthenticationContext().prepareRequest(uri, request, authenticationConfiguration)) {
+                                                if (connection.getAuthenticationContext().prepareRequest(uri, request, finalAuthenticationConfiguration)) {
                                                     //retry the invocation
-                                                    sendRequestInternal(connection, request, authenticationConfiguration, httpMarshaller, httpResultHandler, failureHandler, expectedResponse, completedTask, allowNoContent, true, sslContext);
+                                                    sendRequestInternal(connection, request, finalAuthenticationConfiguration, httpMarshaller, httpResultHandler, failureHandler, expectedResponse, completedTask, allowNoContent, true, finalSslContext);
                                                 } else {
                                                     failureHandler.handleFailure(HttpClientMessages.MESSAGES.authenticationFailed());
                                                 }
-                                            }, failureHandler::handleFailure, false, sslContext);
+                                            }, failureHandler::handleFailure, false, finalSslContext);
 
                                         }, (channel, exception) -> failureHandler.handleFailure(exception));
                                         listener.handleEvent(result.getResponseChannel());
