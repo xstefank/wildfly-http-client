@@ -66,6 +66,7 @@ import io.undertow.util.StatusCodes;
 public class HttpTargetContext extends AbstractAttachable {
 
     private static final AuthenticationContextConfigurationClient AUTH_CONTEXT_CLIENT;
+    private static final String GENERAL_EXCEPTION_ON_FAILED_AUTH_PROPERTY = "org.wildfly.httpclient.io-exception-on-failed-auth";
 
     static {
         AUTH_CONTEXT_CLIENT = AccessController.doPrivileged((PrivilegedAction<AuthenticationContextConfigurationClient>) () -> new AuthenticationContextConfigurationClient());
@@ -227,7 +228,9 @@ public class HttpTargetContext extends AbstractAttachable {
                                 }
 
                                 if (!ok) {
-                                    if (response.getResponseCode() >= 400) {
+                                    if (response.getResponseCode() == 401 && !isLegacyAuthenticationFailedException()) {
+                                        failureHandler.handleFailure(HttpClientMessages.MESSAGES.authenticationFailed(response));
+                                    } else if (response.getResponseCode() >= 400) {
                                         failureHandler.handleFailure(HttpClientMessages.MESSAGES.invalidResponseCode(response.getResponseCode(), response));
                                     } else {
                                         failureHandler.handleFailure(HttpClientMessages.MESSAGES.invalidResponseType(type));
@@ -441,6 +444,15 @@ public class HttpTargetContext extends AbstractAttachable {
             }
         }
         return sessionId;
+    }
+
+    private boolean isLegacyAuthenticationFailedException() {
+        return AccessController.doPrivileged(new PrivilegedAction<Boolean>() {
+            @Override
+            public Boolean run() {
+                return Boolean.valueOf(System.getProperty(GENERAL_EXCEPTION_ON_FAILED_AUTH_PROPERTY, "false"));
+            }
+        });
     }
 
     public interface HttpMarshaller {
