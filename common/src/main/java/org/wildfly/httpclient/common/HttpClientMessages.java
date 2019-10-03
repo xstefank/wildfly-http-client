@@ -19,6 +19,7 @@
 package org.wildfly.httpclient.common;
 
 import java.io.IOException;
+import javax.naming.AuthenticationException;
 
 import org.jboss.logging.BasicLogger;
 import org.jboss.logging.Logger;
@@ -69,4 +70,7 @@ interface HttpClientMessages extends BasicLogger {
 
     @Message(id = 12, value = "Attempted to do blocking IO from the IO thread. This is prohibited as it may result in deadlocks")
     IllegalStateException blockingIoFromIOThread();
+
+    @Message(id = 13, value = "Authentication failed (full response %s)")
+    AuthenticationException authenticationFailed(ClientResponse response);
 }
