@@ -183,6 +183,8 @@ class WildflyClientInputStream extends InputStream {
             return;
         }
         synchronized (lock) {
+            IoUtils.safeClose(pooledByteBuffer);
+            pooledByteBuffer = null;
             while (allAreClear(state, FLAG_MINUS_ONE_READ) && ioException == null) {
                 runReadTask();
                 try {
