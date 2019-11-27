@@ -61,9 +61,9 @@ class WildflyClientInputStream extends InputStream {
                             if (pooled.getBuffer().hasRemaining()) {
                                 pooledByteBuffer = pooled;
                                 free = false;
-                                lock.notifyAll();
                                 streamSourceChannel.suspendReads();
                             }
+                            lock.notifyAll();
                             return;
                         }
                         if (res == -1) {
