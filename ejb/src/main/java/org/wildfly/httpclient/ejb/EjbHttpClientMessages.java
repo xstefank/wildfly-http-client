@@ -19,6 +19,7 @@
 package org.wildfly.httpclient.ejb;
 
 import java.io.IOException;
+import java.io.InvalidClassException;
 import javax.ejb.EJBException;
 
 import org.jboss.ejb.client.EJBLocator;
@@ -73,4 +74,7 @@ interface EjbHttpClientMessages extends BasicLogger {
     @LogMessage(level = Logger.Level.INFO)
     @Message(id = 13, value = "HTTP discovery has been interrupted")
     void httpDiscoveryInterrupted(@Cause InterruptedException e);
+
+    @Message(id = 14, value = "Exception resolving class %s for unmarshalling; it has either been blacklisted or not whitelisted")
+    InvalidClassException cannotResolveFilteredClass(String clazz);
 }

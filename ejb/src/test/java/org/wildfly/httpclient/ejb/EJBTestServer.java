@@ -22,6 +22,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.Map;
 import java.util.concurrent.LinkedBlockingDeque;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Function;
 
 import org.jboss.ejb.client.SessionID;
 import org.jboss.ejb.server.Association;
@@ -41,6 +42,15 @@ import io.undertow.server.handlers.PathHandler;
  * @author Stuart Douglas
  */
 public class EJBTestServer extends HTTPTestServer {
+
+    /*
+     * Reject unmarshalling an instance of IAE, as a kind of 'blacklist'.
+     * In normal tests this type would never be sent, which is analogous to
+     * how blacklisted classes are normally not sent. And then we can
+     * deliberately send an IAE in tests to confirm it is rejected.
+     */
+    private static final Function<String, Boolean> DEFAULT_CLASS_FILTER = cName -> !cName.equals(IllegalArgumentException.class.getName());
+
 
     private static volatile TestEJBHandler handler;
 
@@ -98,7 +108,7 @@ public class EJBTestServer extends HTTPTestServer {
             public ListenerHandle registerModuleAvailabilityListener(@NotNull ModuleAvailabilityListener moduleAvailabilityListener) {
                 return null;
             }
-        }, null, null).createHttpHandler());
+        }, null, null, DEFAULT_CLASS_FILTER).createHttpHandler());
 
     }
 
