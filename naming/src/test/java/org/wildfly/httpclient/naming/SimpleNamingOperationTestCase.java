@@ -21,6 +21,7 @@ package org.wildfly.httpclient.naming;
 import java.util.Hashtable;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.Function;
 import javax.naming.Binding;
 import javax.naming.Context;
 import javax.naming.InitialContext;
@@ -46,6 +47,14 @@ import io.undertow.server.handlers.CookieImpl;
 public class SimpleNamingOperationTestCase {
 
     private static final Map<String, Object> bindings = new ConcurrentHashMap<>();
+    /*
+     * Reject unmarshalling an instance of IAE, as a kind of 'blacklist'.
+     * In normal tests this type would never be sent, which is analogous to
+     * how blacklisted classes are normally not sent. And then we can
+     * deliberately send an IAE in tests to confirm it is rejected.
+     */
+    private static final Function<String, Boolean> DEFAULT_CLASS_FILTER = cName -> !cName.equals(IllegalArgumentException.class.getName());
+
 
 
     @Before
@@ -207,7 +216,7 @@ public class SimpleNamingOperationTestCase {
             public String getNameInNamespace() throws NamingException {
                 return null;
             }
-        }).createHandler());
+        }, DEFAULT_CLASS_FILTER).createHandler());
 
 
     }
@@ -257,6 +266,32 @@ public class SimpleNamingOperationTestCase {
 //            Assert.fail();
 //        } catch (NameNotFoundException e) {}
 //        Assert.assertEquals("test binding 2", ic.lookup("bound2"));
+
+    }
+    @Test
+    public void testUnmarshallingFilter() throws NamingException {
+        InitialContext ic = createContext();
+        try {
+            ic.lookup("unmarshal");
+            Assert.fail();
+        } catch (NameNotFoundException e) {
+        }
+        try {
+            ic.bind("unmarshal", new IllegalArgumentException());
+            Assert.fail("Should not be able to bind an IAE");
+        } catch (NamingException good) {
+            // good
+        }
+        ic.bind("unmarshal", new IllegalStateException());
+        Assert.assertEquals(IllegalStateException.class, ic.lookup("unmarshal").getClass());
+        try {
+            ic.rebind("unmarshal", new IllegalArgumentException());
+            Assert.fail("Should not be able to rebind an IAE");
+        } catch (NamingException good) {
+            // good
+        }
+        ic.rebind("unmarshal", new IllegalStateException());
+        Assert.assertEquals(IllegalStateException.class, ic.lookup("unmarshal").getClass());
 
     }
 

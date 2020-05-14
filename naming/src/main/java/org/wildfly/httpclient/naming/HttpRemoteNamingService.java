@@ -20,14 +20,17 @@ package org.wildfly.httpclient.naming;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.InvalidClassException;
 import java.io.OutputStream;
 import java.io.UnsupportedEncodingException;
 import java.net.URLDecoder;
 import java.util.Deque;
+import java.util.function.Function;
 import javax.naming.Context;
 import javax.naming.NamingException;
 
 import org.jboss.marshalling.ByteOutput;
+import org.jboss.marshalling.ContextClassResolver;
 import org.jboss.marshalling.InputStreamByteInput;
 import org.jboss.marshalling.Marshaller;
 import org.jboss.marshalling.MarshallerFactory;
@@ -53,7 +56,6 @@ import io.undertow.util.StatusCodes;
 public class HttpRemoteNamingService {
 
     private static final String UTF_8 = "UTF-8";
-    private final Context localContext;
     private static final String LOOKUP = "/v1/lookup/{name}";
     private static final String LOOKUPLINK = "/v1/lookuplink/{name}";
     private static final String BIND = "/v1/bind/{name}";
@@ -67,8 +69,16 @@ public class HttpRemoteNamingService {
 
     private static final MarshallerFactory MARSHALLER_FACTORY = new RiverMarshallerFactory();
 
+    private final Context localContext;
+    private final Function<String, Boolean> classResolverFilter;
+
     public HttpRemoteNamingService(Context localContext) {
+        this(localContext, null);
+    }
+
+    public HttpRemoteNamingService(Context localContext, Function<String, Boolean> classResolverFilter) {
         this.localContext = localContext;
+        this.classResolverFilter = classResolverFilter;
     }
 
 
@@ -205,6 +215,9 @@ public class HttpRemoteNamingService {
             }
             final MarshallingConfiguration marshallingConfiguration = new MarshallingConfiguration();
             marshallingConfiguration.setVersion(2);
+            if (classResolverFilter != null) {
+                marshallingConfiguration.setClassResolver(new FilterClassResolver(classResolverFilter));
+            }
             try (InputStream inputStream = exchange.getInputStream()) {
                 Unmarshaller unmarshaller = MARSHALLER_FACTORY.createUnmarshaller(marshallingConfiguration);
                 unmarshaller.start(new InputStreamByteInput(inputStream));
@@ -249,5 +262,33 @@ public class HttpRemoteNamingService {
         marshaller.write(0);
         marshaller.finish();
         marshaller.flush();
+    }
+
+    private static class FilterClassResolver extends ContextClassResolver {
+        private final Function<String, Boolean> filter;
+
+        private FilterClassResolver(Function<String, Boolean> filter) {
+            this.filter = filter;
+        }
+
+        @Override
+        public Class<?> resolveClass(Unmarshaller unmarshaller, String name, long serialVersionUID) throws IOException, ClassNotFoundException {
+            checkFilter(name);
+            return super.resolveClass(unmarshaller, name, serialVersionUID);
+        }
+
+        @Override
+        public Class<?> resolveProxyClass(Unmarshaller unmarshaller, String[] interfaces) throws IOException, ClassNotFoundException {
+            for (String name : interfaces) {
+                checkFilter(name);
+            }
+            return super.resolveProxyClass(unmarshaller, interfaces);
+        }
+
+        private void checkFilter(String className) throws InvalidClassException {
+            if (filter.apply(className) != Boolean.TRUE) {
+                throw HttpNamingClientMessages.MESSAGES.cannotResolveFilteredClass(className);
+            }
+        }
     }
 }
