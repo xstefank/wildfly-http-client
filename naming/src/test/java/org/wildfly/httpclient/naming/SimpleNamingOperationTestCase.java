@@ -33,6 +33,7 @@ import javax.naming.NamingException;
 
 import org.junit.Assert;
 import org.junit.Before;
+import org.junit.Ignore;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.wildfly.httpclient.common.HTTPTestServer;
@@ -212,7 +213,7 @@ public class SimpleNamingOperationTestCase {
     }
 
 
-    @Test
+    @Test @Ignore // FIXME WEJBHTTP-37
     public void testJNDIlookup() throws NamingException {
         InitialContext ic = createContext();
         Object result = ic.lookup("test");
@@ -226,7 +227,7 @@ public class SimpleNamingOperationTestCase {
         }
     }
 
-    @Test
+    @Test @Ignore // FIXME WEJBHTTP-37
     public void testJNDIlookupTimeoutTestCase() throws NamingException, InterruptedException {
         InitialContext ic = createContext();
         Object result = ic.lookup("test");
