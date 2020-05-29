@@ -184,9 +184,6 @@ public class HttpTargetContext extends AbstractAttachable {
                                 ClientResponse response = result.getResponse();
                                 if (!authAdded || connection.getAuthenticationContext().isStale(result)) {
                                     handleSessionAffinity(request, response);
-                                    if (sessionId != null) {
-                                        request.getRequestHeaders().put(Headers.COOKIE, JSESSIONID + "=" + sessionId);
-                                    }
                                     if (connection.getAuthenticationContext().handleResponse(response)) {
                                         URI uri = connection.getUri();
                                         connection.done(false);
@@ -388,6 +385,9 @@ public class HttpTargetContext extends AbstractAttachable {
                     }
                 }
             }
+        }
+        if (getSessionId() != null) {
+            request.getRequestHeaders().put(Headers.COOKIE, JSESSIONID + "=" + getSessionId());
         }
     }
 
