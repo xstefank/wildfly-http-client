@@ -137,14 +137,14 @@ public class HttpTargetContext extends AbstractAttachable {
 
     public void sendRequest(ClientRequest request, SSLContext sslContext, AuthenticationConfiguration authenticationConfiguration, HttpMarshaller httpMarshaller, HttpResultHandler httpResultHandler, HttpFailureHandler failureHandler, ContentType expectedResponse, Runnable completedTask) {
         if (sessionId != null) {
-            request.getRequestHeaders().add(Headers.COOKIE, "JSESSIONID=" + sessionId);
+            request.getRequestHeaders().add(Headers.COOKIE, JSESSIONID + "=" + sessionId);
         }
         connectionPool.getConnection(connection -> sendRequestInternal(connection, request, authenticationConfiguration, httpMarshaller, httpResultHandler, failureHandler, expectedResponse, completedTask, false, false, sslContext), failureHandler::handleFailure, false, sslContext);
     }
 
     public void sendRequest(ClientRequest request, SSLContext sslContext, AuthenticationConfiguration authenticationConfiguration, HttpMarshaller httpMarshaller, HttpResultHandler httpResultHandler, HttpFailureHandler failureHandler, ContentType expectedResponse, Runnable completedTask, boolean allowNoContent) {
         if (sessionId != null) {
-            request.getRequestHeaders().add(Headers.COOKIE, "JSESSIONID=" + sessionId);
+            request.getRequestHeaders().add(Headers.COOKIE, JSESSIONID + "=" + sessionId);
         }
         connectionPool.getConnection(connection -> sendRequestInternal(connection, request, authenticationConfiguration, httpMarshaller, httpResultHandler, failureHandler, expectedResponse, completedTask, allowNoContent, false, sslContext), failureHandler::handleFailure, false, sslContext);
     }
@@ -183,6 +183,7 @@ public class HttpTargetContext extends AbstractAttachable {
                             connection.getConnection().getWorker().execute(() -> {
                                 ClientResponse response = result.getResponse();
                                 if (!authAdded || connection.getAuthenticationContext().isStale(result)) {
+                                    handleSessionAffinity(request, response);
                                     if (connection.getAuthenticationContext().handleResponse(response)) {
                                         URI uri = connection.getUri();
                                         connection.done(false);
@@ -240,16 +241,7 @@ public class HttpTargetContext extends AbstractAttachable {
                                     return;
                                 }
                                 try {
-                                    //handle session affinity
-                                    HeaderValues cookies = response.getResponseHeaders().get(Headers.SET_COOKIE);
-                                    if (cookies != null) {
-                                        for (String cookie : cookies) {
-                                            Cookie c = Cookies.parseSetCookieHeader(cookie);
-                                            if (c.getName().equals(JSESSIONID)) {
-                                                setSessionId(c.getValue());
-                                            }
-                                        }
-                                    }
+                                    handleSessionAffinity(request, response);
 
                                     if (isException) {
                                         final MarshallingConfiguration marshallingConfiguration = createExceptionMarshallingConfig();
@@ -375,6 +367,27 @@ public class HttpTargetContext extends AbstractAttachable {
             } finally {
                 connection.done(true);
             }
+        }
+    }
+
+    private void handleSessionAffinity(ClientRequest request, ClientResponse response) {
+        //handle session affinity
+        HeaderValues cookies = response.getResponseHeaders().get(Headers.SET_COOKIE);
+        if (cookies != null) {
+            for (String cookie : cookies) {
+                Cookie c = Cookies.parseSetCookieHeader(cookie);
+                if (c.getName().equals(JSESSIONID)) {
+                    HttpClientMessages.MESSAGES.debugf("%s Cookie found in Set-Cookie header in the response. cookie name = [%s], cookie value = [%s], cookie path = [%s]", JSESSIONID, c.getName(), c.getValue(), c.getPath());
+                    String path = c.getPath();
+                    if (path == null || path.isEmpty() || request.getPath().startsWith(path)) {
+                        HttpClientMessages.MESSAGES.debugf("Use sessionId %s as a request cookie for session affinity", c.getValue());
+                        setSessionId(c.getValue());
+                    }
+                }
+            }
+        }
+        if (getSessionId() != null) {
+            request.getRequestHeaders().put(Headers.COOKIE, JSESSIONID + "=" + getSessionId());
         }
     }
 
