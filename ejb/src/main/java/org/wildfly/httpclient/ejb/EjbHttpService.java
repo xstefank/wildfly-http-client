@@ -21,6 +21,7 @@ package org.wildfly.httpclient.ejb;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
+import java.util.function.Function;
 
 import org.jboss.ejb.server.Association;
 import org.jboss.ejb.server.CancelHandle;
@@ -46,18 +47,25 @@ public class EjbHttpService {
     private final Association association;
     private final ExecutorService executorService;
     private final LocalTransactionContext localTransactionContext;
+    private final Function<String, Boolean> classResolverFilter;
 
     private final Map<InvocationIdentifier, CancelHandle> cancellationFlags = new ConcurrentHashMap<>();
 
     public EjbHttpService(Association association, ExecutorService executorService, LocalTransactionContext localTransactionContext) {
+        this(association, executorService, localTransactionContext, null);
+    }
+
+    public EjbHttpService(Association association, ExecutorService executorService, LocalTransactionContext localTransactionContext,
+                          Function<String, Boolean> classResolverFilter) {
         this.association = association;
         this.executorService = executorService;
         this.localTransactionContext = localTransactionContext;
+        this.classResolverFilter = classResolverFilter;
     }
 
     public HttpHandler createHttpHandler() {
         PathHandler pathHandler = new PathHandler();
-        pathHandler.addPrefixPath("/v1/invoke", new AllowedMethodsHandler(new HttpInvocationHandler(association, executorService, localTransactionContext, cancellationFlags), Methods.POST))
+        pathHandler.addPrefixPath("/v1/invoke", new AllowedMethodsHandler(new HttpInvocationHandler(association, executorService, localTransactionContext, cancellationFlags, classResolverFilter), Methods.POST))
                 .addPrefixPath("/v1/open", new AllowedMethodsHandler(new HttpSessionOpenHandler(association, executorService, localTransactionContext), Methods.POST))
                 .addPrefixPath("/v1/cancel", new AllowedMethodsHandler(new HttpCancelHandler(association, executorService, localTransactionContext, cancellationFlags), Methods.DELETE))
                 .addPrefixPath("/v1/discover", new AllowedMethodsHandler(new HttpDiscoveryHandler(executorService, association), Methods.GET));

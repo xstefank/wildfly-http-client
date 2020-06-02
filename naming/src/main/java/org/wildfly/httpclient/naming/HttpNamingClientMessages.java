@@ -18,6 +18,7 @@
 
 package org.wildfly.httpclient.naming;
 
+import java.io.InvalidClassException;
 import javax.naming.NamingException;
 
 import org.jboss.logging.BasicLogger;
@@ -35,4 +36,7 @@ interface HttpNamingClientMessages extends BasicLogger {
 
     @Message(id = 2, value = "At least one URI must be provided")
     NamingException atLeastOneUri();
+
+    @Message(id = 3, value = "Exception resolving class %s for unmarshalling; it has either been blacklisted or not whitelisted")
+    InvalidClassException cannotResolveFilteredClass(String clazz);
 }
