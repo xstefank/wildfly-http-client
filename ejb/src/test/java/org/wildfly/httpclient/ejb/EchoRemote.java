@@ -41,4 +41,6 @@ public interface EchoRemote {
 
     @CompressionHint
     String compressMessage() throws Exception;
+
+    String getObjectType(Object object);
 }

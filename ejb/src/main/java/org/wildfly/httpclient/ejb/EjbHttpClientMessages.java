@@ -19,6 +19,7 @@
 package org.wildfly.httpclient.ejb;
 
 import java.io.IOException;
+import java.io.InvalidClassException;
 import javax.ejb.EJBException;
 
 import org.jboss.ejb.client.EJBLocator;
@@ -63,4 +64,11 @@ interface EjbHttpClientMessages extends BasicLogger {
 
     @Message(id = 11, value = "Invalid transaction type %s")
     IOException invalidTransactionType(int type);
+
+    // Message #12 reserved for use upstream for a message not used in this branch
+
+    // Message #13 reserved for use upstream for a message not used in this branch
+
+    @Message(id = 14, value = "Exception resolving class %s for unmarshalling; it has either been blacklisted or not whitelisted")
+    InvalidClassException cannotResolveFilteredClass(String clazz);
 }

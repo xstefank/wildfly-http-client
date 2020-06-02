@@ -20,6 +20,7 @@ package org.wildfly.httpclient.ejb;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.InvalidClassException;
 import java.io.OutputStream;
 import java.net.SocketAddress;
 import java.util.Base64;
@@ -27,6 +28,7 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
+import java.util.function.Function;
 import javax.ejb.EJBHome;
 import javax.ejb.NoSuchEJBException;
 import javax.transaction.SystemException;
@@ -74,13 +76,16 @@ class HttpInvocationHandler extends RemoteHTTPHandler {
     private final ExecutorService executorService;
     private final LocalTransactionContext localTransactionContext;
     private final Map<InvocationIdentifier, CancelHandle> cancellationFlags;
+    private final Function<String, Boolean> classResolverFilter;
 
-    HttpInvocationHandler(Association association, ExecutorService executorService, LocalTransactionContext localTransactionContext, Map<InvocationIdentifier, CancelHandle> cancellationFlags) {
+    HttpInvocationHandler(Association association, ExecutorService executorService, LocalTransactionContext localTransactionContext,
+                          Map<InvocationIdentifier, CancelHandle> cancellationFlags, Function<String, Boolean> classResolverFilter) {
         super(executorService);
         this.association = association;
         this.executorService = executorService;
         this.localTransactionContext = localTransactionContext;
         this.cancellationFlags = cancellationFlags;
+        this.classResolverFilter = classResolverFilter;
     }
 
     @Override
@@ -147,7 +152,7 @@ class HttpInvocationHandler extends RemoteHTTPHandler {
                     final MarshallingConfiguration marshallingConfiguration = new MarshallingConfiguration();
                     marshallingConfiguration.setObjectTable(HttpProtocolV1ObjectTable.INSTANCE);
                     marshallingConfiguration.setVersion(2);
-                    marshallingConfiguration.setClassResolver(new SimpleClassResolver(classLoader));
+                    marshallingConfiguration.setClassResolver(new FilteringClassResolver(classLoader, classResolverFilter));
                     final Unmarshaller unmarshaller = HttpServerHelper.RIVER_MARSHALLER_FACTORY.createUnmarshaller(marshallingConfiguration);
 
                     try (InputStream inputStream = exchange.getInputStream()) {
@@ -389,6 +394,35 @@ class HttpInvocationHandler extends RemoteHTTPHandler {
             } catch (Exception e) {
                 HttpServerHelper.sendException(exchange, 500, e);
             }
+        }
+    }
+
+    private static class FilteringClassResolver extends SimpleClassResolver {
+        private final Function<String, Boolean> classResolverFilter;
+        FilteringClassResolver(ClassLoader classLoader, Function<String, Boolean> classResolverFilter) {
+            super(classLoader);
+            this.classResolverFilter = classResolverFilter;
+        }
+
+        @Override
+        public Class<?> resolveClass(Unmarshaller unmarshaller, String name, long serialVersionUID) throws IOException, ClassNotFoundException {
+            checkFilter(name);
+            return super.resolveClass(unmarshaller, name, serialVersionUID);
+        }
+
+        @Override
+        public Class<?> resolveProxyClass(Unmarshaller unmarshaller, String[] interfaces) throws IOException, ClassNotFoundException {
+            for (String name : interfaces) {
+                checkFilter(name);
+            }
+            return super.resolveProxyClass(unmarshaller, interfaces);
+        }
+
+        private void checkFilter(String className) throws InvalidClassException {
+            if (classResolverFilter != null && classResolverFilter.apply(className) != Boolean.TRUE) {
+                throw EjbHttpClientMessages.MESSAGES.cannotResolveFilteredClass(className);
+            }
+
         }
     }
 }

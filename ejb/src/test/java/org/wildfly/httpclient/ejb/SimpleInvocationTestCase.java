@@ -33,6 +33,8 @@ import org.junit.runner.RunWith;
 import org.wildfly.httpclient.common.WildflyHttpContext;
 
 import javax.ejb.ApplicationException;
+import javax.ejb.EJBException;
+import java.io.InvalidClassException;
 import java.lang.reflect.Method;
 import java.net.URI;
 import java.net.URISyntaxException;
@@ -299,6 +301,29 @@ public class SimpleInvocationTestCase {
             final String echo = proxy.echo(message);
             Assert.assertEquals("Unexpected echo message", "SFSB_ID-lazy-session-affinity", echo);
         }
+    }
+
+
+    @Test
+    public void testUnmarshallingFilter() throws Exception {
+        for (int i = 0; i < RETRIES; ++i) {
+            clearSessionId();
+            EJBTestServer.setHandler((invocation, affinity, out, method, handle, attachments) -> invocation.getParameters()[0].getClass().getName());
+            StatefulEJBLocator<EchoRemote> locator = EJBClient.createSession(EchoRemote.class, APP, MODULE, BEAN, "");
+            EchoRemote proxy = EJBClient.createProxy(locator);
+            final String type = proxy.getObjectType(new IllegalStateException());
+            Assert.assertEquals("Unexpected getObjectType response", IllegalStateException.class.getName(), type);
+            try {
+                final String bad = proxy.getObjectType(new IllegalArgumentException());
+                Assert.fail("IllegalArgumentException was not rejected; got " + bad);
+            } catch (EJBException e) {
+                // The specific cause type isn't so important; checking it is just a guard against
+                // the call failing for spurious reasons. If the impl changes such that this assert
+                // is no longer correct it's fine to remove or change it.
+                Assert.assertTrue(e.getCause().toString(), e.getCause() instanceof InvalidClassException);
+            }
+        }
+
     }
 
     private void clearSessionId() throws URISyntaxException {
