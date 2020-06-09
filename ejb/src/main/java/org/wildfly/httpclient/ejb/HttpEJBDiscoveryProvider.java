@@ -65,7 +65,8 @@ public final class HttpEJBDiscoveryProvider implements DiscoveryProvider {
     private static final AuthenticationContextConfigurationClient AUTH_CONFIGURATION_CLIENT = doPrivileged(AuthenticationContextConfigurationClient.ACTION);
 
     private Set<ServiceURL> serviceURLCache = new HashSet<>();
-    private AtomicBoolean shouldRefreshCache = new AtomicBoolean(true);
+    private AtomicBoolean cacheInvalid = new AtomicBoolean(true);
+    private long cacheRefreshTimestamp = 0L;
 
     HttpEJBDiscoveryProvider() {
     }
@@ -73,11 +74,11 @@ public final class HttpEJBDiscoveryProvider implements DiscoveryProvider {
     public DiscoveryRequest discover(final ServiceType serviceType, final FilterSpec filterSpec, final DiscoveryResult discoveryResult) {
         final EJBClientContext ejbClientContext = getCurrent();
 
-        if (shouldRefreshCache.get()) {
+        if (cacheInvalid.get()) {
             refreshCache(ejbClientContext);
         }
 
-        searchCache(discoveryResult, filterSpec);
+        searchCache(discoveryResult, filterSpec, ejbClientContext);
 
         return DiscoveryRequest.NULL;
     }
@@ -91,13 +92,23 @@ public final class HttpEJBDiscoveryProvider implements DiscoveryProvider {
         return false;
     }
 
-    private void searchCache(final DiscoveryResult discoveryResult, final FilterSpec filterSpec) {
+    private void searchCache(final DiscoveryResult discoveryResult, final FilterSpec filterSpec, final EJBClientContext ejbClientContext) {
+        final boolean resultsPresent = doSearchCache(discoveryResult, filterSpec);
+        if(!resultsPresent){
+            refreshCache(ejbClientContext);
+        }
+        discoveryResult.complete();
+    }
+
+    private boolean doSearchCache(final DiscoveryResult discoveryResult, final FilterSpec filterSpec) {
+        boolean resultsPresent = false;
         for (ServiceURL serviceURL : serviceURLCache) {
             if (serviceURL.satisfies(filterSpec)) {
                 discoveryResult.addMatch(serviceURL.getLocationURI());
+                resultsPresent = true;
             }
         }
-        discoveryResult.complete();
+        return resultsPresent;
     }
 
     private void refreshCache(final EJBClientContext ejbClientContext){
@@ -111,11 +122,11 @@ public final class HttpEJBDiscoveryProvider implements DiscoveryProvider {
         }
         try {
             outstandingLatch.await();
-            shouldRefreshCache.set(false);
+            cacheInvalid.set(false);
         } catch(InterruptedException e){
             EjbHttpClientMessages.MESSAGES.httpDiscoveryInterrupted(e);
         }
-        shouldRefreshCache.set(false);
+        cacheInvalid.set(false);
     }
 
     private void disoverFromConnection(final EJBClientConnection connection, final CountDownLatch outstandingLatch) {
@@ -201,7 +212,7 @@ public final class HttpEJBDiscoveryProvider implements DiscoveryProvider {
 
     @Override
     public void processMissingTarget(URI location, Exception cause) {
-        shouldRefreshCache.set(true);
+        cacheInvalid.set(true);
     }
 }
 
