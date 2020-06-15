@@ -38,6 +38,7 @@ import org.wildfly.httpclient.common.WildflyHttpContext;
 import org.wildfly.security.auth.client.AuthenticationConfiguration;
 import org.wildfly.security.auth.client.AuthenticationContext;
 import org.wildfly.security.auth.client.AuthenticationContextConfigurationClient;
+import org.wildfly.security.manager.WildFlySecurityManager;
 import org.xnio.IoUtils;
 
 import javax.net.ssl.SSLContext;
@@ -47,6 +48,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
 
@@ -64,6 +66,9 @@ public final class HttpEJBDiscoveryProvider implements DiscoveryProvider {
 
     private static final AuthenticationContextConfigurationClient AUTH_CONFIGURATION_CLIENT = doPrivileged(AuthenticationContextConfigurationClient.ACTION);
 
+    private static final long CACHE_REFRESH_TIMEOUT = TimeUnit.MILLISECONDS.toNanos(Long.parseLong(
+            WildFlySecurityManager.getPropertyPrivileged("org.wildfly.httpclient.ejb.discovery.cache-refresh-timeout", "300000")));
+
     private Set<ServiceURL> serviceURLCache = new HashSet<>();
     private AtomicBoolean cacheInvalid = new AtomicBoolean(true);
     private long cacheRefreshTimestamp = 0L;
@@ -74,13 +79,20 @@ public final class HttpEJBDiscoveryProvider implements DiscoveryProvider {
     public DiscoveryRequest discover(final ServiceType serviceType, final FilterSpec filterSpec, final DiscoveryResult discoveryResult) {
         final EJBClientContext ejbClientContext = getCurrent();
 
-        if (cacheInvalid.get()) {
+        if (shouldRefreshCache()) {
             refreshCache(ejbClientContext);
         }
 
         searchCache(discoveryResult, filterSpec, ejbClientContext);
 
         return DiscoveryRequest.NULL;
+    }
+
+    private boolean shouldRefreshCache() {
+        if (cacheInvalid.get() || ((System.nanoTime() - cacheRefreshTimestamp) > CACHE_REFRESH_TIMEOUT)) {
+            return true;
+        }
+        return false;
     }
 
     private boolean supportsScheme(String s) {
@@ -123,6 +135,7 @@ public final class HttpEJBDiscoveryProvider implements DiscoveryProvider {
         try {
             outstandingLatch.await();
             cacheInvalid.set(false);
+            cacheRefreshTimestamp = System.nanoTime();
         } catch(InterruptedException e){
             EjbHttpClientMessages.MESSAGES.httpDiscoveryInterrupted(e);
         }
