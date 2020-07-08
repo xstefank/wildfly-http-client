@@ -66,6 +66,9 @@ class WildflyClientOutputStream extends OutputStream implements ByteOutput {
                 }
                 try {
                     boolean closed = anyAreSet(state, FLAG_CLOSED);
+                    if (pooledBuffer != null) {
+                        pooledBuffer.getBuffer().flip();
+                    }
                     if (closed && (pooledBuffer == null || !pooledBuffer.getBuffer().hasRemaining())) {
                         if (pooledBuffer != null) {
                             pooledBuffer.close();
@@ -76,6 +79,7 @@ class WildflyClientOutputStream extends OutputStream implements ByteOutput {
                             state |= FLAG_DONE;
                             state &= ~FLAG_WRITING;
                             lock.notifyAll();
+                            streamSinkChannel.shutdownWrites();
                         }
                     } else {
                         while (pooledBuffer.getBuffer().hasRemaining()) {
@@ -182,9 +186,6 @@ class WildflyClientOutputStream extends OutputStream implements ByteOutput {
 
     private void runWriteTask() {
         Assert.assertHoldsLock(lock);
-        if (pooledBuffer != null) {
-            pooledBuffer.getBuffer().flip();
-        }
         state |= FLAG_WRITING;
         channel.getWriteSetter().set(channelListener);
         channel.wakeupWrites();
