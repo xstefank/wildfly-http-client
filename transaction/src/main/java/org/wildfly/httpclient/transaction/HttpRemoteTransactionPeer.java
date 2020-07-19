@@ -18,6 +18,8 @@
 
 package org.wildfly.httpclient.transaction;
 
+import java.net.URI;
+import java.security.GeneralSecurityException;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import javax.net.ssl.SSLContext;
@@ -30,6 +32,8 @@ import org.jboss.marshalling.MarshallingConfiguration;
 import org.jboss.marshalling.Unmarshaller;
 import org.wildfly.httpclient.common.HttpTargetContext;
 import org.wildfly.security.auth.client.AuthenticationConfiguration;
+import org.wildfly.security.auth.client.AuthenticationContext;
+import org.wildfly.security.auth.client.AuthenticationContextConfigurationClient;
 import org.wildfly.transaction.client.SimpleXid;
 import org.wildfly.transaction.client.spi.RemoteTransactionPeer;
 import org.wildfly.transaction.client.spi.SimpleTransactionControl;
@@ -40,18 +44,24 @@ import io.undertow.client.ClientRequest;
 import io.undertow.util.Headers;
 import io.undertow.util.Methods;
 
+import static java.security.AccessController.doPrivileged;
+
 /**
  * @author Stuart Douglas
  */
 public class HttpRemoteTransactionPeer implements RemoteTransactionPeer {
+    private static final AuthenticationContextConfigurationClient CLIENT = doPrivileged(AuthenticationContextConfigurationClient.ACTION);
+
     private final HttpTargetContext targetContext;
     private final SSLContext sslContext;
     private final AuthenticationConfiguration authenticationConfiguration;
+    private final AuthenticationContext authenticationContext;
 
     public HttpRemoteTransactionPeer(HttpTargetContext targetContext, SSLContext sslContext, AuthenticationConfiguration authenticationConfiguration) {
         this.targetContext = targetContext;
         this.sslContext = sslContext;
         this.authenticationConfiguration = authenticationConfiguration;
+        this.authenticationContext = AuthenticationContext.captureCurrent();
     }
 
     @Override
@@ -69,6 +79,14 @@ public class HttpRemoteTransactionPeer implements RemoteTransactionPeer {
         cr.getRequestHeaders().put(Headers.ACCEPT, TransactionConstants.RECOVER_ACCEPT);
         cr.getRequestHeaders().put(TransactionConstants.RECOVERY_PARENT_NAME, parentName);
         cr.getRequestHeaders().put(TransactionConstants.RECOVERY_FLAGS, Integer.toString(flag));
+
+        final AuthenticationConfiguration authenticationConfiguration = getAuthenticationConfiguration(targetContext.getUri());
+        final SSLContext sslContext;
+        try {
+            sslContext = getSslContext(targetContext.getUri());
+        } catch (GeneralSecurityException e) {
+            throw new XAException(e.getMessage());
+        }
 
         targetContext.sendRequest(cr,  sslContext, authenticationConfiguration,null, (result, response, closeable) -> {
             try {
@@ -120,6 +138,13 @@ public class HttpRemoteTransactionPeer implements RemoteTransactionPeer {
         cr.getRequestHeaders().put(Headers.ACCEPT, TransactionConstants.NEW_TRANSACTION_ACCEPT);
         cr.getRequestHeaders().put(TransactionConstants.TIMEOUT, timeout);
 
+        final AuthenticationConfiguration authenticationConfiguration = getAuthenticationConfiguration(targetContext.getUri());
+        final SSLContext sslContext;
+        try {
+            sslContext = getSslContext(targetContext.getUri());
+        } catch (GeneralSecurityException e) {
+            throw new SystemException(e.getMessage());
+        }
 
         targetContext.sendRequest(cr, sslContext, authenticationConfiguration, null, (result, response, closeable) -> {
             try {
@@ -151,6 +176,22 @@ public class HttpRemoteTransactionPeer implements RemoteTransactionPeer {
             SystemException ex = new SystemException(e.getMessage());
             ex.initCause(e);
             throw ex;
+        }
+    }
+
+    private AuthenticationConfiguration getAuthenticationConfiguration(URI location) {
+        if (authenticationConfiguration == null) {
+            return CLIENT.getAuthenticationConfiguration(location, authenticationContext, -1, "jta", "jboss");
+        } else {
+            return authenticationConfiguration;
+        }
+    }
+
+    private SSLContext getSslContext(URI location) throws GeneralSecurityException {
+        if (sslContext == null) {
+            return CLIENT.getSSLContext(location, authenticationContext, "jta", "jboss");
+        } else {
+            return sslContext;
         }
     }
 
