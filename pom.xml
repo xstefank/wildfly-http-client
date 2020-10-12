@@ -52,7 +52,7 @@
         <version.io.undertow>2.1.1.Final</version.io.undertow>
         <version.org.jboss.logging>3.4.1.Final</version.org.jboss.logging>
         <version.org.jboss.logging-tools>2.2.1.Final</version.org.jboss.logging-tools>
-        <version.org.junit>4.12</version.org.junit>
+        <version.org.junit>4.13.1</version.org.junit>
         <version.org.assertj>3.16.1</version.org.assertj>
         <version.org.jboss.logmanager>2.1.15.Final</version.org.jboss.logmanager>
         <version.xnio>3.8.1.Final</version.xnio>
