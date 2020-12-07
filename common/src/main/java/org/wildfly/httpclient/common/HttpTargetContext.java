@@ -196,6 +196,7 @@ public class HttpTargetContext extends AbstractAttachable {
                                                     sendRequestInternal(connection, request, finalAuthenticationConfiguration, httpMarshaller, httpResultHandler, failureHandler, expectedResponse, completedTask, allowNoContent, true, finalSslContext);
                                                 } else {
                                                     failureHandler.handleFailure(HttpClientMessages.MESSAGES.authenticationFailed());
+                                                    connection.done(true);
                                                 }
                                             }, failureHandler::handleFailure, false, finalSslContext);
 
