@@ -20,7 +20,9 @@ package org.wildfly.httpclient.naming;
 
 import javax.naming.Binding;
 import javax.naming.Context;
+import javax.naming.InvalidNameException;
 import javax.naming.Name;
+import javax.naming.NameAlreadyBoundException;
 import javax.naming.NameClassPair;
 import javax.naming.NameNotFoundException;
 import javax.naming.NameParser;
@@ -67,6 +69,9 @@ public class LocalContext implements Context {
         if (readOnly) {
             throw new OperationNotSupportedException("bind is read-only");
         }
+        if (bindings.containsKey(name)) {
+            throw new NameAlreadyBoundException("Name: " + name + " has been bound");
+        }
         bindings.put(name, obj);
     }
 
@@ -93,7 +98,10 @@ public class LocalContext implements Context {
         if (readOnly) {
             throw new OperationNotSupportedException("unbind is read-only");
         }
-        bindings.remove(name);
+        Object obj = bindings.remove(name);
+        if (obj == null) {
+            throw new NameNotFoundException();
+        }
     }
 
     @Override
@@ -143,6 +151,14 @@ public class LocalContext implements Context {
         if (readOnly) {
             throw new OperationNotSupportedException("destroySubcontext is read-only");
         }
+        Object obj = bindings.get(name);
+        if (obj == null) {
+            throw new NameNotFoundException();
+        }
+        if (!(obj instanceof LocalContext)) {
+            throw new InvalidNameException("Name: " + name + " is not a LocalContext");
+        }
+        bindings.remove(name);
     }
 
     @Override
@@ -155,7 +171,12 @@ public class LocalContext implements Context {
         if (readOnly) {
             throw new OperationNotSupportedException("createSubcontext is read-only");
         }
-        return null;
+        if (bindings.containsKey(name)) {
+            throw new NameAlreadyBoundException("Name: " + name + " has been bound");
+        }
+        LocalContext ctx = new LocalContext(false);
+        bindings.put(name, ctx);
+        return ctx;
     }
 
     @Override

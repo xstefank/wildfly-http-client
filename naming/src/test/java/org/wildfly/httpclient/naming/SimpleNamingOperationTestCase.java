@@ -131,8 +131,47 @@ public class SimpleNamingOperationTestCase {
     private InitialContext createContext() throws NamingException {
         Hashtable<String, String> env = new Hashtable<>();
         env.put(Context.INITIAL_CONTEXT_FACTORY, "org.wildfly.naming.client.WildFlyInitialContextFactory");
-        env.put(Context.PROVIDER_URL, "http://127.0.0.1:10," + HTTPTestServer.getDefaultServerURL());
+        env.put(Context.PROVIDER_URL, HTTPTestServer.getDefaultServerURL());
         return new InitialContext(env);
+    }
+
+    @Test
+    public void testSimpleUnbind() throws Exception {
+        InitialContext ic = createContext();
+        Assert.assertEquals("test value", ic.lookup("test").toString());
+        ic.unbind("test");
+        try {
+            ic.lookup("test");
+            Assert.fail("test is not available anymore");
+        } catch (NameNotFoundException e) {
+        }
+    }
+
+    @Test
+    public void testSimpleSubContext() throws Exception {
+        InitialContext ic = createContext();
+        ic.createSubcontext("subContext");
+        Context subContext = (Context)ic.lookup("subContext");
+        Assert.assertNotNull(subContext);
+        ic.destroySubcontext("subContext");
+        try {
+            ic.lookup("subContext");
+            Assert.fail("subContext is not available anymore");
+        } catch (NameNotFoundException e) {
+        }
+    }
+
+    @Test
+    public void testSimpleRename() throws Exception {
+        InitialContext ic = createContext();
+        Assert.assertEquals("test value", ic.lookup("test").toString());
+        ic.rename("test", "testB");
+        try {
+            ic.lookup("test");
+            Assert.fail("test is not available anymore");
+        } catch (NameNotFoundException e) {
+        }
+        Assert.assertEquals("test value", ic.lookup("testB").toString());
     }
 
 }

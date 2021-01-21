@@ -138,27 +138,28 @@ public class HttpRootContext extends AbstractContext {
 
     @Override
     protected void bindNative(Name name, Object obj) throws NamingException {
-        processInvocation(name, Methods.PUT, obj, "naming/v1/bind/");
+        processInvocation(name, Methods.PUT, obj, "naming/v1/bind/", null);
     }
 
     @Override
     protected void rebindNative(Name name, Object obj) throws NamingException {
-        processInvocation(name, Methods.PATCH, obj, "naming/v1/rebind/");
+        processInvocation(name, Methods.PATCH, obj, "naming/v1/rebind/", null);
     }
 
     @Override
     protected void unbindNative(Name name) throws NamingException {
-        processInvocation(name, Methods.PUT, "naming/v1/unbind/");
+        processInvocation(name, Methods.DELETE, null,"naming/v1/unbind/", null);
     }
 
     @Override
     protected void renameNative(Name oldName, Name newName) throws NamingException {
-        processInvocation(oldName, Methods.PATCH, "naming/v1/rename/", newName);
+        //TODO no result expected
+        processInvocation(oldName, Methods.PATCH, null,"naming/v1/rename/", newName);
     }
 
     @Override
     protected void destroySubcontextNative(Name name) throws NamingException {
-        processInvocation(name, Methods.PUT, "naming/v1/rename/");
+        processInvocation(name, Methods.DELETE, null,"naming/v1/dest-subctx/", null);
     }
 
     @Override
@@ -234,10 +235,6 @@ public class HttpRootContext extends AbstractContext {
     }
 
     private Object processInvocation(Name name, HttpString method, String pathSegment) throws NamingException {
-        return processInvocation(name, method, pathSegment, (Name) null);
-    }
-
-    private Object processInvocation(Name name, HttpString method, String pathSegment, Name newName) throws NamingException {
         ProviderEnvironment environment = httpNamingProvider.getProviderEnvironment();
         final RetryContext context = canRetry(environment) ? new RetryContext() : null;
         return performWithRetry((contextOrNull, name1, param) -> {
@@ -254,10 +251,6 @@ public class HttpRootContext extends AbstractContext {
                 sb.append(pathSegment)
                         .append(URLEncoder.encode(name.toString(), StandardCharsets.UTF_8.name()));
 
-                if (newName != null) {
-                    sb.append("?new=");
-                    sb.append(URLEncoder.encode(newName.toString(), StandardCharsets.UTF_8.name()));
-                }
                 final ClientRequest clientRequest = new ClientRequest()
                         .setPath(sb.toString())
                         .setMethod(method);
@@ -358,7 +351,7 @@ public class HttpRootContext extends AbstractContext {
     }
 
 
-    private void processInvocation(Name name, HttpString method, Object object, String pathSegment) throws NamingException {
+    private void processInvocation(Name name, HttpString method, Object object, String pathSegment, Name newName) throws NamingException {
         ProviderEnvironment environment = httpNamingProvider.getProviderEnvironment();
         final RetryContext context = canRetry(environment) ? new RetryContext() : null;
         performWithRetry((contextOrNull, name1, param) -> {
@@ -372,6 +365,10 @@ public class HttpRootContext extends AbstractContext {
                     sb.append("/");
                 }
                 sb.append(pathSegment).append(URLEncoder.encode(name.toString(), StandardCharsets.UTF_8.name()));
+                if (newName != null) {
+                    sb.append("?new=");
+                    sb.append(URLEncoder.encode(newName.toString(), StandardCharsets.UTF_8.name()));
+                }
                 final ClientRequest clientRequest = new ClientRequest()
                         .setPath(sb.toString())
                         .setMethod(method);
