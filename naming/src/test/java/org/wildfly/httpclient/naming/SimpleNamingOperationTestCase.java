@@ -19,17 +19,10 @@
 package org.wildfly.httpclient.naming;
 
 import java.util.Hashtable;
-import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Function;
-import javax.naming.Binding;
 import javax.naming.Context;
 import javax.naming.InitialContext;
-import javax.naming.Name;
-import javax.naming.NameClassPair;
 import javax.naming.NameNotFoundException;
-import javax.naming.NameParser;
-import javax.naming.NamingEnumeration;
 import javax.naming.NamingException;
 
 import org.junit.Assert;
@@ -45,7 +38,6 @@ import io.undertow.server.handlers.CookieImpl;
 @RunWith(HTTPTestServer.class)
 public class SimpleNamingOperationTestCase {
 
-    private static final Map<String, Object> bindings = new ConcurrentHashMap<>();
     /*
      * Reject unmarshalling an instance of IAE, as a kind of 'blacklist'.
      * In normal tests this type would never be sent, which is analogous to
@@ -54,170 +46,10 @@ public class SimpleNamingOperationTestCase {
      */
     private static final Function<String, Boolean> DEFAULT_CLASS_FILTER = cName -> !cName.equals(IllegalArgumentException.class.getName());
 
-
-
     @Before
     public void setup() {
-        bindings.put("test", "test value");
-        bindings.put("comp/UserTransaction", "transaction");
         HTTPTestServer.registerServicesHandler("common/v1/affinity", exchange -> exchange.getResponseCookies().put("JSESSIONID", new CookieImpl("JSESSIONID", "foo")));
-        HTTPTestServer.registerServicesHandler("naming", new HttpRemoteNamingService(new Context() {
-
-            @Override
-            public Object lookup(Name name) throws NamingException {
-                return lookup(name.toString());
-            }
-
-            @Override
-            public Object lookup(String name) throws NamingException {
-                Object res = bindings.get(name);
-                if (res == null) {
-                    throw new NameNotFoundException();
-                }
-                return res;
-            }
-
-            @Override
-            public void bind(Name name, Object obj) throws NamingException {
-                bind(name.toString(), obj);
-            }
-
-            @Override
-            public void bind(String name, Object obj) throws NamingException {
-                bindings.put(name, obj);
-            }
-
-            @Override
-            public void rebind(Name name, Object obj) throws NamingException {
-                rebind(name.toString(), obj);
-            }
-
-            @Override
-            public void rebind(String name, Object obj) throws NamingException {
-                bindings.put(name, obj);
-            }
-
-            @Override
-            public void unbind(Name name) throws NamingException {
-                unbind(name.toString());
-            }
-
-            @Override
-            public void unbind(String name) throws NamingException {
-                bindings.remove(name);
-            }
-
-            @Override
-            public void rename(Name oldName, Name newName) throws NamingException {
-
-            }
-
-            @Override
-            public void rename(String oldName, String newName) throws NamingException {
-                Object obj = bindings.remove(oldName);
-                if (obj == null) {
-                    throw new NameNotFoundException();
-                }
-                bindings.put(newName, obj);
-            }
-
-            @Override
-            public NamingEnumeration<NameClassPair> list(Name name) throws NamingException {
-                return list(name.toString());
-            }
-
-            @Override
-            public NamingEnumeration<NameClassPair> list(String name) throws NamingException {
-                return null;
-            }
-
-            @Override
-            public NamingEnumeration<Binding> listBindings(Name name) throws NamingException {
-                return listBindings(name.toString());
-            }
-
-            @Override
-            public NamingEnumeration<Binding> listBindings(String name) throws NamingException {
-                return null;
-            }
-
-            @Override
-            public void destroySubcontext(Name name) throws NamingException {
-                destroySubcontext(name.toString());
-            }
-
-            @Override
-            public void destroySubcontext(String name) throws NamingException {
-
-            }
-
-            @Override
-            public Context createSubcontext(Name name) throws NamingException {
-                return createSubcontext(name.toString());
-            }
-
-            @Override
-            public Context createSubcontext(String name) throws NamingException {
-                return null;
-            }
-
-            @Override
-            public Object lookupLink(Name name) throws NamingException {
-                return lookupLink(name.toString());
-            }
-
-            @Override
-            public Object lookupLink(String name) throws NamingException {
-                return null;
-            }
-
-            @Override
-            public NameParser getNameParser(Name name) throws NamingException {
-                return null;
-            }
-
-            @Override
-            public NameParser getNameParser(String name) throws NamingException {
-                return null;
-            }
-
-            @Override
-            public Name composeName(Name name, Name prefix) throws NamingException {
-                return null;
-            }
-
-            @Override
-            public String composeName(String name, String prefix) throws NamingException {
-                return null;
-            }
-
-            @Override
-            public Object addToEnvironment(String propName, Object propVal) throws NamingException {
-                return null;
-            }
-
-            @Override
-            public Object removeFromEnvironment(String propName) throws NamingException {
-                return null;
-            }
-
-            @Override
-            public Hashtable<?, ?> getEnvironment() throws NamingException {
-                return null;
-            }
-
-            @Override
-            public void close() throws NamingException {
-
-            }
-
-            @Override
-            public String getNameInNamespace() throws NamingException {
-                return null;
-            }
-        }, DEFAULT_CLASS_FILTER).createHandler());
-
-
+        HTTPTestServer.registerServicesHandler("naming", new HttpRemoteNamingService(new LocalContext(false), DEFAULT_CLASS_FILTER).createHandler());
     }
 
 
@@ -246,6 +78,7 @@ public class SimpleNamingOperationTestCase {
         result = ic.lookup("comp/UserTransaction");
         Assert.assertEquals("transaction", result);
     }
+
     @Test
     public void testJNDIBindings() throws NamingException {
         InitialContext ic = createContext();
@@ -267,6 +100,7 @@ public class SimpleNamingOperationTestCase {
 //        Assert.assertEquals("test binding 2", ic.lookup("bound2"));
 
     }
+
     @Test
     public void testUnmarshallingFilter() throws NamingException {
         InitialContext ic = createContext();
