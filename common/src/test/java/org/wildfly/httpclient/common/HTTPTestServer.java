@@ -40,6 +40,8 @@ import javax.net.ssl.SSLContext;
 import javax.net.ssl.TrustManager;
 import javax.net.ssl.TrustManagerFactory;
 
+import io.undertow.server.handlers.CanonicalPathHandler;
+import io.undertow.server.handlers.error.SimpleErrorPageHandler;
 import org.junit.runner.Description;
 import org.junit.runner.Result;
 import org.junit.runner.notification.RunListener;
@@ -243,7 +245,7 @@ public class HTTPTestServer extends BlockJUnit4ClassRunner {
                                     }
                                 };
                             }
-                        }, new AuthenticationConstraintHandler(new AuthenticationMechanismsHandler(new AuthenticationCallHandler(PATH_HANDLER), Arrays.asList(new AuthenticationMechanism[]{new BasicAuthenticationMechanism("myRealm", "BASIC", true), new DigestAuthenticationMechanism("test", "localhost", "DIGEST"), new ClientCertAuthenticationMechanism(true)})))))
+                        }, getRootHandler()))
                         .build();
                 undertow.start();
                 notifier.addListener(new RunListener() {
@@ -256,6 +258,15 @@ public class HTTPTestServer extends BlockJUnit4ClassRunner {
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
+    }
+
+    protected HttpHandler getRootHandler() {
+        HttpHandler root = new AuthenticationCallHandler(PATH_HANDLER);
+        root = new AuthenticationMechanismsHandler(root, Arrays.asList(new AuthenticationMechanism[]{new BasicAuthenticationMechanism("myRealm", "BASIC", true), new DigestAuthenticationMechanism("test", "localhost", "DIGEST"), new ClientCertAuthenticationMechanism(true)}));
+        root = new AuthenticationConstraintHandler(root);
+        root = new SimpleErrorPageHandler(root);
+        root = new CanonicalPathHandler(root);
+        return root;
     }
 
     private SSLContext createServerSslContext() {
