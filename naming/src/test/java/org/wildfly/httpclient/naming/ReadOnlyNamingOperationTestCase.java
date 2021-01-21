@@ -102,4 +102,32 @@ public class ReadOnlyNamingOperationTestCase {
         }
     }
 
+    @Test
+    public void testReadOnlyUnBind() throws Exception {
+        InitialContext ic = createContext();
+        try {
+            ic.unbind("name");
+            Assert.fail("should fail");
+        } catch (Exception e) {
+            Assert.assertTrue(e instanceof NamingException);
+            Assert.assertEquals("unbind is read-only", e.getMessage());
+        } finally {
+            ic.close();
+        }
+    }
+
+    @Test
+    public void testReadOnlyDestroySubContext() throws Exception {
+        InitialContext ic = createContext();
+        try {
+            ic.destroySubcontext("subContext");
+            Assert.fail("should fail");
+        } catch (Exception e) {
+            Assert.assertTrue(e instanceof NamingException);
+            Assert.assertEquals("destroySubcontext is read-only", e.getMessage());
+        } finally {
+            ic.close();
+        }
+    }
+
 }
