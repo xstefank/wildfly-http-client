@@ -90,6 +90,7 @@ class WildflyClientOutputStream extends OutputStream implements ByteOutput {
                                 res = streamSinkChannel.write(pooledBuffer.getBuffer());
                             }
                             if (res == 0) {
+                                pooledBuffer.getBuffer().compact(); // WEJBHTTP-50 compact the buffer to be able to flip it when listener is invoked again
                                 return;
                             }
                         }
