@@ -21,7 +21,6 @@ package org.wildfly.httpclient.naming;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InvalidClassException;
-import java.io.OutputStream;
 import java.io.UnsupportedEncodingException;
 import java.net.URLDecoder;
 import java.util.Deque;
@@ -29,7 +28,6 @@ import java.util.function.Function;
 import javax.naming.Context;
 import javax.naming.NamingException;
 
-import org.jboss.marshalling.ByteOutput;
 import org.jboss.marshalling.ContextClassResolver;
 import org.jboss.marshalling.InputStreamByteInput;
 import org.jboss.marshalling.Marshaller;
@@ -40,6 +38,7 @@ import org.jboss.marshalling.Unmarshaller;
 import org.jboss.marshalling.river.RiverMarshallerFactory;
 import org.wildfly.httpclient.common.ContentType;
 import org.wildfly.httpclient.common.ElytronIdentityHandler;
+import org.wildfly.httpclient.common.HttpServerHelper;
 import org.wildfly.httpclient.common.NoFlushByteOutput;
 import io.undertow.server.HttpHandler;
 import io.undertow.server.HttpServerExchange;
@@ -225,6 +224,9 @@ public class HttpRemoteNamingService {
                 unmarshaller.finish();
                 doOperation(name, object);
             } catch (Exception e) {
+                if (e instanceof NamingException) {
+                    throw (NamingException)e;
+                }
                 NamingException nm = new NamingException(e.getMessage());
                 nm.initCause(e);
                 throw nm;
@@ -245,23 +247,11 @@ public class HttpRemoteNamingService {
         marshaller.start(new NoFlushByteOutput(Marshalling.createByteOutput(exchange.getOutputStream())));
         marshaller.writeObject(result);
         marshaller.finish();
+        marshaller.flush();
     }
 
     public static void sendException(HttpServerExchange exchange, int status, Throwable e) throws IOException {
-        exchange.setStatusCode(status);
-        exchange.getResponseHeaders().put(Headers.CONTENT_TYPE, "application/x-wf-jbmar-exception;version=1");
-
-        final MarshallingConfiguration marshallingConfiguration = new MarshallingConfiguration();
-        marshallingConfiguration.setVersion(2);
-        final Marshaller marshaller = MARSHALLER_FACTORY.createMarshaller(marshallingConfiguration);
-        OutputStream outputStream = exchange.getOutputStream();
-        final ByteOutput byteOutput = new NoFlushByteOutput(Marshalling.createByteOutput(outputStream));
-        // start the marshaller
-        marshaller.start(byteOutput);
-        marshaller.writeObject(e);
-        marshaller.write(0);
-        marshaller.finish();
-        marshaller.flush();
+        HttpServerHelper.sendException(exchange, status, e);
     }
 
     private static class FilterClassResolver extends ContextClassResolver {
