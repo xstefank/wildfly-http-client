@@ -85,6 +85,17 @@
             <artifactId>jboss-logmanager</artifactId>
             <scope>test</scope>
         </dependency>
+
+        <dependency>
+            <groupId>org.wildfly.security.elytron-web</groupId>
+            <artifactId>undertow-common-test</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.wildfly.security.elytron-web</groupId>
+            <artifactId>undertow-server</artifactId>
+            <scope>test</scope>
+        </dependency>
     </dependencies>
 
 
