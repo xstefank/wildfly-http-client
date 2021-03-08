@@ -18,66 +18,74 @@
 
 package org.wildfly.httpclient.common;
 
-import java.io.IOException;
-import java.io.InputStream;
-import java.nio.charset.StandardCharsets;
-import java.security.KeyManagementException;
-import java.security.KeyStore;
-import java.security.KeyStoreException;
-import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
-import java.security.Principal;
-import java.security.Security;
-import java.security.UnrecoverableKeyException;
-import java.security.cert.CertificateException;
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.HashSet;
-import java.util.Set;
-import javax.net.ssl.KeyManager;
-import javax.net.ssl.KeyManagerFactory;
-import javax.net.ssl.SSLContext;
-import javax.net.ssl.TrustManager;
-import javax.net.ssl.TrustManagerFactory;
-
+import io.undertow.Undertow;
+import io.undertow.UndertowOptions;
+import io.undertow.connector.ByteBufferPool;
+import io.undertow.security.api.AuthenticationMode;
+import io.undertow.security.handlers.AuthenticationCallHandler;
+import io.undertow.security.idm.Account;
+import io.undertow.server.DefaultByteBufferPool;
+import io.undertow.server.HttpHandler;
+import io.undertow.server.handlers.BlockingHandler;
 import io.undertow.server.handlers.CanonicalPathHandler;
+import io.undertow.server.handlers.PathHandler;
 import io.undertow.server.handlers.error.SimpleErrorPageHandler;
+import io.undertow.util.NetworkUtils;
 import org.junit.runner.Description;
 import org.junit.runner.Result;
 import org.junit.runner.notification.RunListener;
 import org.junit.runner.notification.RunNotifier;
 import org.junit.runners.BlockJUnit4ClassRunner;
 import org.junit.runners.model.InitializationError;
+import org.wildfly.elytron.web.undertow.server.ElytronContextAssociationHandler;
 import org.wildfly.security.WildFlyElytronProvider;
+import org.wildfly.security.auth.permission.LoginPermission;
+import org.wildfly.security.auth.realm.SimpleMapBackedSecurityRealm;
+import org.wildfly.security.auth.realm.SimpleRealmEntry;
+import org.wildfly.security.auth.server.SecurityDomain;
+import org.wildfly.security.auth.server.http.HttpAuthenticationFactory;
+import org.wildfly.security.http.HttpAuthenticationException;
+import org.wildfly.security.http.HttpServerAuthenticationMechanism;
+import org.wildfly.security.http.HttpServerAuthenticationMechanismFactory;
+import org.wildfly.security.http.basic.BasicMechanismFactory;
+import org.wildfly.security.http.cert.ClientCertMechanismFactory;
+import org.wildfly.security.http.digest.DigestMechanismFactory;
+import org.wildfly.security.http.util.AggregateServerMechanismFactory;
+import org.wildfly.security.password.PasswordFactory;
+import org.wildfly.security.password.spec.ClearPasswordSpec;
+import org.wildfly.security.permission.PermissionVerifier;
 import org.xnio.IoUtils;
 import org.xnio.OptionMap;
 import org.xnio.Options;
 import org.xnio.SslClientAuthMode;
 import org.xnio.Xnio;
 import org.xnio.XnioWorker;
-import io.undertow.Undertow;
-import io.undertow.UndertowOptions;
-import io.undertow.connector.ByteBufferPool;
-import io.undertow.security.api.AuthenticationMechanism;
-import io.undertow.security.api.AuthenticationMode;
-import io.undertow.security.handlers.AuthenticationCallHandler;
-import io.undertow.security.handlers.AuthenticationConstraintHandler;
-import io.undertow.security.handlers.AuthenticationMechanismsHandler;
-import io.undertow.security.handlers.SecurityInitialHandler;
-import io.undertow.security.idm.Account;
-import io.undertow.security.idm.Credential;
-import io.undertow.security.idm.DigestCredential;
-import io.undertow.security.idm.IdentityManager;
-import io.undertow.security.idm.PasswordCredential;
-import io.undertow.security.idm.X509CertificateCredential;
-import io.undertow.security.impl.BasicAuthenticationMechanism;
-import io.undertow.security.impl.ClientCertAuthenticationMechanism;
-import io.undertow.security.impl.DigestAuthenticationMechanism;
-import io.undertow.server.DefaultByteBufferPool;
-import io.undertow.server.HttpHandler;
-import io.undertow.server.handlers.PathHandler;
-import io.undertow.util.HexConverter;
-import io.undertow.util.NetworkUtils;
+
+import javax.net.ssl.KeyManager;
+import javax.net.ssl.KeyManagerFactory;
+import javax.net.ssl.SSLContext;
+import javax.net.ssl.TrustManager;
+import javax.net.ssl.TrustManagerFactory;
+import java.io.IOException;
+import java.io.InputStream;
+import java.security.KeyManagementException;
+import java.security.KeyStore;
+import java.security.KeyStoreException;
+import java.security.NoSuchAlgorithmException;
+import java.security.Principal;
+import java.security.Security;
+import java.security.UnrecoverableKeyException;
+import java.security.cert.CertificateException;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
+import java.util.stream.Collectors;
+
+import static org.wildfly.security.password.interfaces.ClearPassword.ALGORITHM_CLEAR;
 
 /**
  * @author Stuart Douglas
@@ -105,6 +113,7 @@ public class HTTPTestServer extends BlockJUnit4ClassRunner {
 
     private static final Set<String> registeredPaths = new HashSet<>();
     private static final Set<String> registeredServices = new HashSet<>();
+    private SecurityDomain securityDomain;
 
     static {
         Security.addProvider(new WildFlyElytronProvider());
@@ -178,6 +187,59 @@ public class HTTPTestServer extends BlockJUnit4ClassRunner {
         return worker;
     }
 
+    private HttpHandler securityContextAssociationHandlerElytron() {
+        ElytronContextAssociationHandler.Builder builder = ElytronContextAssociationHandler.builder();
+        builder.setAuthenticationMode(AuthenticationMode.PRO_ACTIVE)
+                .setSecurityDomain(getSecurityDomain())
+                .setMechanismSupplier(this::authenticationMechanisms)
+                .setNext(getRootHandler());
+        return builder.build();
+    }
+
+    private List<HttpServerAuthenticationMechanism> authenticationMechanisms() {
+        HttpServerAuthenticationMechanismFactory basic = new BasicMechanismFactory();
+        HttpServerAuthenticationMechanismFactory digest = new DigestMechanismFactory();
+        HttpServerAuthenticationMechanismFactory clientCert = new ClientCertMechanismFactory();
+        HttpServerAuthenticationMechanismFactory aggregated = new AggregateServerMechanismFactory(basic, digest, clientCert);
+        HttpAuthenticationFactory httpAuthenticationFactory = HttpAuthenticationFactory.builder()
+                .setSecurityDomain(getSecurityDomain())
+                .setFactory(aggregated)
+                .build();
+        return httpAuthenticationFactory.getMechanismNames().stream()
+                .map(mechanismName -> {
+                    try {
+                        return httpAuthenticationFactory.createMechanism(mechanismName);
+                    } catch (HttpAuthenticationException e) {
+                        throw new RuntimeException("Failed to create mechanism.", e);
+                    }
+                })
+                .filter(Objects::nonNull)
+                .collect(Collectors.toList());
+    }
+
+    private SecurityDomain getSecurityDomain() {
+        if (securityDomain != null) {
+            return securityDomain;
+        }
+        try {
+            PasswordFactory passwordFactory = PasswordFactory.getInstance(ALGORITHM_CLEAR);
+            Map<String, SimpleRealmEntry> passwordMap = new HashMap<>();
+            passwordMap.put("administrator", new SimpleRealmEntry(Collections.singletonList(new org.wildfly.security.credential.PasswordCredential(passwordFactory.generatePassword(new ClearPasswordSpec("password1!".toCharArray()))))));
+
+            SimpleMapBackedSecurityRealm simpleRealm = new SimpleMapBackedSecurityRealm();
+            simpleRealm.setIdentityMap(passwordMap);
+
+            SecurityDomain.Builder builder = SecurityDomain.builder()
+                    .setPermissionMapper((principal, roles) -> PermissionVerifier.from(new LoginPermission()));
+            builder.addRealm("test", simpleRealm);
+
+            securityDomain = builder.build();
+            return securityDomain;
+        } catch (Exception e) {
+            throw new RuntimeException("Failed to create SecurityDomain", e);
+        }
+    }
+
     private void runInternal(final RunNotifier notifier) {
         try {
             if (first) {
@@ -192,60 +254,7 @@ public class HTTPTestServer extends BlockJUnit4ClassRunner {
                         .setServerOption(UndertowOptions.REQUIRE_HOST_HTTP11, true)
                         .setServerOption(UndertowOptions.NO_REQUEST_TIMEOUT, 1000)
                         .setSocketOption(Options.SSL_CLIENT_AUTH_MODE, SslClientAuthMode.REQUIRED)
-                        .setHandler(new SecurityInitialHandler(AuthenticationMode.PRO_ACTIVE, new IdentityManager() {
-                            @Override
-                            public Account verify(Account account) {
-                                return null;
-                            }
-
-                            @Override
-                            public Account verify(String id, Credential credential) {
-                                if (credential instanceof PasswordCredential) {
-                                    if (id.equals("administrator") && Arrays.equals(((PasswordCredential) credential).getPassword(), "password1!".toCharArray())) {
-                                        return new TestAccount();
-                                    }
-                                } else if (credential instanceof DigestCredential) {
-                                    DigestCredential digCred = (DigestCredential) credential;
-                                    MessageDigest digest = null;
-                                    try {
-                                        digest = digCred.getAlgorithm().getMessageDigest();
-
-                                        digest.update(id.getBytes(StandardCharsets.UTF_8));
-                                        digest.update((byte) ':');
-                                        digest.update(digCred.getRealm().getBytes(StandardCharsets.UTF_8));
-                                        digest.update((byte) ':');
-                                        char[] expectedPassword = "password1!".toCharArray();
-                                        digest.update(new String(expectedPassword).getBytes(StandardCharsets.UTF_8));
-
-                                        if(digCred.verifyHA1(HexConverter.convertToHexBytes(digest.digest()))) {
-                                            return new TestAccount();
-                                        }
-                                    } catch (NoSuchAlgorithmException e) {
-                                        throw new IllegalStateException("Unsupported Algorithm", e);
-                                    } finally {
-                                        digest.reset();
-                                    }
-                                }
-                                return null;
-
-                            }
-
-                            @Override
-                            public Account verify(Credential credential) {
-                                X509CertificateCredential cred = (X509CertificateCredential) credential;
-                                return new Account() {
-                                    @Override
-                                    public Principal getPrincipal() {
-                                        return cred.getCertificate().getSubjectX500Principal();
-                                    }
-
-                                    @Override
-                                    public Set<String> getRoles() {
-                                        return Collections.emptySet();
-                                    }
-                                };
-                            }
-                        }, getRootHandler()))
+                        .setHandler(securityContextAssociationHandlerElytron())
                         .build();
                 undertow.start();
                 notifier.addListener(new RunListener() {
@@ -261,9 +270,8 @@ public class HTTPTestServer extends BlockJUnit4ClassRunner {
     }
 
     protected HttpHandler getRootHandler() {
-        HttpHandler root = new AuthenticationCallHandler(PATH_HANDLER);
-        root = new AuthenticationMechanismsHandler(root, Arrays.asList(new AuthenticationMechanism[]{new BasicAuthenticationMechanism("myRealm", "BASIC", true), new DigestAuthenticationMechanism("test", "localhost", "DIGEST"), new ClientCertAuthenticationMechanism(true)}));
-        root = new AuthenticationConstraintHandler(root);
+        HttpHandler root = new BlockingHandler(PATH_HANDLER);
+        root = new AuthenticationCallHandler(root);
         root = new SimpleErrorPageHandler(root);
         root = new CanonicalPathHandler(root);
         return root;
