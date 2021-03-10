@@ -66,7 +66,11 @@ public class HttpRemoteTransactionPeer implements RemoteTransactionPeer {
 
     @Override
     public SubordinateTransactionControl lookupXid(Xid xid) throws XAException {
-        return new HttpSubordinateTransactionHandle(xid, targetContext, sslContext, authenticationConfiguration);
+        try {
+            return new HttpSubordinateTransactionHandle(xid, targetContext, getSslContext(targetContext.getUri()), authenticationConfiguration);
+        } catch (GeneralSecurityException e) {
+            throw new XAException(e.getMessage());
+        }
     }
 
     @Override
