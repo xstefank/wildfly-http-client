@@ -69,7 +69,9 @@ public class HttpRemoteTransactionPeer implements RemoteTransactionPeer {
         try {
             return new HttpSubordinateTransactionHandle(xid, targetContext, getSslContext(targetContext.getUri()), authenticationConfiguration);
         } catch (GeneralSecurityException e) {
-            throw new XAException(e.getMessage());
+            XAException xaException = new XAException(XAException.XAER_RMFAIL);
+            xaException.initCause(e);
+            throw xaException;
         }
     }
 
@@ -89,7 +91,9 @@ public class HttpRemoteTransactionPeer implements RemoteTransactionPeer {
         try {
             sslContext = getSslContext(targetContext.getUri());
         } catch (GeneralSecurityException e) {
-            throw new XAException(e.getMessage());
+            XAException xaException = new XAException(XAException.XAER_RMFAIL);
+            xaException.initCause(e);
+            throw xaException;
         }
 
         targetContext.sendRequest(cr,  sslContext, authenticationConfiguration,null, (result, response, closeable) -> {
@@ -126,7 +130,7 @@ public class HttpRemoteTransactionPeer implements RemoteTransactionPeer {
             if(cause instanceof XAException) {
                 throw (XAException)cause;
             }
-            XAException xaException = new XAException(cause.getMessage());
+            XAException xaException = new XAException(XAException.XAER_RMFAIL);
             xaException.initCause(cause);
             throw xaException;
         }
