@@ -57,6 +57,7 @@ public class HttpServerHelper {
             marshaller.flush();
             exchange.endExchange();
         } catch (Exception ex) {
+            ex.addSuppressed(e);
             HttpClientMessages.MESSAGES.failedToWriteException(ex);
             exchange.endExchange();
         }
