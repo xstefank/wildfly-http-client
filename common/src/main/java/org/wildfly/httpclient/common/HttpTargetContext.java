@@ -39,6 +39,7 @@ import org.jboss.marshalling.InputStreamByteInput;
 import org.jboss.marshalling.Marshaller;
 import org.jboss.marshalling.MarshallerFactory;
 import org.jboss.marshalling.MarshallingConfiguration;
+import org.jboss.marshalling.SimpleClassResolver;
 import org.jboss.marshalling.Unmarshaller;
 import org.jboss.marshalling.river.RiverMarshallerFactory;
 import org.wildfly.security.auth.client.AuthenticationConfiguration;
@@ -87,6 +88,18 @@ public class HttpTargetContext extends AbstractAttachable {
 
     private final AtomicBoolean affinityRequestSent = new AtomicBoolean();
 
+    private static ClassLoader getContextClassLoader() {
+        if(System.getSecurityManager() == null) {
+            return Thread.currentThread().getContextClassLoader();
+        } else {
+            return AccessController.doPrivileged(new PrivilegedAction<ClassLoader>() {
+                @Override
+                public ClassLoader run() {
+                    return Thread.currentThread().getContextClassLoader();
+                }
+            });
+        }
+    }
 
     HttpTargetContext(HttpConnectionPool connectionPool, boolean eagerlyAcquireAffinity, URI uri) {
         this.connectionPool = connectionPool;
@@ -136,20 +149,18 @@ public class HttpTargetContext extends AbstractAttachable {
     }
 
     public void sendRequest(ClientRequest request, SSLContext sslContext, AuthenticationConfiguration authenticationConfiguration, HttpMarshaller httpMarshaller, HttpResultHandler httpResultHandler, HttpFailureHandler failureHandler, ContentType expectedResponse, Runnable completedTask) {
-        if (sessionId != null) {
-            request.getRequestHeaders().add(Headers.COOKIE, JSESSIONID + "=" + sessionId);
-        }
-        connectionPool.getConnection(connection -> sendRequestInternal(connection, request, authenticationConfiguration, httpMarshaller, httpResultHandler, failureHandler, expectedResponse, completedTask, false, false, sslContext), failureHandler::handleFailure, false, sslContext);
+        sendRequest(request, sslContext, authenticationConfiguration, httpMarshaller, httpResultHandler, failureHandler, expectedResponse, completedTask, false);
     }
 
     public void sendRequest(ClientRequest request, SSLContext sslContext, AuthenticationConfiguration authenticationConfiguration, HttpMarshaller httpMarshaller, HttpResultHandler httpResultHandler, HttpFailureHandler failureHandler, ContentType expectedResponse, Runnable completedTask, boolean allowNoContent) {
         if (sessionId != null) {
             request.getRequestHeaders().add(Headers.COOKIE, JSESSIONID + "=" + sessionId);
         }
-        connectionPool.getConnection(connection -> sendRequestInternal(connection, request, authenticationConfiguration, httpMarshaller, httpResultHandler, failureHandler, expectedResponse, completedTask, allowNoContent, false, sslContext), failureHandler::handleFailure, false, sslContext);
+        final ClassLoader tccl = getContextClassLoader();
+        connectionPool.getConnection(connection -> sendRequestInternal(connection, request, authenticationConfiguration, httpMarshaller, httpResultHandler, failureHandler, expectedResponse, completedTask, allowNoContent, false, sslContext, tccl), failureHandler::handleFailure, false, sslContext);
     }
 
-    public void sendRequestInternal(final HttpConnectionPool.ConnectionHandle connection, ClientRequest request, AuthenticationConfiguration authenticationConfiguration, HttpMarshaller httpMarshaller, HttpResultHandler httpResultHandler, HttpFailureHandler failureHandler, ContentType expectedResponse, Runnable completedTask, boolean allowNoContent, boolean retry, SSLContext sslContext) {
+    public void sendRequestInternal(final HttpConnectionPool.ConnectionHandle connection, ClientRequest request, AuthenticationConfiguration authenticationConfiguration, HttpMarshaller httpMarshaller, HttpResultHandler httpResultHandler, HttpFailureHandler failureHandler, ContentType expectedResponse, Runnable completedTask, boolean allowNoContent, boolean retry, SSLContext sslContext, ClassLoader classLoader) {
         try {
             final boolean authAdded = retry || connection.getAuthenticationContext().prepareRequest(connection.getUri(), request, authenticationConfiguration);
 
@@ -193,7 +204,7 @@ public class HttpTargetContext extends AbstractAttachable {
                                             connectionPool.getConnection((connection) -> {
                                                 if (connection.getAuthenticationContext().prepareRequest(uri, request, finalAuthenticationConfiguration)) {
                                                     //retry the invocation
-                                                    sendRequestInternal(connection, request, finalAuthenticationConfiguration, httpMarshaller, httpResultHandler, failureHandler, expectedResponse, completedTask, allowNoContent, true, finalSslContext);
+                                                    sendRequestInternal(connection, request, finalAuthenticationConfiguration, httpMarshaller, httpResultHandler, failureHandler, expectedResponse, completedTask, allowNoContent, true, finalSslContext, classLoader);
                                                 } else {
                                                     failureHandler.handleFailure(HttpClientMessages.MESSAGES.authenticationFailed());
                                                     connection.done(true);
@@ -245,7 +256,7 @@ public class HttpTargetContext extends AbstractAttachable {
                                     handleSessionAffinity(request, response);
 
                                     if (isException) {
-                                        final MarshallingConfiguration marshallingConfiguration = createExceptionMarshallingConfig();
+                                        final MarshallingConfiguration marshallingConfiguration = createExceptionMarshallingConfig(classLoader);
                                         final Unmarshaller unmarshaller = MARSHALLER_FACTORY.createUnmarshaller(marshallingConfiguration);
                                         try (WildflyClientInputStream inputStream = new WildflyClientInputStream(result.getConnection().getBufferPool(), result.getResponseChannel())) {
                                             InputStream in = inputStream;
@@ -397,9 +408,12 @@ public class HttpTargetContext extends AbstractAttachable {
      *
      * @return
      */
-    MarshallingConfiguration createExceptionMarshallingConfig() {
+    MarshallingConfiguration createExceptionMarshallingConfig(final ClassLoader cl) {
         final MarshallingConfiguration marshallingConfiguration = new MarshallingConfiguration();
         marshallingConfiguration.setVersion(2);
+        if (cl != null) {
+            marshallingConfiguration.setClassResolver(new SimpleClassResolver(cl));
+        }
         return marshallingConfiguration;
     }
 
