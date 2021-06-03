@@ -39,6 +39,7 @@ import java.lang.reflect.Method;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.util.Base64;
+import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * @author Stuart Douglas
@@ -233,20 +234,27 @@ public class SimpleInvocationTestCase {
     }
 
 
-    @Test(expected = TestException.class)
+    @Test
     public void testSimpleFailedInvocation() throws Exception {
-        for (int i = 0; i < RETRIES; ++i) {
-            clearSessionId();
-            EJBTestServer.setHandler((invocation, affinity, out, method, handle, attachments) -> {
-                throw new TestException(invocation.getParameters()[0].toString());
-            });
-            final StatelessEJBLocator<EchoRemote> statelessEJBLocator = new StatelessEJBLocator<EchoRemote>(EchoRemote.class, APP, MODULE, BEAN, "");
+        clearSessionId();
+        EJBTestServer.setHandler((invocation, affinity, out, method, handle, attachments) -> {
+            throw new TestException(invocation.getParameters()[0].toString());
+        });
+
+        ClassLoader orig = Thread.currentThread().getContextClassLoader();
+        CustomClassLoader ccl = new CustomClassLoader(orig, TestException.class.getName());
+        Thread.currentThread().setContextClassLoader(ccl);
+        final String message = "Hello World!!!";
+        try {
+            final StatelessEJBLocator<EchoRemote> statelessEJBLocator = new StatelessEJBLocator<>(EchoRemote.class, APP, MODULE, BEAN, "");
             final EchoRemote proxy = EJBClient.createProxy(statelessEJBLocator);
-            final String message = "Hello World!!!";
-            for (int j = 0; j < 10; ++j) {
-                String echo = proxy.echo(message);
-                Assert.assertEquals("Unexpected echo message", message, echo);
-            }
+            proxy.echo(message);
+            Assert.fail("TestException was not thrown");
+        } catch (TestException e) {
+            Assert.assertEquals("Unexpected exception message", message, e.getMessage());
+            Assert.assertEquals("TCCL was not called once to throw the TestException", 1, ccl.getCounter());
+        } finally {
+            Thread.currentThread().setContextClassLoader(orig);
         }
     }
 
@@ -334,6 +342,34 @@ public class SimpleInvocationTestCase {
     private static class TestException extends Exception {
         public TestException(String message) {
             super(message);
+        }
+    }
+
+    /**
+     * Test class loader that just counts the number of times a class
+     * has been loaded.
+     */
+    private static class CustomClassLoader extends ClassLoader {
+
+        private final AtomicInteger counter;
+        private final String className;
+
+        protected CustomClassLoader(ClassLoader parent, String className) {
+            super(parent);
+            this.className = className;
+            this.counter = new AtomicInteger();
+        }
+
+        @Override
+        protected Class<?> loadClass(String name, boolean resolve) throws ClassNotFoundException {
+            if (name.equals(className)) {
+                counter.incrementAndGet();
+            }
+            return super.loadClass(name, resolve);
+        }
+
+        public int getCounter() {
+            return counter.get();
         }
     }
 }
