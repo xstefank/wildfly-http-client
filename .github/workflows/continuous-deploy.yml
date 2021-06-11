@@ -1,0 +1,17 @@
+name: Continuous Deploy
+
+on:
+  push:
+    branches:
+      - 1.0
+  workflow_dispatch:
+
+jobs:
+  deploy-component-action:
+    runs-on: ubuntu-latest
+    name: Deploy to the component nexus
+    steps:
+      - uses: actions/checkout@v2
+      - uses: xstefank/component-deploy-action@main
+        with:
+          token: ${{ secrets.NEXUS_SECRET_PASSPHRASE }}
