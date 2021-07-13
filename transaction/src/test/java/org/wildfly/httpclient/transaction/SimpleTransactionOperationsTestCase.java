@@ -255,6 +255,10 @@ public class SimpleTransactionOperationsTestCase {
             }
 
             @Override
+            public void dropRemote(@NotNull Transaction transaction) {
+            }
+
+            @Override
             public int getTimeout(@NotNull Transaction transaction) {
                 return 0;
             }
